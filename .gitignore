@@ -23,6 +23,9 @@ logs/
 # C1 生成物（由 snapshot.py 產生，不進版控）
 CURRENT_STATE.md
 
+# C1 會議 demo 稿（內含示範用假密鑰，是給人看的 meeting 稿，不進版控）
+DEMO_會議腳本.md
+
 # Local environment / secrets
 .env
 .env.*
