@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 import json
 from pathlib import Path
 import sqlite3
@@ -8,6 +9,14 @@ from typing import Any, Iterator
 
 from app.import_mapping import confirm_cases_dry_run_plan, confirm_preflight_report, mapping_preview
 from app.settings import get_settings
+
+
+_current_actor: ContextVar[str] = ContextVar("current_actor", default="system")
+
+
+def set_current_actor(actor: str) -> None:
+    """記錄目前請求的操作者，供 write_audit_log 使用（由 API 層每個請求綁定）。"""
+    _current_actor.set(actor)
 
 
 SCHEMA = """
@@ -357,8 +366,10 @@ def write_audit_log(
     action: str,
     before: dict[str, Any] | None,
     after: dict[str, Any] | None,
-    actor: str = "local-dev",
+    actor: str | None = None,
 ) -> None:
+    if actor is None:
+        actor = _current_actor.get()
     conn.execute(
         "INSERT INTO audit_logs (table_name, row_id, action, before_json, after_json, actor) "
         "VALUES (?, ?, ?, ?, ?, ?)",

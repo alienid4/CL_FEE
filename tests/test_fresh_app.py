@@ -381,7 +381,7 @@ def test_update_disable_and_delete_lifecycle(tmp_path):
             "/api/audit-logs",
             params={"table_name": "cases", "row_id": case_id, "action": "create"},
         ).json()["data"][0]
-        assert case_create["actor"] == "local-dev"
+        assert case_create["actor"] == "ap01"  # 切片D：稽核記錄真實登入者，而非寫死 local-dev
         assert case_create["before_json"] is None
         assert json.loads(case_create["after_json"])["case_code"] == "CASE-LIFE"
 

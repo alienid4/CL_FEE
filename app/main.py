@@ -7,7 +7,7 @@ import secrets
 import subprocess
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -32,6 +32,7 @@ from app.store import (
     preflight_import_batch_confirm,
     preview_import_mapping,
     search_records,
+    set_current_actor,
     stage_import_rows,
     update_row,
 )
@@ -272,6 +273,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
+async def bind_actor(request: Request) -> None:
+    """把已驗證的登入者綁到本請求（async 依賴，確保 contextvar 傳到同步端點）。"""
+    username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
+    set_current_actor(username or "anonymous")
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     web_dir = Path(__file__).resolve().parent / "web"
@@ -280,6 +287,7 @@ def create_app() -> FastAPI:
         version="0.2.0-fresh",
         description="Fresh implementation for fee, contract, payment, document, and case tracking.",
         lifespan=lifespan,
+        dependencies=[Depends(bind_actor)],
     )
     app.mount("/static", StaticFiles(directory=web_dir), name="static")
 

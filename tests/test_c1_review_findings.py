@@ -78,8 +78,8 @@ def test_delete_contract_with_payments_should_not_silently_orphan(tmp_path):
         assert r.status_code != 204  # 有子列時不該靜默硬刪、孤立 payment
 
 
-@pytest.mark.xfail(reason="store.py:360 audit actor 寫死 local-dev，未帶入登入者", strict=False)
 def test_audit_log_records_real_actor(tmp_path):
+    # 切片 D 已修：per-request 綁定操作者。稽核記錄真實登入者。
     with client_for(tmp_path) as client:
         client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         client.post("/api/cases", json={"case_code": "K3", "title": "case"})
