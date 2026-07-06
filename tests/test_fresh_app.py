@@ -11,7 +11,8 @@ def client_for(tmp_path, login=True):
 
     client = TestClient(create_app())
     if login:
-        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
+        # 預設以主管/助理(ap02)登入——可讀可寫，適合大多數 CRUD 測試
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
     return client
 
 
@@ -29,7 +30,7 @@ def test_local_mock_login_accounts(tmp_path):
         assert cio["role_name"] == "CIO"
         assert cio["role_code"] == "cio"
         assert "budget" in cio["allowed_modules"]
-        assert "preflight" in cio["allowed_actions"]
+        assert cio["allowed_actions"] == ["read"]  # CIO 唯讀（只看重點數據）
 
         current = client.get("/api/auth/me")
         assert current.status_code == 200
@@ -56,6 +57,15 @@ def test_local_mock_login_accounts(tmp_path):
 
         assert client.post("/api/auth/logout").status_code == 200
         assert client.get("/api/auth/me").status_code == 401
+
+
+def test_cio_is_read_only_and_handler_can_write(tmp_path):
+    with client_for(tmp_path, login=False) as client:
+        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
+        assert client.get("/api/cases").status_code == 200  # CIO 可看
+        assert client.post("/api/cases", json={"case_code": "CIO-X", "title": "x"}).status_code == 403  # 不能寫
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        assert client.post("/api/cases", json={"case_code": "H-Y", "title": "y"}).status_code == 201  # 承辦可寫
 
 
 def test_health_openapi_and_web(tmp_path):
@@ -381,7 +391,7 @@ def test_update_disable_and_delete_lifecycle(tmp_path):
             "/api/audit-logs",
             params={"table_name": "cases", "row_id": case_id, "action": "create"},
         ).json()["data"][0]
-        assert case_create["actor"] == "ap01"  # 切片D：稽核記錄真實登入者，而非寫死 local-dev
+        assert case_create["actor"] == "ap02"  # 稽核記錄真實操作者（測試以 ap02 操作）
         assert case_create["before_json"] is None
         assert json.loads(case_create["after_json"])["case_code"] == "CASE-LIFE"
 

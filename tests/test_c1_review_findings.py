@@ -59,7 +59,7 @@ def test_unauthenticated_dev_console_should_be_rejected(tmp_path):
 def test_patch_can_clear_nullable_fk(tmp_path):
     # 切片 E 已修：可為空外鍵可顯式清成 NULL。
     with client_for(tmp_path) as client:
-        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
         case = _seed("cases", {"case_code": "K1", "title": "case"})
         contract = _seed("contracts", {"contract_code": "CT1", "contract_name": "c", "case_id": case["id"]})
         r = client.patch(f"/api/contracts/{contract['id']}", json={"case_id": None})
@@ -70,7 +70,7 @@ def test_patch_can_clear_nullable_fk(tmp_path):
 def test_delete_contract_with_payments_should_not_silently_orphan(tmp_path):
     # 切片 E 已修：有子列時硬刪被擋（409），不再靜默孤立。
     with client_for(tmp_path) as client:
-        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
         case = _seed("cases", {"case_code": "K2", "title": "case"})
         contract = _seed("contracts", {"contract_code": "CT2", "contract_name": "c", "case_id": case["id"]})
         _seed("payments", {"contract_id": contract["id"], "payment_month": "2026-01", "payment_amount": 100})

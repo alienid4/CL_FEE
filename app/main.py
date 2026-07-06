@@ -176,7 +176,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "purchases",
             "payments-module",
         ],
-        "allowed_actions": ["read", "edit", "import_preview", "preflight"],
+        "allowed_actions": ["read"],
     },
     "ap02": {
         "username": "ap02",
@@ -306,8 +306,12 @@ def create_app() -> FastAPI:
         # 所有 /api/* 都要登入，例外只有 /api/auth/*（登入/登出/查身分）。
         path = request.url.path
         if path.startswith("/api/") and not path.startswith("/api/auth/"):
-            if not _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")):
+            username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
+            if not username:
                 return JSONResponse({"detail": "請先登入。"}, status_code=401)
+            if request.method in ("POST", "PATCH", "PUT", "DELETE"):
+                if "edit" not in LOCAL_AUTH_USERS[username]["allowed_actions"]:
+                    return JSONResponse({"detail": "權限不足：此帳號僅供檢視。"}, status_code=403)
         return await call_next(request)
 
     @app.get("/", include_in_schema=False)
