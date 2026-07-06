@@ -591,6 +591,8 @@ def handle_disable(table: str, row_id: int) -> dict[str, Any]:
 def handle_delete(table: str, row_id: int) -> None:
     try:
         delete_row(table, row_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

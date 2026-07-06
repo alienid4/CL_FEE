@@ -186,12 +186,20 @@ def get_row(conn: sqlite3.Connection, table: str, row_id: int) -> dict[str, Any]
     return row
 
 
+NULLABLE_FIELDS: dict[str, set[str]] = {
+    "contracts": {"case_id"},
+    "documents": {"case_id", "contract_id"},
+}
+
+
 def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, Any]:
     allowed = allowed_fields()
+    nullable = NULLABLE_FIELDS.get(table, set())
+    # 允許把可為空的外鍵顯式清成 NULL（解除關聯）；其餘欄位仍略過 None。
     fields = {
         key: value
         for key, value in payload.items()
-        if key in allowed[table] and value is not None
+        if key in allowed[table] and (value is not None or key in nullable)
     }
     if not fields:
         raise ValueError("No valid fields supplied.")
@@ -224,9 +232,25 @@ def disable_row(table: str, row_id: int) -> dict[str, Any]:
         return after
 
 
+CHILD_REFS: dict[str, list[tuple[str, str]]] = {
+    "cases": [("contracts", "case_id"), ("documents", "case_id")],
+    "contracts": [("payments", "contract_id"), ("documents", "contract_id")],
+}
+
+
 def delete_row(table: str, row_id: int) -> None:
     with connect() as conn:
         before = get_row(conn, table, row_id)
+        # 有子列關聯時不得硬刪（避免靜默孤立子列、金額短少）；請先處理或改用作廢。
+        for child_table, fk in CHILD_REFS.get(table, []):
+            count = conn.execute(
+                f"SELECT COUNT(*) AS c FROM {child_table} WHERE {fk} = ?", (row_id,)
+            ).fetchone()["c"]
+            if count:
+                raise RuntimeError(
+                    f"仍有 {count} 筆 {child_table} 關聯此 {table}（id={row_id}），"
+                    "請先處理關聯資料或改用作廢。"
+                )
         cursor = conn.execute(f"DELETE FROM {table} WHERE id = ?", (row_id,))
         if cursor.rowcount == 0:
             raise LookupError(f"{table} row {row_id} not found")

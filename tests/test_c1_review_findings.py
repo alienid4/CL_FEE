@@ -56,8 +56,8 @@ def test_unauthenticated_dev_console_should_be_rejected(tmp_path):
         assert r.status_code in (401, 403)  # 未登入不該能觸發主機腳本
 
 
-@pytest.mark.xfail(reason="store.py:185 以 value is not None 過濾，外鍵無法清成 NULL", strict=False)
 def test_patch_can_clear_nullable_fk(tmp_path):
+    # 切片 E 已修：可為空外鍵可顯式清成 NULL。
     with client_for(tmp_path) as client:
         client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
         case = _seed("cases", {"case_code": "K1", "title": "case"})
@@ -67,8 +67,8 @@ def test_patch_can_clear_nullable_fk(tmp_path):
         assert r.json()["data"]["case_id"] is None  # 應能解除關聯（清 NULL）
 
 
-@pytest.mark.xfail(reason="store.py:218 硬刪除無 cascade，刪父列會靜默孤立子列", strict=False)
 def test_delete_contract_with_payments_should_not_silently_orphan(tmp_path):
+    # 切片 E 已修：有子列時硬刪被擋（409），不再靜默孤立。
     with client_for(tmp_path) as client:
         client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
         case = _seed("cases", {"case_code": "K2", "title": "case"})
