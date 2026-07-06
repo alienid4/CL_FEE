@@ -11,7 +11,7 @@ def client_for(tmp_path, login=True):
 
     client = TestClient(create_app())
     if login:
-        client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
+        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
     return client
 
 
@@ -22,7 +22,7 @@ def test_local_mock_login_accounts(tmp_path):
         failed = client.post("/api/auth/login", json={"username": "ap01", "password": "bad"})
         assert failed.status_code == 401
 
-        logged_in = client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
+        logged_in = client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
         assert logged_in.status_code == 200
         cio = logged_in.json()["data"]
         assert cio["username"] == "ap01"
@@ -41,7 +41,7 @@ def test_local_mock_login_accounts(tmp_path):
         ]:
             response = client.post(
                 "/api/auth/login",
-                json={"username": username, "password": "1qaz@WSX"},
+                json={"username": username, "password": "T3st!Pass"},
             )
             assert response.status_code == 200
             data = response.json()["data"]

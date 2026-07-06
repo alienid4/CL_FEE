@@ -27,8 +27,8 @@ def _seed(table, payload):
     return store.insert_row(table, payload)
 
 
-@pytest.mark.xfail(reason="main.py:139 寫死共用密碼；移到 per-user 雜湊憑證後應轉綠", strict=False)
 def test_hardcoded_shared_password_should_not_work(tmp_path):
+    # 切片 C 已修：per-user 雜湊密碼。舊的共用寫死密碼現在登不進去。
     with client_for(tmp_path) as client:
         r = client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
         assert r.status_code == 401  # 寫死密碼不該能登入
@@ -59,7 +59,7 @@ def test_unauthenticated_dev_console_should_be_rejected(tmp_path):
 @pytest.mark.xfail(reason="store.py:185 以 value is not None 過濾，外鍵無法清成 NULL", strict=False)
 def test_patch_can_clear_nullable_fk(tmp_path):
     with client_for(tmp_path) as client:
-        client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
+        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
         case = _seed("cases", {"case_code": "K1", "title": "case"})
         contract = _seed("contracts", {"contract_code": "CT1", "contract_name": "c", "case_id": case["id"]})
         r = client.patch(f"/api/contracts/{contract['id']}", json={"case_id": None})
@@ -70,7 +70,7 @@ def test_patch_can_clear_nullable_fk(tmp_path):
 @pytest.mark.xfail(reason="store.py:218 硬刪除無 cascade，刪父列會靜默孤立子列", strict=False)
 def test_delete_contract_with_payments_should_not_silently_orphan(tmp_path):
     with client_for(tmp_path) as client:
-        client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
+        client.post("/api/auth/login", json={"username": "ap01", "password": "T3st!Pass"})
         case = _seed("cases", {"case_code": "K2", "title": "case"})
         contract = _seed("contracts", {"contract_code": "CT2", "contract_name": "c", "case_id": case["id"]})
         _seed("payments", {"contract_id": contract["id"], "payment_month": "2026-01", "payment_amount": 100})
@@ -81,7 +81,7 @@ def test_delete_contract_with_payments_should_not_silently_orphan(tmp_path):
 @pytest.mark.xfail(reason="store.py:360 audit actor 寫死 local-dev，未帶入登入者", strict=False)
 def test_audit_log_records_real_actor(tmp_path):
     with client_for(tmp_path) as client:
-        client.post("/api/auth/login", json={"username": "ap03", "password": "1qaz@WSX"})
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         client.post("/api/cases", json={"case_code": "K3", "title": "case"})
         logs = client.get("/api/audit-logs", params={"limit": 5}).json()["data"]
         actors = [row.get("actor") for row in logs]

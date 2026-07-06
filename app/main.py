@@ -157,7 +157,6 @@ class LoginIn(BaseModel):
 
 
 AUTH_COOKIE_NAME = "ai_fee_user"
-LOCAL_AUTH_PASSWORD = os.getenv("LOCAL_AUTH_PASSWORD", "")
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
     "ap01": {
         "username": "ap01",
@@ -227,6 +226,35 @@ def _verify_session(token: str) -> str | None:
     return None
 
 
+def _hash_password(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
+    return f"{salt.hex()}${dk.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_hex, hash_hex = stored.split("$", 1)
+    except ValueError:
+        return False
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), 200_000)
+    return hmac.compare_digest(dk.hex(), hash_hex)
+
+
+def _load_user_password_hashes() -> dict[str, str]:
+    """每個帳號密碼由環境變數 {USERNAME}_PASSWORD 提供（例：AP01_PASSWORD），
+    啟動時各自加鹽雜湊存記憶體。未設定者無法登入。密碼絕不進原始碼。"""
+    hashes: dict[str, str] = {}
+    for username in LOCAL_AUTH_USERS:
+        pw = os.getenv(f"{username.upper()}_PASSWORD", "")
+        if pw:
+            hashes[username] = _hash_password(pw)
+    return hashes
+
+
+USER_PASSWORD_HASHES = _load_user_password_hashes()
+
+
 def ok(data: Any) -> dict[str, Any]:
     return {"ok": True, "data": data}
 
@@ -284,7 +312,8 @@ def create_app() -> FastAPI:
     @app.post("/api/auth/login")
     def login(payload: LoginIn, response: Response) -> dict[str, Any]:
         username = payload.username.strip().lower()
-        if username not in LOCAL_AUTH_USERS or payload.password != LOCAL_AUTH_PASSWORD:
+        stored = USER_PASSWORD_HASHES.get(username)
+        if not stored or not _verify_password(payload.password, stored):
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤。")
         response.set_cookie(
             AUTH_COOKIE_NAME,
