@@ -34,6 +34,23 @@ from app.store import (
 )
 
 
+def _load_dotenv(env_path: Path | None = None) -> None:
+    """極簡 .env 載入器（無外部依賴）：把 .env 的鍵值放進環境變數。
+    用 setdefault，所以已存在的環境變數（測試/正式環境已設定者）優先，不被覆寫。"""
+    env_path = env_path or (Path(__file__).resolve().parent.parent / ".env")
+    if not env_path.exists():
+        return
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        os.environ.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+
+
+_load_dotenv()
+
+
 class CaseIn(BaseModel):
     case_code: str = Field(min_length=1)
     title: str = Field(min_length=1)

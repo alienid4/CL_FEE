@@ -9,11 +9,25 @@
   ],
   "decisions": [
     {
+      "id": "LAUNCH_SCOPE",
+      "choice": "pilot",
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-06 拍板：先小範圍試營運（少數助理+主管真用）。全單位正式上線屬未來重大事項，需再確認。"
+    },
+    {
       "id": "DB",
       "choice": "sqlite",
-      "status": "provisional",
-      "contradicts": ["MSSQL", "SQL Server", "postgres"],
-      "note": "範例列。MVP 先用 sqlite；改用正式 DB 屬重大事項，需使用者確認後才把 status 改成 confirmed。"
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-06 拍板：pilot 上線用 sqlite（已實作、最快）。遷 MSSQL 為未來重大事項；文件中的 MSSQL 屬未來規劃、非矛盾，故 contradicts 留空。"
+    },
+    {
+      "id": "AUTH",
+      "choice": "local-hashed-signed-session",
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-06 拍板：本機帳號 + per-user 密碼雜湊 + 簽章 session，取代共用寫死密碼與未簽章 cookie。AD/SSO 為未來重大事項。"
     }
   ]
 }
