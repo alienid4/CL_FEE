@@ -51,7 +51,7 @@ Copy-Item data\fee_control.db ("backup\fee_control_" + (Get-Date -Format yyyyMMd
 ## 5. 誠實的已知限制（pilot 階段可接受，正式擴大前要處理）
 
 - **無角色權限細分**：目前「有登入就能操作所有功能」。承辦/主管/處長還沒做「只能做各自的事」。
-- **session 無過期**：cookie 若被複製可持續使用；重啟服務（或更換 SESSION_SECRET）會讓所有人重新登入。
+- **session 8 小時過期**：cookie 逾時需重新登入（可用 `SESSION_MAX_AGE_SECONDS` 調整）；重啟服務或更換 `SESSION_SECRET` 也會讓所有人重新登入。
 - **僅限本機 HTTP**：不要把 8888 埠開放到公司網路或外網；要跨機器使用需另加 HTTPS 與強化。
 - **資料庫為 SQLite**：適合 pilot 小量使用；使用者變多或要正式化，再遷 Microsoft SQL Server（已列為未來重大事項）。
 

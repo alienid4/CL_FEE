@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import secrets
 import subprocess
+import time
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -208,23 +209,32 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
 
 
 SESSION_SECRET = os.getenv("SESSION_SECRET") or secrets.token_hex(32)
+SESSION_MAX_AGE = int(os.getenv("SESSION_MAX_AGE_SECONDS", "28800"))  # 預設 8 小時後過期
 
 
 def _sign_session(username: str) -> str:
-    sig = hmac.new(SESSION_SECRET.encode(), username.encode(), hashlib.sha256).hexdigest()
-    return f"{username}.{sig}"
+    payload = f"{username}.{int(time.time())}"
+    sig = hmac.new(SESSION_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
 
 
 def _verify_session(token: str) -> str | None:
     """驗證簽章 session cookie。回傳可信任的 username，否則 None。
-    只認得本服務簽出來的 token，偽造的明文 username 一律拒絕。"""
-    if not token or "." not in token:
+    只認得本服務簽出來、且未過期的 token；偽造或過期一律拒絕。"""
+    parts = (token or "").rsplit(".", 2)
+    if len(parts) != 3:
         return None
-    username, _, sig = token.rpartition(".")
-    expected = hmac.new(SESSION_SECRET.encode(), username.encode(), hashlib.sha256).hexdigest()
-    if hmac.compare_digest(sig, expected) and username in LOCAL_AUTH_USERS:
-        return username
-    return None
+    username, ts, sig = parts
+    expected = hmac.new(SESSION_SECRET.encode(), f"{username}.{ts}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected) or username not in LOCAL_AUTH_USERS:
+        return None
+    try:
+        age = time.time() - int(ts)
+    except ValueError:
+        return None
+    if age < 0 or age > SESSION_MAX_AGE:
+        return None
+    return username
 
 
 def _hash_password(password: str, salt: bytes | None = None) -> str:
