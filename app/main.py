@@ -1,11 +1,14 @@
 from contextlib import asynccontextmanager
+import hashlib
+import hmac
 import os
 from pathlib import Path
+import secrets
 import subprocess
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -204,6 +207,26 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
 }
 
 
+SESSION_SECRET = os.getenv("SESSION_SECRET") or secrets.token_hex(32)
+
+
+def _sign_session(username: str) -> str:
+    sig = hmac.new(SESSION_SECRET.encode(), username.encode(), hashlib.sha256).hexdigest()
+    return f"{username}.{sig}"
+
+
+def _verify_session(token: str) -> str | None:
+    """驗證簽章 session cookie。回傳可信任的 username，否則 None。
+    只認得本服務簽出來的 token，偽造的明文 username 一律拒絕。"""
+    if not token or "." not in token:
+        return None
+    username, _, sig = token.rpartition(".")
+    expected = hmac.new(SESSION_SECRET.encode(), username.encode(), hashlib.sha256).hexdigest()
+    if hmac.compare_digest(sig, expected) and username in LOCAL_AUTH_USERS:
+        return username
+    return None
+
+
 def ok(data: Any) -> dict[str, Any]:
     return {"ok": True, "data": data}
 
@@ -232,6 +255,15 @@ def create_app() -> FastAPI:
     )
     app.mount("/static", StaticFiles(directory=web_dir), name="static")
 
+    @app.middleware("http")
+    async def _auth_gate(request: Request, call_next):
+        # 所有 /api/* 都要登入，例外只有 /api/auth/*（登入/登出/查身分）。
+        path = request.url.path
+        if path.startswith("/api/") and not path.startswith("/api/auth/"):
+            if not _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")):
+                return JSONResponse({"detail": "請先登入。"}, status_code=401)
+        return await call_next(request)
+
     @app.get("/", include_in_schema=False)
     def home() -> FileResponse:
         return FileResponse(web_dir / "index.html")
@@ -256,7 +288,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤。")
         response.set_cookie(
             AUTH_COOKIE_NAME,
-            username,
+            _sign_session(username),
             httponly=True,
             samesite="lax",
         )
@@ -264,7 +296,9 @@ def create_app() -> FastAPI:
 
     @app.get("/api/auth/me")
     def current_user(request: Request) -> dict[str, Any]:
-        username = request.cookies.get(AUTH_COOKIE_NAME, "")
+        username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
+        if not username:
+            raise HTTPException(status_code=401, detail="登入狀態已失效，請重新登入。")
         return ok(auth_user_payload(username))
 
     @app.post("/api/auth/logout")

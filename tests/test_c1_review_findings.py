@@ -34,23 +34,23 @@ def test_hardcoded_shared_password_should_not_work(tmp_path):
         assert r.status_code == 401  # 寫死密碼不該能登入
 
 
-@pytest.mark.xfail(reason="main.py:239 cookie 未簽章可偽造；改用簽章 session 後應轉綠", strict=False)
 def test_forged_cookie_should_not_impersonate_cio(tmp_path):
+    # 切片 A 已修：簽章 session。此測試現為正式綠燈守衛。
     with client_for(tmp_path) as client:
         client.cookies.set("ai_fee_user", "ap01")  # 沒登入，直接偽造 cookie
         r = client.get("/api/auth/me")
         assert r.status_code == 401  # 偽造 cookie 不該通過認證
 
 
-@pytest.mark.xfail(reason="main.py:375 資料端點無伺服器端認證；加認證後應轉綠", strict=False)
 def test_unauthenticated_write_should_be_rejected(tmp_path):
+    # 切片 A 已修：/api/* 認證 middleware。此測試現為正式綠燈守衛。
     with client_for(tmp_path) as client:
         r = client.post("/api/cases", json={"case_code": "C1", "title": "x"})
         assert r.status_code in (401, 403)  # 未登入不該能新增資料
 
 
-@pytest.mark.xfail(reason="main.py:265 dev-console 端點未授權；加認證後應轉綠", strict=False)
 def test_unauthenticated_dev_console_should_be_rejected(tmp_path):
+    # 切片 A 已修：middleware 一併護住 dev-console。此測試現為正式綠燈守衛。
     with client_for(tmp_path) as client:
         r = client.post("/api/dev-console/run", json={"command_id": "fast_ci", "dry_run": True})
         assert r.status_code in (401, 403)  # 未登入不該能觸發主機腳本
@@ -59,6 +59,7 @@ def test_unauthenticated_dev_console_should_be_rejected(tmp_path):
 @pytest.mark.xfail(reason="store.py:185 以 value is not None 過濾，外鍵無法清成 NULL", strict=False)
 def test_patch_can_clear_nullable_fk(tmp_path):
     with client_for(tmp_path) as client:
+        client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
         case = _seed("cases", {"case_code": "K1", "title": "case"})
         contract = _seed("contracts", {"contract_code": "CT1", "contract_name": "c", "case_id": case["id"]})
         r = client.patch(f"/api/contracts/{contract['id']}", json={"case_id": None})
@@ -69,6 +70,7 @@ def test_patch_can_clear_nullable_fk(tmp_path):
 @pytest.mark.xfail(reason="store.py:218 硬刪除無 cascade，刪父列會靜默孤立子列", strict=False)
 def test_delete_contract_with_payments_should_not_silently_orphan(tmp_path):
     with client_for(tmp_path) as client:
+        client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
         case = _seed("cases", {"case_code": "K2", "title": "case"})
         contract = _seed("contracts", {"contract_code": "CT2", "contract_name": "c", "case_id": case["id"]})
         _seed("payments", {"contract_id": contract["id"], "payment_month": "2026-01", "payment_amount": 100})

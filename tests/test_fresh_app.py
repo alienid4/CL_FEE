@@ -5,15 +5,18 @@ from fastapi.testclient import TestClient
 import pytest
 
 
-def client_for(tmp_path):
+def client_for(tmp_path, login=True):
     os.environ["SQLITE_PATH"] = str(tmp_path / "fresh.db")
     from app.main import create_app
 
-    return TestClient(create_app())
+    client = TestClient(create_app())
+    if login:
+        client.post("/api/auth/login", json={"username": "ap01", "password": "1qaz@WSX"})
+    return client
 
 
 def test_local_mock_login_accounts(tmp_path):
-    with client_for(tmp_path) as client:
+    with client_for(tmp_path, login=False) as client:
         assert client.get("/api/auth/me").status_code == 401
 
         failed = client.post("/api/auth/login", json={"username": "ap01", "password": "bad"})
