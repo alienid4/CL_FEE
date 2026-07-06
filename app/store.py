@@ -19,6 +19,32 @@ def set_current_actor(actor: str) -> None:
     _current_actor.set(actor)
 
 
+_owner_scope: ContextVar[str | None] = ContextVar("owner_scope", default=None)
+
+
+def set_owner_scope(scope: str | None) -> None:
+    """設定資料列可視範圍：非 None(承辦帳號)時，只看 owner 屬此帳號的案件及其關聯資料。"""
+    _owner_scope.set(scope)
+
+
+def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
+    """把 table 限縮到 scope 擁有案件範圍的 (WHERE 片段, 參數)。"""
+    owned = "SELECT id FROM cases WHERE owner = ?"
+    if table == "cases":
+        return "owner = ?", [scope]
+    if table == "contracts":
+        return f"case_id IN ({owned})", [scope]
+    if table == "payments":
+        return f"contract_id IN (SELECT id FROM contracts WHERE case_id IN ({owned}))", [scope]
+    if table == "documents":
+        return (
+            f"(case_id IN ({owned}) OR contract_id IN "
+            f"(SELECT id FROM contracts WHERE case_id IN ({owned})))",
+            [scope, scope],
+        )
+    return "", []
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,6 +168,9 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
 
 
 def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
+    scope = _owner_scope.get()
+    if table == "cases" and scope is not None:
+        payload = {**payload, "owner": scope}  # 承辦建案自動歸自己
     allowed = allowed_fields()
     fields = {key: value for key, value in payload.items() if key in allowed[table]}
     if not fields:
@@ -258,11 +287,14 @@ def delete_row(table: str, row_id: int) -> None:
 
 
 def list_rows(table: str, limit: int = 100) -> list[dict[str, Any]]:
+    scope = _owner_scope.get()
+    where, params = _scope_where(table, scope) if scope is not None else ("", [])
+    sql = f"SELECT * FROM {table}"
+    if where:
+        sql += f" WHERE {where}"
+    sql += " ORDER BY id DESC LIMIT ?"
     with connect() as conn:
-        return conn.execute(
-            f"SELECT * FROM {table} ORDER BY id DESC LIMIT ?",
-            (max(1, min(limit, 500)),),
-        ).fetchall()
+        return conn.execute(sql, [*params, max(1, min(limit, 500))]).fetchall()
 
 
 def create_import_batch(source_name: str, status: str = "created") -> dict[str, Any]:
@@ -435,20 +467,33 @@ def list_audit_logs(
 
 
 def dashboard_summary() -> dict[str, Any]:
+    scope = _owner_scope.get()
+
+    def _clause(table: str) -> tuple[str, list[Any]]:
+        if scope is None:
+            return "", []
+        where, params = _scope_where(table, scope)
+        return (f" WHERE {where}" if where else ""), params
+
     with connect() as conn:
-        counts = {
-            "cases": conn.execute("SELECT COUNT(*) AS count FROM cases").fetchone()["count"],
-            "contracts": conn.execute("SELECT COUNT(*) AS count FROM contracts").fetchone()["count"],
-            "payments": conn.execute("SELECT COUNT(*) AS count FROM payments").fetchone()["count"],
-            "documents": conn.execute("SELECT COUNT(*) AS count FROM documents").fetchone()["count"],
-        }
+        counts = {}
+        for table in ("cases", "contracts", "payments", "documents"):
+            clause, params = _clause(table)
+            counts[table] = conn.execute(
+                f"SELECT COUNT(*) AS count FROM {table}{clause}", params
+            ).fetchone()["count"]
+        c_clause, c_params = _clause("contracts")
         money = conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS contract_amount FROM contracts"
+            f"SELECT COALESCE(SUM(amount), 0) AS contract_amount FROM contracts{c_clause}", c_params
         ).fetchone()
-        due = conn.execute(
+        p_where, p_params = _scope_where("payments", scope) if scope is not None else ("", [])
+        due_sql = (
             "SELECT COALESCE(SUM(payment_amount), 0) AS pending_payment_amount "
             "FROM payments WHERE status <> 'closed'"
-        ).fetchone()
+        )
+        if p_where:
+            due_sql += f" AND {p_where}"
+        due = conn.execute(due_sql, p_params).fetchone()
         return {
             "counts": counts,
             "contract_amount": money["contract_amount"],
@@ -458,6 +503,7 @@ def dashboard_summary() -> dict[str, Any]:
 
 def search_records(query: str) -> list[dict[str, Any]]:
     pattern = f"%{query}%"
+    scope = _owner_scope.get()
     results: list[dict[str, Any]] = []
     with connect() as conn:
         for table, fields in {
@@ -466,19 +512,28 @@ def search_records(query: str) -> list[dict[str, Any]]:
             "document": ("documents", "file_name", "document_type", "source_note"),
         }.items():
             source, code_field, title_field, extra_field = fields
-            rows = conn.execute(
+            sql = (
                 f"SELECT id, {code_field} AS code, {title_field} AS title, {extra_field} AS detail "
-                f"FROM {source} WHERE {code_field} LIKE ? OR {title_field} LIKE ? OR {extra_field} LIKE ? "
-                "ORDER BY id DESC LIMIT 50",
-                (pattern, pattern, pattern),
-            ).fetchall()
+                f"FROM {source} WHERE ({code_field} LIKE ? OR {title_field} LIKE ? OR {extra_field} LIKE ?)"
+            )
+            params: list[Any] = [pattern, pattern, pattern]
+            if scope is not None:
+                sw, sp = _scope_where(source, scope)
+                if sw:
+                    sql += f" AND {sw}"
+                    params += sp
+            sql += " ORDER BY id DESC LIMIT 50"
+            rows = conn.execute(sql, params).fetchall()
             results.extend({"type": table, **row} for row in rows)
     return results
 
 
 def case_360(case_id: int) -> dict[str, Any]:
+    scope = _owner_scope.get()
     with connect() as conn:
         case = get_row(conn, "cases", case_id)
+        if scope is not None and case.get("owner") != scope:
+            raise LookupError(f"cases row {case_id} not found")  # 非本人案件，視同不存在
         contracts = conn.execute("SELECT * FROM contracts WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
         payments = conn.execute(
             "SELECT p.* FROM payments p JOIN contracts c ON c.id = p.contract_id "

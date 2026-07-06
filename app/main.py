@@ -34,6 +34,7 @@ from app.store import (
     preview_import_mapping,
     search_records,
     set_current_actor,
+    set_owner_scope,
     stage_import_rows,
     update_row,
 )
@@ -287,6 +288,8 @@ async def bind_actor(request: Request) -> None:
     """把已驗證的登入者綁到本請求（async 依賴，確保 contextvar 傳到同步端點）。"""
     username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
     set_current_actor(username or "anonymous")
+    role = LOCAL_AUTH_USERS.get(username or "", {}).get("role_code")
+    set_owner_scope(username if role == "handler" else None)
 
 
 def create_app() -> FastAPI:
