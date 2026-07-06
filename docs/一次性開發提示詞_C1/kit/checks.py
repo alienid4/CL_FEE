@@ -69,8 +69,9 @@ if not test_files:
     rec("驗收測試", False, "tests/ 內沒有 test_*.py；沒有測試不得宣稱切片完成")
 else:
     r = run([sys.executable, "-m", "pytest", "-q"])
-    tail = " | ".join((r.stdout + r.stderr).strip().splitlines()[-2:])
-    rec("驗收測試通過", r.returncode == 0, tail)
+    out = (r.stdout + r.stderr).strip().splitlines()
+    summary = next((ln.strip() for ln in reversed(out) if "passed" in ln or "failed" in ln or "error" in ln), out[-1].strip() if out else "")
+    rec("驗收測試通過", r.returncode == 0, summary)
 
 # 4. 決策 <-> 文件一致性
 conflicts: list[str] = []
