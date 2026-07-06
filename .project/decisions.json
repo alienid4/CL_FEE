@@ -1,0 +1,19 @@
+{
+  "doc_scan_ignore": [
+    "archive",
+    "templates",
+    "一次性開發提示詞",
+    ".project",
+    "REFERENCE_",
+    "CURRENT_STATE.md"
+  ],
+  "decisions": [
+    {
+      "id": "DB",
+      "choice": "sqlite",
+      "status": "provisional",
+      "contradicts": ["MSSQL", "SQL Server", "postgres"],
+      "note": "範例列。MVP 先用 sqlite；改用正式 DB 屬重大事項，需使用者確認後才把 status 改成 confirmed。"
+    }
+  ]
+}

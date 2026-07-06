@@ -1,0 +1,58 @@
+# Python / test cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+.venv-win/
+venv/
+env/
+
+# Runtime data
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+logs/
+*.log
+
+# C1 生成物（由 snapshot.py 產生，不進版控）
+CURRENT_STATE.md
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# OneDrive / Windows noise
+desktop.ini
+Thumbs.db
+~$*
+*.tmp
+*.bak
+
+# Source business documents and sensitive samples.
+# Keep derived Markdown notes in docs/, but do not version raw source files by default.
+DOC/
+*.pdf
+*.docx
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.tsv
+
+# Archives and generated bundles
+*.zip
+*.rar
+*.7z
+project-baseline-kit_v*/
+
+# Frontend / package caches if added later
+node_modules/
+dist/
+build/

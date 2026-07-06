@@ -1,0 +1,9 @@
+#!/bin/sh
+# C1 強制層 pre-commit hook。
+# 安裝方式：複製到 <專案>/.git/hooks/pre-commit（若已有 pre-commit，改成在既有腳本尾端呼叫下面這行）。
+python .project/checks.py
+if [ $? -ne 0 ]; then
+  echo ""
+  echo ">> C1 強制層擋下這次 commit：先讓 checks 全 PASS，再 commit。"
+  exit 1
+fi

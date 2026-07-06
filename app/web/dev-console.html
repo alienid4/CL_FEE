@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Development Control Panel</title>
+    <link rel="stylesheet" href="/static/dev-console.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">v2.1 Local</p>
+        <h1>Development Control Panel</h1>
+      </div>
+      <nav>
+        <a href="/">App</a>
+        <button id="refresh" type="button">Refresh</button>
+      </nav>
+    </header>
+    <main class="shell">
+      <section class="metrics" id="metrics"></section>
+      <section class="toolbar" id="commands"></section>
+      <section class="grid">
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Current Status</h2>
+            <span id="status-version"></span>
+          </div>
+          <pre id="current-status"></pre>
+        </article>
+        <article class="panel">
+          <h2>Next Slice</h2>
+          <pre id="start-next"></pre>
+        </article>
+        <article class="panel">
+          <h2>Recent Audit</h2>
+          <div id="audit-list" class="stack"></div>
+        </article>
+        <article class="panel">
+          <h2>Project Profile</h2>
+          <pre id="project-profile"></pre>
+        </article>
+        <article class="panel">
+          <h2>Runtime State</h2>
+          <pre id="runtime-state"></pre>
+        </article>
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Command Result</h2>
+            <span id="command-state">Idle</span>
+          </div>
+          <pre id="command-output"></pre>
+        </article>
+      </section>
+    </main>
+    <script src="/static/dev-console.js"></script>
+  </body>
+</html>

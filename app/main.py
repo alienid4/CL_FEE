@@ -1,0 +1,510 @@
+from contextlib import asynccontextmanager
+import os
+from pathlib import Path
+import subprocess
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+from app.dev_console import console_status, run_console_command
+from app.import_mapping import mapping_draft_catalog
+from app.settings import get_settings
+from app.store import (
+    case_360,
+    confirm_import_batch_cases_dry_run,
+    create_import_batch,
+    dashboard_summary,
+    delete_row,
+    disable_row,
+    get_import_batch,
+    initialize_database,
+    insert_row,
+    list_import_batches,
+    list_import_rows,
+    list_audit_logs,
+    list_rows,
+    preflight_import_batch_confirm,
+    preview_import_mapping,
+    search_records,
+    stage_import_rows,
+    update_row,
+)
+
+
+class CaseIn(BaseModel):
+    case_code: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    owner: str = ""
+    status: str = "draft"
+    amount: float = 0
+    risk_level: str = "normal"
+
+
+class CasePatch(BaseModel):
+    case_code: str | None = Field(default=None, min_length=1)
+    title: str | None = Field(default=None, min_length=1)
+    owner: str | None = None
+    status: str | None = None
+    amount: float | None = None
+    risk_level: str | None = None
+
+
+class ContractIn(BaseModel):
+    contract_code: str = Field(min_length=1)
+    contract_name: str = Field(min_length=1)
+    vendor_name: str = ""
+    amount: float = 0
+    status: str = "active"
+    case_id: int | None = None
+
+
+class ContractPatch(BaseModel):
+    contract_code: str | None = Field(default=None, min_length=1)
+    contract_name: str | None = Field(default=None, min_length=1)
+    vendor_name: str | None = None
+    amount: float | None = None
+    status: str | None = None
+    case_id: int | None = None
+
+
+class PaymentIn(BaseModel):
+    contract_id: int
+    payment_month: str = Field(pattern=r"^\d{4}-\d{2}$")
+    payment_amount: float
+    invoice_status: str = "not_received"
+    status: str = "pending"
+
+
+class PaymentPatch(BaseModel):
+    contract_id: int | None = None
+    payment_month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
+    payment_amount: float | None = None
+    invoice_status: str | None = None
+    status: str | None = None
+
+
+class DocumentIn(BaseModel):
+    file_name: str = Field(min_length=1)
+    document_type: str = "other"
+    source_note: str = ""
+    status: str = "active"
+    case_id: int | None = None
+    contract_id: int | None = None
+
+
+class DocumentPatch(BaseModel):
+    file_name: str | None = Field(default=None, min_length=1)
+    document_type: str | None = None
+    source_note: str | None = None
+    status: str | None = None
+    case_id: int | None = None
+    contract_id: int | None = None
+
+
+class ImportBatchIn(BaseModel):
+    source_name: str = Field(min_length=1)
+    status: str = "created"
+
+
+class ImportRowsIn(BaseModel):
+    rows: list[dict[str, Any]] = Field(min_length=1)
+
+
+class ConfirmedImportField(BaseModel):
+    row_number: int = Field(ge=1)
+    target_table: str = Field(min_length=1)
+    target_field: str = Field(min_length=1)
+
+
+class ImportConfirmIn(BaseModel):
+    dry_run: bool = True
+    target_tables: list[str] = Field(default_factory=lambda: ["cases"], min_length=1)
+    confirmed_fields: list[ConfirmedImportField] = Field(default_factory=list)
+    accepted_warning_codes: list[str] = Field(default_factory=list)
+
+
+class DevConsoleRunIn(BaseModel):
+    command_id: str = Field(min_length=1)
+    dry_run: bool = False
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
+
+AUTH_COOKIE_NAME = "ai_fee_user"
+LOCAL_AUTH_PASSWORD = os.getenv("LOCAL_AUTH_PASSWORD", "")
+LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
+    "ap01": {
+        "username": "ap01",
+        "role_code": "cio",
+        "role_name": "CIO",
+        "display_name": "CIO",
+        "default_module": "cases-module",
+        "allowed_modules": [
+            "budget",
+            "projects",
+            "signoff",
+            "cases-module",
+            "data-review",
+            "contracts-module",
+            "purchases",
+            "payments-module",
+        ],
+        "allowed_actions": ["read", "edit", "import_preview", "preflight"],
+    },
+    "ap02": {
+        "username": "ap02",
+        "role_code": "manager_assistant",
+        "role_name": "主管/助理",
+        "display_name": "主管/助理",
+        "default_module": "cases-module",
+        "allowed_modules": [
+            "budget",
+            "projects",
+            "signoff",
+            "cases-module",
+            "data-review",
+            "contracts-module",
+            "purchases",
+            "payments-module",
+        ],
+        "allowed_actions": ["read", "edit", "import_preview", "preflight"],
+    },
+    "ap03": {
+        "username": "ap03",
+        "role_code": "handler",
+        "role_name": "承辦",
+        "display_name": "承辦",
+        "default_module": "cases-module",
+        "allowed_modules": ["projects", "cases-module", "purchases", "payments-module", "data-review"],
+        "allowed_actions": ["read", "edit"],
+    },
+}
+
+
+def ok(data: Any) -> dict[str, Any]:
+    return {"ok": True, "data": data}
+
+
+def auth_user_payload(username: str) -> dict[str, Any]:
+    user = LOCAL_AUTH_USERS.get(username)
+    if not user:
+        raise HTTPException(status_code=401, detail="登入狀態已失效，請重新登入。")
+    return dict(user)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    initialize_database()
+    yield
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    web_dir = Path(__file__).resolve().parent / "web"
+    app = FastAPI(
+        title="Fee Contract Control",
+        version="0.2.0-fresh",
+        description="Fresh implementation for fee, contract, payment, document, and case tracking.",
+        lifespan=lifespan,
+    )
+    app.mount("/static", StaticFiles(directory=web_dir), name="static")
+
+    @app.get("/", include_in_schema=False)
+    def home() -> FileResponse:
+        return FileResponse(web_dir / "index.html")
+
+    @app.get("/dev-console", include_in_schema=False)
+    def dev_console_home() -> FileResponse:
+        return FileResponse(web_dir / "dev-console.html")
+
+    @app.get("/health")
+    def health() -> dict[str, Any]:
+        return {
+            "ok": True,
+            "service": settings.app_name,
+            "version": "0.2.0-fresh",
+            "database": {"type": "sqlite", "path": settings.database_path},
+        }
+
+    @app.post("/api/auth/login")
+    def login(payload: LoginIn, response: Response) -> dict[str, Any]:
+        username = payload.username.strip().lower()
+        if username not in LOCAL_AUTH_USERS or payload.password != LOCAL_AUTH_PASSWORD:
+            raise HTTPException(status_code=401, detail="帳號或密碼錯誤。")
+        response.set_cookie(
+            AUTH_COOKIE_NAME,
+            username,
+            httponly=True,
+            samesite="lax",
+        )
+        return ok(auth_user_payload(username))
+
+    @app.get("/api/auth/me")
+    def current_user(request: Request) -> dict[str, Any]:
+        username = request.cookies.get(AUTH_COOKIE_NAME, "")
+        return ok(auth_user_payload(username))
+
+    @app.post("/api/auth/logout")
+    def logout(response: Response) -> dict[str, Any]:
+        response.delete_cookie(AUTH_COOKIE_NAME)
+        return ok({"logged_out": True})
+
+    @app.get("/api/dashboard")
+    def dashboard() -> dict[str, Any]:
+        return ok(dashboard_summary())
+
+    @app.get("/api/dev-console/status")
+    def dev_console_status() -> dict[str, Any]:
+        return ok(console_status())
+
+    @app.post("/api/dev-console/run")
+    def dev_console_run(payload: DevConsoleRunIn) -> dict[str, Any]:
+        try:
+            return ok(run_console_command(payload.command_id, payload.dry_run))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Unknown control panel command.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise HTTPException(status_code=504, detail=f"Command timed out after {exc.timeout} seconds.") from exc
+
+    @app.get("/api/audit-logs")
+    def audit_logs(
+        limit: int = Query(100, ge=1, le=500),
+        table_name: str | None = None,
+        row_id: int | None = None,
+        action: str | None = None,
+    ) -> dict[str, Any]:
+        return ok(
+            list_audit_logs(
+                limit=limit,
+                table_name=table_name,
+                row_id=row_id,
+                action=action,
+            )
+        )
+
+    @app.post("/api/import-batches", status_code=201)
+    def create_import_batch_endpoint(payload: ImportBatchIn) -> dict[str, Any]:
+        try:
+            return ok(create_import_batch(payload.source_name, payload.status))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/import-batches")
+    def import_batches(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_import_batches(limit))
+
+    @app.get("/api/import-batches/{batch_id}")
+    def import_batch(batch_id: int) -> dict[str, Any]:
+        try:
+            return ok(get_import_batch(batch_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/import-batches/{batch_id}/rows", status_code=201)
+    def stage_import_batch_rows(batch_id: int, payload: ImportRowsIn) -> dict[str, Any]:
+        try:
+            return ok(stage_import_rows(batch_id, payload.rows))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/import-batches/{batch_id}/rows")
+    def import_batch_rows(
+        batch_id: int,
+        limit: int = Query(500, ge=1, le=500),
+    ) -> dict[str, Any]:
+        try:
+            return ok(list_import_rows(batch_id, limit))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/import-batches/{batch_id}/mapping-preview")
+    def import_batch_mapping_preview(batch_id: int) -> dict[str, Any]:
+        try:
+            return ok(preview_import_mapping(batch_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/import-batches/{batch_id}/confirm-preflight")
+    def preflight_import_confirm(batch_id: int, payload: ImportConfirmIn) -> dict[str, Any]:
+        if payload.target_tables != ["cases"]:
+            raise HTTPException(status_code=400, detail='Only target_tables=["cases"] is supported.')
+        try:
+            return ok(
+                preflight_import_batch_confirm(
+                    batch_id,
+                    [field.model_dump() for field in payload.confirmed_fields],
+                    payload.accepted_warning_codes,
+                )
+            )
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/import-batches/{batch_id}/confirm")
+    def confirm_import_batch(batch_id: int, payload: ImportConfirmIn) -> dict[str, Any]:
+        if payload.dry_run is not True:
+            raise HTTPException(status_code=400, detail="Only dry_run=true is supported.")
+        if payload.target_tables != ["cases"]:
+            raise HTTPException(status_code=400, detail='Only target_tables=["cases"] is supported.')
+        try:
+            return ok(
+                confirm_import_batch_cases_dry_run(
+                    batch_id,
+                    [field.model_dump() for field in payload.confirmed_fields],
+                )
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/import-mapping-draft")
+    def import_mapping_draft() -> dict[str, Any]:
+        return ok(mapping_draft_catalog())
+
+    @app.post("/api/cases", status_code=201)
+    def create_case(payload: CaseIn) -> dict[str, Any]:
+        return handle_create("cases", payload.model_dump())
+
+    @app.get("/api/cases")
+    def cases(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("cases", limit))
+
+    @app.patch("/api/cases/{case_id}")
+    def update_case(case_id: int, payload: CasePatch) -> dict[str, Any]:
+        return handle_change("cases", case_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/cases/{case_id}/disable")
+    def disable_case(case_id: int) -> dict[str, Any]:
+        return handle_disable("cases", case_id)
+
+    @app.delete("/api/cases/{case_id}", status_code=204)
+    def delete_case(case_id: int) -> None:
+        handle_delete("cases", case_id)
+
+    @app.get("/api/cases/{case_id}/360")
+    def case_detail(case_id: int) -> dict[str, Any]:
+        try:
+            return ok(case_360(case_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/contracts", status_code=201)
+    def create_contract(payload: ContractIn) -> dict[str, Any]:
+        return handle_create("contracts", payload.model_dump())
+
+    @app.get("/api/contracts")
+    def contracts(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("contracts", limit))
+
+    @app.patch("/api/contracts/{contract_id}")
+    def update_contract(contract_id: int, payload: ContractPatch) -> dict[str, Any]:
+        return handle_change("contracts", contract_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/contracts/{contract_id}/disable")
+    def disable_contract(contract_id: int) -> dict[str, Any]:
+        return handle_disable("contracts", contract_id)
+
+    @app.delete("/api/contracts/{contract_id}", status_code=204)
+    def delete_contract(contract_id: int) -> None:
+        handle_delete("contracts", contract_id)
+
+    @app.post("/api/payments", status_code=201)
+    def create_payment(payload: PaymentIn) -> dict[str, Any]:
+        return handle_create("payments", payload.model_dump())
+
+    @app.get("/api/payments")
+    def payments(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("payments", limit))
+
+    @app.patch("/api/payments/{payment_id}")
+    def update_payment(payment_id: int, payload: PaymentPatch) -> dict[str, Any]:
+        return handle_change("payments", payment_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/payments/{payment_id}/disable")
+    def disable_payment(payment_id: int) -> dict[str, Any]:
+        return handle_disable("payments", payment_id)
+
+    @app.delete("/api/payments/{payment_id}", status_code=204)
+    def delete_payment(payment_id: int) -> None:
+        handle_delete("payments", payment_id)
+
+    @app.post("/api/documents", status_code=201)
+    def create_document(payload: DocumentIn) -> dict[str, Any]:
+        return handle_create("documents", payload.model_dump())
+
+    @app.get("/api/documents")
+    def documents(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("documents", limit))
+
+    @app.patch("/api/documents/{document_id}")
+    def update_document(document_id: int, payload: DocumentPatch) -> dict[str, Any]:
+        return handle_change("documents", document_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/documents/{document_id}/disable")
+    def disable_document(document_id: int) -> dict[str, Any]:
+        return handle_disable("documents", document_id)
+
+    @app.delete("/api/documents/{document_id}", status_code=204)
+    def delete_document(document_id: int) -> None:
+        handle_delete("documents", document_id)
+
+    @app.get("/api/search")
+    def search(q: str = Query(min_length=1)) -> dict[str, Any]:
+        return ok(search_records(q))
+
+    @app.get("/api/cmdb")
+    def cmdb_placeholder() -> dict[str, Any]:
+        return ok(
+            {
+                "status": "reserved",
+                "reserved_fields": ["cmdb_ci_id", "service_owner", "asset_tag"],
+                "next_step": "Connect to enterprise CMDB API after credentials and schema are approved.",
+            }
+        )
+
+    return app
+
+
+def handle_create(table: str, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return ok(insert_row(table, payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def handle_change(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return ok(update_row(table, row_id, payload))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def handle_disable(table: str, row_id: int) -> dict[str, Any]:
+    try:
+        return ok(disable_row(table, row_id))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+def handle_delete(table: str, row_id: int) -> None:
+    try:
+        delete_row(table, row_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+app = create_app()

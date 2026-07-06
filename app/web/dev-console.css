@@ -1,0 +1,179 @@
+:root {
+  color-scheme: light;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #f4f6f8;
+  color: #17202a;
+}
+
+body {
+  margin: 0;
+}
+
+.topbar {
+  align-items: center;
+  background: #ffffff;
+  border-bottom: 1px solid #d9e0ea;
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 28px;
+}
+
+.topbar nav {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+a {
+  color: #1b5ea8;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+h2 {
+  font-size: 16px;
+}
+
+button {
+  background: #1b5ea8;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 9px 12px;
+}
+
+button.secondary {
+  background: #edf2f7;
+  color: #1f2933;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.eyebrow {
+  color: #697586;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.shell {
+  display: grid;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 1320px;
+  padding: 18px;
+}
+
+.metrics,
+.toolbar {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.metric,
+.panel,
+.toolbar {
+  background: #ffffff;
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.metric span {
+  color: #697586;
+  display: block;
+  font-size: 12px;
+}
+
+.metric strong {
+  display: block;
+  font-size: 22px;
+  margin-top: 4px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.panel-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-head span,
+#command-state {
+  color: #697586;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+pre {
+  background: #f8fafc;
+  border: 1px solid #e1e7ef;
+  border-radius: 6px;
+  margin: 12px 0 0;
+  max-height: 380px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.stack {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.audit-item {
+  border: 1px solid #e1e7ef;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.audit-item strong {
+  font-size: 14px;
+}
+
+.audit-item span {
+  color: #697586;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .topbar nav {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

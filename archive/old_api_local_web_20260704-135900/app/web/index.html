@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>費用合約控管系統</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">控</div>
+          <div>
+            <h1>費用合約控管</h1>
+            <p id="serviceStatus">檢查服務中</p>
+          </div>
+        </div>
+
+        <label class="search-box">
+          <span>全文檢索</span>
+          <input id="globalSearch" type="search" placeholder="案件、合約、廠商、付款、附件" />
+        </label>
+
+        <nav id="moduleNav" class="nav" aria-label="系統功能"></nav>
+        <a class="docs-link" href="/docs" target="_blank" rel="noreferrer">API 文件</a>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">主管角度</p>
+            <h2 id="viewTitle">八項控管看板</h2>
+          </div>
+          <div class="topbar-actions">
+            <select id="roleSelect" aria-label="角色">
+              <option value="manager">部門主管 / 業助</option>
+              <option value="executive">CIO</option>
+              <option value="assistant">業務助理</option>
+              <option value="handler">承辦</option>
+            </select>
+            <button id="refreshButton" class="icon-button" title="重新整理" type="button">重新整理</button>
+          </div>
+        </header>
+
+        <section class="status-strip" id="statusStrip"></section>
+
+        <section id="workspace" class="workspace"></section>
+      </main>
+    </div>
+
+    <template id="emptyTemplate">
+      <div class="empty-state">
+        <h3>目前沒有資料</h3>
+        <p>匯入 Excel 或新增資料後，這裡會顯示可下鑽的明細。</p>
+      </div>
+    </template>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

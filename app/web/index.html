@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1500, initial-scale=1" />
+    <title>AI_FEE</title>
+    <link rel="stylesheet" href="/static/styles.css?v=local-login-20260706" />
+  </head>
+  <body>
+    <section id="login-shell" class="login-shell" aria-label="登入">
+      <form id="login-form" class="login-card">
+        <h2>登入 AI_FEE</h2>
+        <label>
+          帳號
+          <input name="username" autocomplete="username" placeholder="ap01 / ap02 / ap03" required />
+        </label>
+        <label>
+          密碼
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit">登入</button>
+        <p class="subtle">ap01：CIO　ap02：主管/助理　ap03：承辦</p>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+    </section>
+
+    <div id="app-shell" class="app-shell" hidden>
+      <aside class="sidebar" aria-label="module navigation">
+        <section class="side-panel finder">
+          <div class="session-strip">
+            <span id="login-user" class="login-user" hidden></span>
+            <button id="logout" type="button" class="secondary" hidden>登出</button>
+          </div>
+          <strong>全文搜尋</strong>
+          <select aria-label="module filter">
+            <option>全部功能</option>
+            <option>案件、合約、預算、廠商</option>
+            <option>簽呈、請購、付款、文件</option>
+          </select>
+          <input aria-label="search keyword" placeholder="案件、合約、預算、廠商" />
+          <small>輸入關鍵字，可搭配功能範圍</small>
+        </section>
+
+        <nav class="module-list">
+          <a class="module-card" href="#budget" data-roles="cio manager_assistant"><span>▦</span><strong>預算</strong><small>總預算 36,022萬</small></a>
+          <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small>6 專案</small></a>
+          <a class="module-card" href="#signoff" data-roles="cio manager_assistant"><span>▦</span><strong>簽呈</strong><small>上簽 11筆</small></a>
+          <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small>案件總表 4案</small><em>待判定 1案</em></a>
+          <a class="module-card" href="#data-review" data-roles="cio manager_assistant"><span>▦</span><strong>核准</strong><small>待確認</small></a>
+          <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant"><span>▦</span><strong>合約</strong><small>進行中 16筆</small></a>
+          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>請購</strong><small>來源 4筆</small></a>
+          <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small>專案 4筆</small></a>
+          <a class="module-card" href="#data-review" data-roles="cio manager_assistant handler"><span>▦</span><strong>資料檢核</strong><small>待確認 4筆</small></a>
+        </nav>
+      </aside>
+
+      <main>
+        <section class="dashboard-panel module-panel" id="cases-module" aria-label="case dashboard">
+          <div class="dashboard-head">
+            <div>
+              <p class="breadcrumb">案件管理 / 案件總覽</p>
+              <div class="tabs" aria-label="案件管理頁籤">
+                <button class="tab active" type="button" data-case-tab="list">案件清單</button>
+                <button class="tab" type="button" data-case-tab="dashboard">主管儀表板</button>
+                <button class="tab" type="button" data-case-tab="flow">流程圖</button>
+                <button class="tab" type="button" data-case-tab="linear">線性進度圖</button>
+                <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
+                <button class="tab" type="button" data-case-tab="confirm">待確認</button>
+              </div>
+            </div>
+            <div class="status-pills">
+              <span>案件總覽</span>
+              <span class="ok">系統檢核</span>
+              <span class="warn">待確認優先</span>
+            </div>
+          </div>
+
+          <p class="summary-line">資料來源：案件清單 / 八功能總覽。此頁先以主管查核與風險處理為主。</p>
+
+          <section class="kpi-grid" aria-label="case summary">
+            <article class="kpi-card primary">
+              <span>預算內</span>
+              <strong>2案 / 1,980萬</strong>
+              <small>已對應年度預算項目，可回查預算編號。</small>
+            </article>
+            <article class="kpi-card danger">
+              <span>預算外</span>
+              <strong>1案 / 180萬</strong>
+              <small>臨時追加或預算尚未定義，需主管確認。</small>
+            </article>
+            <article class="kpi-card warn">
+              <span>待判定</span>
+              <strong>1案</strong>
+              <small>找不到預算項目，尚未人工標註。</small>
+            </article>
+            <article class="kpi-card">
+              <span>不執行 / 未成案</span>
+              <strong>1案</strong>
+              <small>保留條件歷程，不列入預算小金額。</small>
+            </article>
+          </section>
+
+          <section class="metrics" id="metrics" aria-label="live system metrics"></section>
+
+          <section class="case-tab-panel active" data-case-panel="list">
+            <section class="watch-list">
+            <div class="section-heading compact">
+              <h2>本月需要 CIO 看一眼</h2>
+              <div class="toolbar">
+                <button type="button" class="secondary">匯入 Excel</button>
+                <button type="button">匯出目前表格</button>
+              </div>
+            </div>
+            <div class="table-shell">
+              <table>
+                <thead>
+                  <tr>
+                    <th>項次</th>
+                    <th>案件編號</th>
+                    <th>預算歸屬</th>
+                    <th>成案狀態</th>
+                    <th>案件名稱</th>
+                    <th>主要來源</th>
+                    <th>目前卡點</th>
+                    <th>負責人</th>
+                    <th>下一步</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td>
+                    <td>CASE-2026-0008</td>
+                    <td><span class="badge danger">預算外</span></td>
+                    <td><span class="badge ok">成案</span></td>
+                    <td>板橋機房網路線路銷約與擴充</td>
+                    <td>合約 / 簽約增購</td>
+                    <td><span class="badge warn">付款期程待確認</span></td>
+                    <td>王小明</td>
+                    <td>補預算外原因與核准依據</td>
+                    <td><button type="button" class="secondary">看稽核項</button></td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td>CASE-2026-0012</td>
+                    <td><span class="badge neutral">不執行</span></td>
+                    <td><span class="badge neutral">未成案</span></td>
+                    <td>XX電信固定費用</td>
+                    <td>費用預估 / 月租</td>
+                    <td><span class="badge pending">本月發票等待</span></td>
+                    <td>蔡世偉</td>
+                    <td>補本月發票與付款證明</td>
+                    <td><button type="button" class="secondary">更多</button></td>
+                  </tr>
+                  <tr>
+                    <td>3</td>
+                    <td>CASE-2026-0013</td>
+                    <td><span class="badge ok">預算內</span></td>
+                    <td><span class="badge ok">成案</span></td>
+                    <td>XX系統自動化</td>
+                    <td>專案 / 主管交辦</td>
+                    <td><span class="badge blue">專案追蹤中</span></td>
+                    <td>吳承翰</td>
+                    <td>更新專案進度</td>
+                    <td><button type="button" class="secondary">更多</button></td>
+                  </tr>
+                  <tr>
+                    <td>4</td>
+                    <td>CASE-2026-0031</td>
+                    <td><span class="badge warn">待判定</span></td>
+                    <td><span class="badge warn">待判定</span></td>
+                    <td>IBM AIX/R6 維護</td>
+                    <td>預算 / 費用預估</td>
+                    <td><span class="badge pending">同案待確認</span></td>
+                    <td>雷子慶</td>
+                    <td>確認 IBM R6 / AIX 是否同案</td>
+                    <td><button type="button" class="secondary">同案整理</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="dashboard" hidden>
+            <section class="dashboard-cards">
+              <article class="kpi-card primary">
+                <span>案件總數</span>
+                <strong>4案</strong>
+                <small>預算內 2、預算外 1、待判定 1。</small>
+              </article>
+              <article class="kpi-card">
+                <span>已串流程</span>
+                <strong>3案</strong>
+                <small>可回查預算、專案、簽呈、合約或付款。</small>
+              </article>
+              <article class="kpi-card warn">
+                <span>待確認</span>
+                <strong>2案</strong>
+                <small>付款期程與同案整理仍需補證據。</small>
+              </article>
+            </section>
+            <section class="dashboard-split">
+              <div class="mini-dashboard-card">
+                <h2>預算歸屬結構</h2>
+                <div class="bar-row"><span>預算內</span><meter min="0" max="4" value="2"></meter><strong>2案</strong></div>
+                <div class="bar-row"><span>預算外</span><meter min="0" max="4" value="1"></meter><strong>1案</strong></div>
+                <div class="bar-row"><span>待判定</span><meter min="0" max="4" value="1"></meter><strong>1案</strong></div>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>目前卡點</h2>
+                <ul class="tight-list">
+                  <li><strong>付款期程待確認</strong><span>板橋機房網路線路銷約與擴充</span></li>
+                  <li><strong>本月發票等待</strong><span>XX電信固定費用</span></li>
+                  <li><strong>同案待確認</strong><span>IBM AIX/R6 維護</span></li>
+                </ul>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>負責人分布</h2>
+                <table>
+                  <thead><tr><th>負責人</th><th>案件</th><th>待辦</th></tr></thead>
+                  <tbody>
+                    <tr><td>王小明</td><td>1案</td><td>補核准依據</td></tr>
+                    <tr><td>蔡世偉</td><td>1案</td><td>補付款證明</td></tr>
+                    <tr><td>雷子慶</td><td>1案</td><td>同案整理</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="flow" hidden>
+            <section class="flow-section">
+              <h2>一、申請、審核與 Case 狀態</h2>
+              <div class="flow-row">
+                <span class="flow-node warn">案件申請 / 匯入資料</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node warn">暫存 ID</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node blue">主管審核</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node ok">核准新案</span>
+                <span class="flow-node warn">退回補件</span>
+                <span class="flow-node blue">併入既有 Case</span>
+                <span class="flow-node danger">拒絕 / 取消</span>
+              </div>
+            </section>
+            <section class="flow-section">
+              <h2>二、Case 主檔與模組關聯</h2>
+              <div class="flow-row dense">
+                <span class="flow-node ok">案件主檔</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node blue">專案管理</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node blue">合約管理</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node warn">付款期別</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node ok">費用管理</span>
+                <span class="flow-arrow">→</span>
+                <span class="flow-node dark">主管儀表板</span>
+              </div>
+            </section>
+            <section class="flow-section split">
+              <div>
+                <h2>三、專案採購型流程</h2>
+                <div class="flow-stack">
+                  <span class="flow-node ok">案件已核准</span>
+                  <span class="flow-node blue">建立專案</span>
+                  <span class="flow-node blue">合約 / 採購</span>
+                  <span class="flow-node warn">執行 / 建置</span>
+                  <span class="flow-node warn">驗收</span>
+                  <span class="flow-node ok">結案</span>
+                </div>
+              </div>
+              <div>
+                <h2>四、合約與付款期別</h2>
+                <table>
+                  <thead><tr><th>付款方式</th><th>範例</th><th>系統依據</th></tr></thead>
+                  <tbody>
+                    <tr><td>固定期數</td><td>分 3 期，每期固定金額</td><td>期數、金額、日期必填</td></tr>
+                    <tr><td>週期付款</td><td>每月、每季、每年</td><td>自動展開提醒</td></tr>
+                    <tr><td>里程碑付款</td><td>簽約 30%、建置 30%、驗收 40%</td><td>百分比加總必須等於 100%</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="linear" hidden>
+            <section class="linear-list">
+              <article class="timeline-row">
+                <strong>A 板橋機房網路線路銷約與擴充</strong>
+                <div class="timeline-steps">
+                  <span class="done">預算</span><span class="done">專案</span><span class="warn">簽呈</span><span>核准</span><span class="done">合約</span><span>請購</span><span class="active">付款</span><span class="warn">發票</span>
+                </div>
+                <em>付款期程待確認</em>
+              </article>
+              <article class="timeline-row">
+                <strong>B XX電信固定費用</strong>
+                <div class="timeline-steps">
+                  <span>預算</span><span>專案</span><span>簽呈</span><span>核准</span><span class="done">合約</span><span>請購</span><span class="active">付款</span><span class="warn">發票</span>
+                </div>
+                <em>本月發票等待</em>
+              </article>
+              <article class="timeline-row">
+                <strong>C XX系統自動化</strong>
+                <div class="timeline-steps">
+                  <span>預算</span><span class="active">專案</span><span>簽呈</span><span>核准</span><span>合約</span><span>請購</span><span>付款</span><span>發票</span>
+                </div>
+                <em>專案追蹤中</em>
+              </article>
+              <article class="timeline-row">
+                <strong>D IBM AIX/R6 維護</strong>
+                <div class="timeline-steps">
+                  <span class="warn">預算</span><span>專案</span><span class="warn">簽呈</span><span>核准</span><span class="warn">合約</span><span>請購</span><span>付款</span><span>發票</span>
+                </div>
+                <em>同案待確認</em>
+              </article>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="matrix" hidden>
+            <section class="priority-matrix">
+              <div class="matrix-zone low">
+                <span>可安排</span>
+                <strong>XX系統自動化</strong>
+                <small>0萬 / 專案追蹤</small>
+              </div>
+              <div class="matrix-zone normal">
+                <span>主管確認</span>
+                <strong>IBM AIX/R6</strong>
+                <small>5,537萬 / 待確認</small>
+              </div>
+              <div class="matrix-zone near">
+                <span>本週處理</span>
+                <strong>板橋續約</strong>
+                <small>180萬 / 2天</small>
+              </div>
+              <div class="matrix-zone urgent">
+                <span>立即處理</span>
+                <strong>XX電信固定費用</strong>
+                <small>4,151萬 / 1天</small>
+              </div>
+            </section>
+            <section class="watch-list">
+              <h2>處理優先序</h2>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>項次</th><th>案件</th><th>金額</th><th>待確認天數</th><th>矩陣位置</th><th>目前卡點</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>XX電信固定費用</td><td>4,151萬</td><td>1天</td><td>立即處理 / 金額高</td><td>本月發票等待</td><td><button class="secondary" type="button">更多</button></td></tr>
+                    <tr><td>2</td><td>板橋機房網路線路銷約與擴充</td><td>180萬</td><td>2天</td><td>本週處理 / 期限近</td><td>付款期程待確認</td><td><button class="secondary" type="button">更多</button></td></tr>
+                    <tr><td>3</td><td>IBM AIX/R6 維護</td><td>5,537萬</td><td>待確認</td><td>主管確認 / 金額高</td><td>同案待確認</td><td><button class="secondary" type="button">更多</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="confirm" hidden>
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>待確認項目</h2>
+                <span class="badge warn">需補證據 3 項</span>
+              </div>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>功能</th><th>完成條件</th><th>目前</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>預算</td><td>預算外已判定，來源可追溯</td><td><span class="badge ok">已完成</span></td><td><button class="secondary" type="button">已確認</button></td></tr>
+                    <tr><td>簽呈</td><td>簽呈 ID、簽呈單號、案名、附件與結果已查</td><td><span class="badge warn">待補</span></td><td><button class="secondary" type="button">完成確認</button></td></tr>
+                    <tr><td>付款</td><td>付款期程、金額、通知規則已查</td><td><span class="badge warn">待補</span></td><td><button class="secondary" type="button">完成確認</button></td></tr>
+                    <tr><td>發票</td><td>發票或免開原因已建立</td><td><span class="badge warn">待補</span></td><td><button class="secondary" type="button">完成確認</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="module-workspace" aria-label="next module checkpoints">
+          <section class="dashboard-panel module-panel" id="budget" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">預算</p>
+                <div class="tabs" aria-label="預算頁籤">
+                  <span class="tab active">年度預算編列</span>
+                  <span class="tab">主管儀表板</span>
+                  <span class="tab">費用預估</span>
+                  <span class="tab">已簽承諾支付</span>
+                  <span class="tab">資料檢核</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span>115 年預算範本</span>
+                <span class="warn">40 筆</span>
+                <span class="ok">36,022萬</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card primary"><span>總預算</span><strong>36,022萬</strong><small>年度預算編列總額。</small></article>
+              <article class="kpi-card warn"><span>硬體占比</span><strong>61%</strong><small>硬體與基礎建設支出占比。</small></article>
+              <article class="kpi-card"><span>基礎建設</span><strong>26,742萬</strong><small>主要集中於網路與系統平台。</small></article>
+              <article class="kpi-card danger"><span>最大需求</span><strong>19,200萬</strong><small>單一需求需主管先看風險。</small></article>
+            </section>
+            <section class="dashboard-split">
+              <div class="mini-dashboard-card">
+                <h2>預算結構</h2>
+                <div class="bar-row"><span>硬體預算</span><meter min="0" max="100" value="61"></meter><strong>61%</strong></div>
+                <div class="bar-row"><span>軟體預算</span><meter min="0" max="100" value="39"></meter><strong>39%</strong></div>
+                <div class="bar-row"><span>基礎建設</span><meter min="0" max="100" value="74"></meter><strong>74%</strong></div>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>類別統計</h2>
+                <table>
+                  <thead><tr><th>類別</th><th>筆數</th><th>小計</th></tr></thead>
+                  <tbody>
+                    <tr><td>基礎建設</td><td>16筆</td><td>26,742萬</td></tr>
+                    <tr><td>工具</td><td>9筆</td><td>5,973萬</td></tr>
+                    <tr><td>資訊安全</td><td>4筆</td><td>1,670萬</td></tr>
+                    <tr><td>電子交易平台</td><td>7筆</td><td>950萬</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>單位名稱統計</h2>
+                <table>
+                  <thead><tr><th>單位名稱</th><th>筆數</th><th>小計</th></tr></thead>
+                  <tbody>
+                    <tr><td>資訊架構組</td><td>7筆</td><td>23,570萬</td></tr>
+                    <tr><td>資訊服務部</td><td>3筆</td><td>1,200萬</td></tr>
+                    <tr><td>證券資訊部</td><td>5筆</td><td>1,054萬</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="projects" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">專案</p>
+                <div class="tabs" aria-label="專案頁籤">
+                  <span class="tab active">專案清單</span>
+                  <span class="tab">主管儀表板</span>
+                  <span class="tab">工作項目</span>
+                  <span class="tab">資料檢核</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span>6 專案</span>
+                <span class="ok">完成 1</span>
+                <span class="warn">平均進度 51%</span>
+                <span class="danger">未完成 5</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card primary"><span>成案狀態</span><strong>成案</strong><small>符合約、預算、付款追蹤。</small></article>
+              <article class="kpi-card warn"><span>目前進度</span><strong>待補</strong><small>專案進度尚未正式追蹤到。</small></article>
+              <article class="kpi-card"><span>負責人</span><strong>王小明</strong><small>網組窗口。</small></article>
+              <article class="kpi-card"><span>來源</span><strong>附件</strong><small>新增資料來源附件。</small></article>
+            </section>
+            <section class="watch-list">
+              <h2>A 板橋機房網路線路銷約與擴充 / 專案內容</h2>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>項次</th><th>專案 ID</th><th>專案名稱</th><th>來源</th><th>必要性分類</th><th>實際進度</th><th>負責人</th><th>狀態</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>PROJ-2026-0001</td><td>資料庫 EOS 案</td><td>資料架構組需求</td><td>必要</td><td>29%</td><td>吳承翰</td><td><span class="badge pending">進行中</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>2</td><td>PROJ-2026-0002</td><td>評估採購 IPS</td><td>網路組需求</td><td>必要</td><td>100%</td><td>黎世偉</td><td><span class="badge ok">已完成</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>3</td><td>PROJ-2026-0005</td><td>AI 專案</td><td>AI 專案</td><td>必要 / 警示</td><td>33%</td><td>吳承翰</td><td><span class="badge warn">如期執行</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="signoff" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">簽呈</p>
+                <div class="tabs" aria-label="簽呈頁籤">
+                  <span class="tab active">上簽項目</span>
+                  <span class="tab">主管儀表板</span>
+                  <span class="tab">資料檢核</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span>202606</span>
+                <span class="warn">11 筆</span>
+                <span class="ok">4,397萬</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card primary"><span>上簽筆數</span><strong>11筆</strong><small>當月上簽項目。</small></article>
+              <article class="kpi-card ok"><span>上簽金額</span><strong>4,397萬</strong><small>彙整採購與續約需求。</small></article>
+              <article class="kpi-card warn"><span>新購</span><strong>6筆</strong><small>需注意後續採購鏈。</small></article>
+              <article class="kpi-card danger"><span>缺金額</span><strong>1筆</strong><small>需補正來源金額。</small></article>
+            </section>
+            <section class="dashboard-split">
+              <div class="mini-dashboard-card">
+                <h2>簽呈結構</h2>
+                <div class="bar-row"><span>網路</span><meter min="0" max="4397" value="3262"></meter><strong>74%</strong></div>
+                <div class="bar-row"><span>電話費</span><meter min="0" max="4397" value="498"></meter><strong>11%</strong></div>
+                <div class="bar-row"><span>資料韌性</span><meter min="0" max="4397" value="440"></meter><strong>10%</strong></div>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>上簽類型統計</h2>
+                <table>
+                  <thead><tr><th>上簽類型</th><th>筆數</th><th>金額</th></tr></thead>
+                  <tbody>
+                    <tr><td>新購</td><td>6筆</td><td>3,589萬</td></tr>
+                    <tr><td>續約(1M)</td><td>3筆</td><td>498萬</td></tr>
+                    <tr><td>續約(5Y)</td><td>1筆</td><td>113萬</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>上簽項目</h2>
+                <table>
+                  <thead><tr><th>簽呈 ID</th><th>類別</th><th>案名</th><th>上簽類型</th><th>金額</th></tr></thead>
+                  <tbody>
+                    <tr><td>SIGN-2026-0001</td><td>電話費</td><td>中華電信數據線路月租費</td><td>續約(1M)</td><td>223萬</td></tr>
+                    <tr><td>SIGN-2026-0004</td><td>網路</td><td>網路 NPM 採購</td><td>新購</td><td>2,000萬</td></tr>
+                    <tr><td>SIGN-2026-0005</td><td>網路</td><td>板橋機房 F5 LTM 採購</td><td>新購</td><td>950萬</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="contracts-module" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">合約</p>
+                <div class="tabs" aria-label="合約檢視">
+                  <span class="tab active">合約清單</span>
+                  <span class="tab">主管儀表板</span>
+                  <span class="tab">資料檢核</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span>16 筆</span>
+                <span class="danger">延遲 2</span>
+                <span class="ok">如期 6</span>
+                <span class="warn">待補進度 8</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card primary"><span>合約筆數</span><strong>16筆</strong><small>來源列 R3～R18。</small></article>
+              <article class="kpi-card danger"><span>延遲</span><strong>2筆</strong><small>合約進度需主管追蹤。</small></article>
+              <article class="kpi-card ok"><span>如期進行</span><strong>6筆</strong><small>合約進度正常。</small></article>
+              <article class="kpi-card warn"><span>待補進度</span><strong>8筆</strong><small>合約進度欄位空白。</small></article>
+            </section>
+            <section class="watch-list">
+              <h2>A 板橋機房網路線路締約與擴充 / 合約內容</h2>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>項次</th><th>合約ID</th><th>合約編號</th><th>合約名稱</th><th>承辦人</th><th>合約迄日</th><th>合約進度</th><th>來源列</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>CON-2026-0001</td><td>EF-20220824-005</td><td>網路基礎架構服務契約書</td><td>雅宋</td><td>2026/04/30</td><td><span class="badge danger">延遲</span></td><td>R3</td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>2</td><td>CON-2026-0002</td><td>EF-20241231-003</td><td>設備維護合約書-資訊系統日誌管理系統維護</td><td>文瑄</td><td>2026/05/31</td><td><span class="badge danger">延遲</span></td><td>R4</td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>3</td><td>CON-2026-0003</td><td>EF-20241231-007</td><td>113年度總、分公司網路設備維護合約</td><td>維庭</td><td>2026/06/30</td><td><span class="badge ok">如期進行</span></td><td>R5</td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>4</td><td>CON-2026-0004</td><td>EF-20220824-008</td><td>VPN連線服務委任合約書</td><td>迪榕</td><td>2026/06/30</td><td><span class="badge ok">如期進行</span></td><td>R6</td><td><button class="secondary" type="button">編輯</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="purchases" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">請購</p>
+                <div class="tabs" aria-label="請購檢視">
+                  <span class="tab active">請購清單</span>
+                  <span class="tab">主管儀表板</span>
+                  <span class="tab">資料檢核</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span>來源 4筆</span>
+                <span class="ok">有請購編號 4</span>
+                <span class="warn">不需檢核 3</span>
+                <span>1,616萬</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card"><span>功能狀態</span><strong>不適用</strong><small>本案目前走合約與付款期程。</small></article>
+              <article class="kpi-card warn"><span>請購調整</span><strong>無</strong><small>未找到獨立請購主檔。</small></article>
+              <article class="kpi-card"><span>系統規則</span><strong>灰燈</strong><small>不到站點未必須檢核。</small></article>
+              <article class="kpi-card ok"><span>下一步</span><strong>無</strong><small>等待正式來源表建立。</small></article>
+            </section>
+            <section class="watch-list">
+              <h2>A 板橋機房網路線路締約與擴充 / 請購內容</h2>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>項次</th><th>請購ID</th><th>項目請購編號</th><th>核銷項目</th><th>類別</th><th>核銷金額</th><th>窗口</th><th>處理進度</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>PR-2025-0001</td><td>36E100011400082</td><td>Control-M 排程軟體專案</td><td>第一期</td><td>960,000</td><td>簡羽珊</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>2</td><td>PR-2025-0002</td><td>36E100011400235</td><td>內湖延伸機房網路基礎建設採購建置專案</td><td>第一期</td><td>5,700,000</td><td>吳孝宏</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>3</td><td>PR-2025-0003</td><td>36E100011400485</td><td>內湖延伸機房網路基礎建設採購建置專案</td><td>第二期</td><td>7,600,000</td><td>游雅宗</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="payments-module" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">付款</p>
+                <div class="tabs" aria-label="付款檢視">
+                  <span class="tab active">付款清單</span>
+                  <span class="tab">主管儀表板</span>
+                  <span class="tab">資料檢核</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span>專案付款 4</span>
+                <span class="ok">結案 4</span>
+                <span class="warn">1,616萬</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card primary"><span>目前節點</span><strong>付款</strong><small>線性圖重點位置。</small></article>
+              <article class="kpi-card warn"><span>待確認</span><strong>期程</strong><small>需確認付款期程是否與預算外原因一致。</small></article>
+              <article class="kpi-card ok"><span>已關聯</span><strong>合約</strong><small>合約資料可作付款依據。</small></article>
+              <article class="kpi-card"><span>負責</span><strong>業助</strong><small>建立付款排程並送預算檢核。</small></article>
+            </section>
+            <section class="watch-list">
+              <h2>A 板橋機房網路線路締約與擴充 / 付款內容</h2>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>項次</th><th>付款ID</th><th>核銷編號</th><th>核銷項目</th><th>付款月份</th><th>付款金額</th><th>請購編號</th><th>處理進度</th><th>操作</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>PAY-2025-0001</td><td>36E100011400210</td><td>Control-M 排程軟體專案</td><td>2025年6月份</td><td>960,000</td><td>36E100011400082</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>2</td><td>PAY-2025-0002</td><td>36E100011400382</td><td>內湖延伸機房網路基礎建設採購建置專案 第一期</td><td>2025/10/22</td><td>5,700,000</td><td>36E100011400235</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                    <tr><td>3</td><td>PAY-2025-0003</td><td>36E100011400485</td><td>內湖延伸機房網路基礎建設採購建置專案 第二期</td><td>2025/12/19</td><td>7,600,000</td><td>36E100011400485</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="data-review" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">資料檢核</p>
+                <div class="tabs" aria-label="資料檢核檢視">
+                  <span class="tab active">檢核總覽</span>
+                  <span class="tab">來源舉證</span>
+                  <span class="tab">待補清單</span>
+                </div>
+              </div>
+              <div class="status-pills">
+                <span class="warn">待確認 4筆</span>
+                <span class="ok">已關聯 12</span>
+                <span>正式寫入封鎖</span>
+              </div>
+            </div>
+            <section class="kpi-grid">
+              <article class="kpi-card warn" role="button" tabindex="0" data-drill-target="data-review-missing-row"><span>待補來源</span><strong>4筆</strong><small>需回到 Excel / PDF / 人工來源補證。</small></article>
+              <article class="kpi-card ok" role="button" tabindex="0" data-drill-target="evidence-chain-row"><span>已關聯</span><strong>12筆</strong><small>案件、合約、付款已可追來源。</small></article>
+              <article class="kpi-card danger" role="button" tabindex="0" data-drill-target="data-review-write-block-row"><span>不可正式寫入</span><strong>封鎖</strong><small>正式匯入確認仍需高風險閘門。</small></article>
+              <article class="kpi-card" role="button" tabindex="0" data-drill-target="data-review-action-row"><span>下一步</span><strong>補證</strong><small>保留人工確認，不自動寫入。</small></article>
+            </section>
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>備註與人工提醒</h2>
+                <span class="muted">這裡只呈現說明，不代表正式流程或資料已寫入。</span>
+              </div>
+              <ul class="note-list">
+                <li id="data-review-missing-row" tabindex="-1">
+                  <span class="badge warn">待確認</span>
+                  <strong>付款期程與預算外原因一致性</strong>
+                  <small>相關模組：案件 / 付款；備註：需人工確認預算外依據；下一步：補來源說明。</small>
+                </li>
+                <li>
+                  <span class="badge danger">需補件</span>
+                  <strong>簽呈金額缺漏</strong>
+                  <small>相關模組：簽呈；備註：有一筆金額空白；下一步：回填來源列。</small>
+                </li>
+                <li id="data-review-write-block-row" tabindex="-1">
+                  <span class="badge danger">封鎖</span>
+                  <strong>正式寫入 Gate</strong>
+                  <small>相關模組：匯入確認；備註：尚未完成高風險審核；下一步：維持唯讀。</small>
+                </li>
+              </ul>
+            </section>
+            <section class="dashboard-split">
+              <div class="mini-dashboard-card">
+                <h2>來源舉證鏈</h2>
+                <table>
+                  <thead><tr><th>舉證ID</th><th>來源</th><th>對應模組</th><th>可信度</th></tr></thead>
+                  <tbody>
+                    <tr id="evidence-chain-row" tabindex="-1"><td>EVID-2026-0001</td><td>A3 附件 / 115年預算範本</td><td>預算</td><td><span class="badge ok">高</span></td></tr>
+                    <tr><td>EVID-2026-0002</td><td>費用預估明細 sheet</td><td>案件 / 付款</td><td><span class="badge warn">需確認</span></td></tr>
+                    <tr><td>EVID-2026-0003</td><td>合約進度 xlsx</td><td>合約</td><td><span class="badge ok">高</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>待補資料</h2>
+                <ul class="tight-list">
+                  <li><strong>付款期程原因</strong><span>補上預算外原因與付款月份對應。</span></li>
+                  <li><strong>簽呈缺金額</strong><span>回到來源列補齊金額或標示不適用。</span></li>
+                  <li><strong>正式寫入條件</strong><span>完成回滾、來源舉證、操作者與冪等性閘門。</span></li>
+                </ul>
+              </div>
+              <div class="mini-dashboard-card">
+                <h2>下鑽動作</h2>
+                <table>
+                  <thead><tr><th>入口</th><th>用途</th><th>狀態</th></tr></thead>
+                  <tbody>
+                    <tr id="data-review-action-row" tabindex="-1"><td>看來源</td><td>定位 Excel/PDF/人工欄位</td><td><span class="badge ok">可檢視</span></td></tr>
+                    <tr><td>補說明</td><td>記錄人工確認原因</td><td><span class="badge warn">待串接</span></td></tr>
+                    <tr><td>正式寫入</td><td>正式資料寫入</td><td><span class="badge danger">封鎖</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+        </section>
+
+        <section class="panel import-workbench module-extra" data-module-parent="data-review" hidden>
+          <div class="section-heading compact">
+            <h2>匯入 / 確認架構追溯</h2>
+            <span class="muted">保留既有匯入暫存、試算、正式寫入前檢核測試入口</span>
+          </div>
+          <form id="import-preview-form" class="import-form">
+            <input name="source_name" placeholder="來源檔名" value="import-preview-sample.json" required />
+            <textarea name="rows_json" rows="5" spellcheck="false" required>[
+  {"case_code":"CASE-SAMPLE-001","title":"八項控管範例案件","owner":"王小明","amount":"12345"}
+]</textarea>
+            <button type="submit">匯入預覽</button>
+          </form>
+          <div id="import-preview-result" class="import-preview-result"></div>
+          <div class="dry-run-panel">
+            <div class="section-heading compact">
+              <h3>案件試算檢查</h3>
+              <button id="dry-run-cases" type="button" class="secondary" disabled>案件試算</button>
+            </div>
+            <div id="dry-run-result" class="dry-run-result"></div>
+          </div>
+          <div class="preflight-panel">
+            <div class="section-heading compact">
+              <h3>案件正式寫入前檢核</h3>
+              <button id="preflight-cases" type="button" class="secondary" disabled>檢核案件</button>
+            </div>
+            <div id="preflight-result" class="preflight-result"></div>
+          </div>
+          <div class="mapping-catalog">
+            <div class="section-heading compact">
+              <h3>欄位對應草稿</h3>
+              <button id="refresh-mapping-catalog" type="button" class="secondary">更新</button>
+            </div>
+            <div id="mapping-catalog-result" class="mapping-catalog-result"></div>
+          </div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="cases-module">
+          <h2 id="form-title">新增案件</h2>
+          <form id="case-form">
+            <input name="id" type="hidden" />
+            <input name="case_code" placeholder="案件編號" required />
+            <input name="title" placeholder="案件名稱" required />
+            <input name="owner" placeholder="負責人" />
+            <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+            <select name="status">
+              <option value="draft">草稿</option>
+              <option value="reviewing">審核中</option>
+              <option value="approved">已核准</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <button type="submit" id="submit-case">儲存</button>
+            <button type="button" id="cancel-edit" class="secondary" hidden>取消</button>
+          </form>
+          <div id="cases" class="list"></div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="contracts-module" hidden>
+          <h2>合約</h2>
+          <form id="contract-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="contract_code" placeholder="合約編號" required />
+            <input name="contract_name" placeholder="合約名稱" required />
+            <input name="vendor_name" placeholder="廠商" />
+            <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="status">
+              <option value="active">有效</option>
+              <option value="reviewing">審核中</option>
+              <option value="closed">已結案</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="contracts" class="list compact-list"></div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="payments-module" hidden>
+          <h2>付款</h2>
+          <form id="payment-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="contract_id" placeholder="合約 ID" type="number" min="1" step="1" required />
+            <input name="payment_month" placeholder="付款年月，例如 2026-07" pattern="\d{4}-\d{2}" required />
+            <input name="payment_amount" placeholder="付款金額" type="number" min="0" step="1" required />
+            <select name="invoice_status">
+              <option value="not_received">尚未收到發票</option>
+              <option value="received">已收到發票</option>
+              <option value="verified">已驗證發票</option>
+            </select>
+            <select name="status">
+              <option value="pending">待處理</option>
+              <option value="scheduled">已排程</option>
+              <option value="closed">已結案</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="payments" class="list compact-list"></div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="data-review" hidden>
+            <h2>資料檢核</h2>
+          <form id="document-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="file_name" placeholder="檔案名稱" required />
+            <select name="document_type">
+              <option value="other">其他</option>
+              <option value="contract">合約</option>
+              <option value="invoice">發票</option>
+              <option value="approval">核准文件</option>
+            </select>
+            <input name="source_note" placeholder="來源說明" />
+            <select name="status">
+              <option value="active">有效</option>
+              <option value="reviewing">審核中</option>
+              <option value="archived">已歸檔</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <input name="case_id" placeholder="案件 ID" type="number" min="1" step="1" />
+            <input name="contract_id" placeholder="合約 ID" type="number" min="1" step="1" />
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="documents" class="list compact-list"></div>
+        </section>
+      </main>
+    </div>
+    <script src="/static/app.js?v=role-policy-20260706"></script>
+  </body>
+</html>
