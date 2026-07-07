@@ -124,12 +124,13 @@ def test_health_openapi_and_web(tmp_path):
         assert 'id="purchases"' in home.text
         assert 'id="payments-module"' in home.text
         assert 'id="data-review"' in home.text
-        assert "年度預算編列" in home.text
-        assert "PROJ-2026-0001" in home.text
-        assert "SIGN-2026-0001" in home.text
-        assert "CON-2026-0001" in home.text
-        assert "PR-2025-0001" in home.text
-        assert "PAY-2025-0001" in home.text
+        # 預算/專案/簽呈/請購為 data-unbuilt 模組，假表已掏空（點擊只顯示「尚未啟用」）
+        assert "年度預算編列" not in home.text  # budget 假內容已移除
+        assert "PROJ-2026-0001" not in home.text  # projects 假內容已移除
+        assert "SIGN-2026-0001" not in home.text  # signoff 假內容已移除
+        assert "PR-2025-0001" not in home.text  # purchases 假內容已移除
+        assert "CON-2026-0001" in home.text  # 合約模組（已接後端）
+        assert "PAY-2025-0001" in home.text  # 付款模組（已接後端）
         assert "正式寫入封鎖" in home.text
         assert "來源舉證鏈" in home.text
         assert "需處理案件（待辦）" in home.text  # 假面板已換成真待辦

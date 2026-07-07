@@ -130,153 +130,15 @@
 
         <section class="module-workspace" aria-label="next module checkpoints">
           <section class="dashboard-panel module-panel" id="budget" hidden>
-            <div class="dashboard-head">
-              <div>
-                <p class="breadcrumb">預算</p>
-                <div class="tabs" aria-label="預算頁籤">
-                  <span class="tab active">年度預算編列</span>
-                  <span class="tab">主管儀表板</span>
-                  <span class="tab">費用預估</span>
-                  <span class="tab">已簽承諾支付</span>
-                  <span class="tab">資料檢核</span>
-                </div>
-              </div>
-              <div class="status-pills">
-                <span>115 年預算範本</span>
-                <span class="warn">40 筆</span>
-                <span class="ok">36,022萬</span>
-              </div>
-            </div>
-            <section class="kpi-grid">
-              <article class="kpi-card primary"><span>總預算</span><strong>36,022萬</strong><small>年度預算編列總額。</small></article>
-              <article class="kpi-card warn"><span>硬體占比</span><strong>61%</strong><small>硬體與基礎建設支出占比。</small></article>
-              <article class="kpi-card"><span>基礎建設</span><strong>26,742萬</strong><small>主要集中於網路與系統平台。</small></article>
-              <article class="kpi-card danger"><span>最大需求</span><strong>19,200萬</strong><small>單一需求需主管先看風險。</small></article>
-            </section>
-            <section class="dashboard-split">
-              <div class="mini-dashboard-card">
-                <h2>預算結構</h2>
-                <div class="bar-row"><span>硬體預算</span><meter min="0" max="100" value="61"></meter><strong>61%</strong></div>
-                <div class="bar-row"><span>軟體預算</span><meter min="0" max="100" value="39"></meter><strong>39%</strong></div>
-                <div class="bar-row"><span>基礎建設</span><meter min="0" max="100" value="74"></meter><strong>74%</strong></div>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>類別統計</h2>
-                <table>
-                  <thead><tr><th>類別</th><th>筆數</th><th>小計</th></tr></thead>
-                  <tbody>
-                    <tr><td>基礎建設</td><td>16筆</td><td>26,742萬</td></tr>
-                    <tr><td>工具</td><td>9筆</td><td>5,973萬</td></tr>
-                    <tr><td>資訊安全</td><td>4筆</td><td>1,670萬</td></tr>
-                    <tr><td>電子交易平台</td><td>7筆</td><td>950萬</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>單位名稱統計</h2>
-                <table>
-                  <thead><tr><th>單位名稱</th><th>筆數</th><th>小計</th></tr></thead>
-                  <tbody>
-                    <tr><td>資訊架構組</td><td>7筆</td><td>23,570萬</td></tr>
-                    <tr><td>資訊服務部</td><td>3筆</td><td>1,200萬</td></tr>
-                    <tr><td>證券資訊部</td><td>5筆</td><td>1,054萬</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <!-- 預算：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
           </section>
 
           <section class="dashboard-panel module-panel" id="projects" hidden>
-            <div class="dashboard-head">
-              <div>
-                <p class="breadcrumb">專案</p>
-                <div class="tabs" aria-label="專案頁籤">
-                  <span class="tab active">專案清單</span>
-                  <span class="tab">主管儀表板</span>
-                  <span class="tab">工作項目</span>
-                  <span class="tab">資料檢核</span>
-                </div>
-              </div>
-              <div class="status-pills">
-                <span>6 專案</span>
-                <span class="ok">完成 1</span>
-                <span class="warn">平均進度 51%</span>
-                <span class="danger">未完成 5</span>
-              </div>
-            </div>
-            <section class="kpi-grid">
-              <article class="kpi-card primary"><span>成案狀態</span><strong>成案</strong><small>符合約、預算、付款追蹤。</small></article>
-              <article class="kpi-card warn"><span>目前進度</span><strong>待補</strong><small>專案進度尚未正式追蹤到。</small></article>
-              <article class="kpi-card"><span>負責人</span><strong>王小明</strong><small>網組窗口。</small></article>
-              <article class="kpi-card"><span>來源</span><strong>附件</strong><small>新增資料來源附件。</small></article>
-            </section>
-            <section class="watch-list">
-              <h2>A 板橋機房網路線路銷約與擴充 / 專案內容</h2>
-              <div class="table-shell">
-                <table>
-                  <thead><tr><th>項次</th><th>專案 ID</th><th>專案名稱</th><th>來源</th><th>必要性分類</th><th>實際進度</th><th>負責人</th><th>狀態</th><th>操作</th></tr></thead>
-                  <tbody>
-                    <tr><td>1</td><td>PROJ-2026-0001</td><td>資料庫 EOS 案</td><td>資料架構組需求</td><td>必要</td><td>29%</td><td>吳承翰</td><td><span class="badge pending">進行中</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
-                    <tr><td>2</td><td>PROJ-2026-0002</td><td>評估採購 IPS</td><td>網路組需求</td><td>必要</td><td>100%</td><td>黎世偉</td><td><span class="badge ok">已完成</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
-                    <tr><td>3</td><td>PROJ-2026-0005</td><td>AI 專案</td><td>AI 專案</td><td>必要 / 警示</td><td>33%</td><td>吳承翰</td><td><span class="badge warn">如期執行</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <!-- 專案：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
           </section>
 
           <section class="dashboard-panel module-panel" id="signoff" hidden>
-            <div class="dashboard-head">
-              <div>
-                <p class="breadcrumb">簽呈</p>
-                <div class="tabs" aria-label="簽呈頁籤">
-                  <span class="tab active">上簽項目</span>
-                  <span class="tab">主管儀表板</span>
-                  <span class="tab">資料檢核</span>
-                </div>
-              </div>
-              <div class="status-pills">
-                <span>202606</span>
-                <span class="warn">11 筆</span>
-                <span class="ok">4,397萬</span>
-              </div>
-            </div>
-            <section class="kpi-grid">
-              <article class="kpi-card primary"><span>上簽筆數</span><strong>11筆</strong><small>當月上簽項目。</small></article>
-              <article class="kpi-card ok"><span>上簽金額</span><strong>4,397萬</strong><small>彙整採購與續約需求。</small></article>
-              <article class="kpi-card warn"><span>新購</span><strong>6筆</strong><small>需注意後續採購鏈。</small></article>
-              <article class="kpi-card danger"><span>缺金額</span><strong>1筆</strong><small>需補正來源金額。</small></article>
-            </section>
-            <section class="dashboard-split">
-              <div class="mini-dashboard-card">
-                <h2>簽呈結構</h2>
-                <div class="bar-row"><span>網路</span><meter min="0" max="4397" value="3262"></meter><strong>74%</strong></div>
-                <div class="bar-row"><span>電話費</span><meter min="0" max="4397" value="498"></meter><strong>11%</strong></div>
-                <div class="bar-row"><span>資料韌性</span><meter min="0" max="4397" value="440"></meter><strong>10%</strong></div>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>上簽類型統計</h2>
-                <table>
-                  <thead><tr><th>上簽類型</th><th>筆數</th><th>金額</th></tr></thead>
-                  <tbody>
-                    <tr><td>新購</td><td>6筆</td><td>3,589萬</td></tr>
-                    <tr><td>續約(1M)</td><td>3筆</td><td>498萬</td></tr>
-                    <tr><td>續約(5Y)</td><td>1筆</td><td>113萬</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>上簽項目</h2>
-                <table>
-                  <thead><tr><th>簽呈 ID</th><th>類別</th><th>案名</th><th>上簽類型</th><th>金額</th></tr></thead>
-                  <tbody>
-                    <tr><td>SIGN-2026-0001</td><td>電話費</td><td>中華電信數據線路月租費</td><td>續約(1M)</td><td>223萬</td></tr>
-                    <tr><td>SIGN-2026-0004</td><td>網路</td><td>網路 NPM 採購</td><td>新購</td><td>2,000萬</td></tr>
-                    <tr><td>SIGN-2026-0005</td><td>網路</td><td>板橋機房 F5 LTM 採購</td><td>新購</td><td>950萬</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <!-- 簽呈：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
           </section>
 
           <section class="dashboard-panel module-panel" id="contracts-module" hidden>
@@ -319,41 +181,7 @@
           </section>
 
           <section class="dashboard-panel module-panel" id="purchases" hidden>
-            <div class="dashboard-head">
-              <div>
-                <p class="breadcrumb">請購</p>
-                <div class="tabs" aria-label="請購檢視">
-                  <span class="tab active">請購清單</span>
-                  <span class="tab">主管儀表板</span>
-                  <span class="tab">資料檢核</span>
-                </div>
-              </div>
-              <div class="status-pills">
-                <span>來源 4筆</span>
-                <span class="ok">有請購編號 4</span>
-                <span class="warn">不需檢核 3</span>
-                <span>1,616萬</span>
-              </div>
-            </div>
-            <section class="kpi-grid">
-              <article class="kpi-card"><span>功能狀態</span><strong>不適用</strong><small>本案目前走合約與付款期程。</small></article>
-              <article class="kpi-card warn"><span>請購調整</span><strong>無</strong><small>未找到獨立請購主檔。</small></article>
-              <article class="kpi-card"><span>系統規則</span><strong>灰燈</strong><small>不到站點未必須檢核。</small></article>
-              <article class="kpi-card ok"><span>下一步</span><strong>無</strong><small>等待正式來源表建立。</small></article>
-            </section>
-            <section class="watch-list">
-              <h2>A 板橋機房網路線路締約與擴充 / 請購內容</h2>
-              <div class="table-shell">
-                <table>
-                  <thead><tr><th>項次</th><th>請購ID</th><th>項目請購編號</th><th>核銷項目</th><th>類別</th><th>核銷金額</th><th>窗口</th><th>處理進度</th><th>操作</th></tr></thead>
-                  <tbody>
-                    <tr><td>1</td><td>PR-2025-0001</td><td>36E100011400082</td><td>Control-M 排程軟體專案</td><td>第一期</td><td>960,000</td><td>簡羽珊</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
-                    <tr><td>2</td><td>PR-2025-0002</td><td>36E100011400235</td><td>內湖延伸機房網路基礎建設採購建置專案</td><td>第一期</td><td>5,700,000</td><td>吳孝宏</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
-                    <tr><td>3</td><td>PR-2025-0003</td><td>36E100011400485</td><td>內湖延伸機房網路基礎建設採購建置專案</td><td>第二期</td><td>7,600,000</td><td>游雅宗</td><td><span class="badge ok">提交會計部(結案)</span></td><td><button class="secondary" type="button">編輯</button></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <!-- 請購：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
           </section>
 
           <section class="dashboard-panel module-panel" id="payments-module" hidden>
