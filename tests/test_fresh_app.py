@@ -129,8 +129,11 @@ def test_health_openapi_and_web(tmp_path):
         assert "PROJ-2026-0001" not in home.text  # projects 假內容已移除
         assert "SIGN-2026-0001" not in home.text  # signoff 假內容已移除
         assert "PR-2025-0001" not in home.text  # purchases 假內容已移除
-        assert "CON-2026-0001" in home.text  # 合約模組（已接後端）
-        assert "PAY-2025-0001" in home.text  # 付款模組（已接後端）
+        # 合約/付款模組的靜態假表已移除，改由下方 crud-zone 的 #contracts / #payments 即時載入
+        assert "CON-2026-0001" not in home.text  # 合約假表已移除
+        assert "PAY-2025-0001" not in home.text  # 付款假表已移除
+        assert 'id="contracts"' in home.text  # 合約真清單容器（後端載入）
+        assert 'id="payments"' in home.text  # 付款真清單容器（後端載入）
         assert "正式寫入封鎖" in home.text
         assert "來源舉證鏈" in home.text
         assert "需處理案件（待辦）" in home.text  # 假面板已換成真待辦

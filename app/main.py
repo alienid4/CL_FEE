@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.dev_console import console_status, run_console_command
 from app.import_mapping import mapping_draft_catalog
@@ -88,10 +88,16 @@ class ContractIn(BaseModel):
     contract_code: str = Field(min_length=1)
     contract_name: str = Field(min_length=1)
     vendor_name: str = ""
-    amount: float = 0
+    amount: float | None = 0
     status: str = "active"
     case_id: int | None = None
     end_date: str = ""
+
+    @field_validator("amount")
+    @classmethod
+    def _amount_default(cls, v: float | None) -> float:
+        # 前端金額留空會送 null；視為 0，避免使用者不填金額就存不進去
+        return 0.0 if v is None else v
 
 
 class ContractPatch(BaseModel):

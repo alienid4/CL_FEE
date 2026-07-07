@@ -76,7 +76,19 @@ def main() -> int:
             results.append(("審核中案件出現在待辦", "E2E-001" in todo_text))
             results.append(("待辦帶出備註/下一步", "E2E 下一步" in todo_text))
 
+            # 3.5) 合約模組：靜態假表已移除，真清單可即時新增
+            page.click('a.module-card[href="#contracts-module"]')
+            page.wait_for_timeout(400)
+            results.append(("合約模組已無假表(CON-2026-0001)", "CON-2026-0001" not in page.content()))
+            page.fill('#contract-form input[name="contract_code"]', "E2E-CON-1")
+            page.fill('#contract-form input[name="contract_name"]', "E2E 合約")
+            page.click('#contract-form button[type="submit"]')
+            page.wait_for_timeout(700)
+            results.append(("新增合約出現在真清單", "E2E-CON-1" in page.inner_text("#contracts")))
+
             # 4) 換 CIO（唯讀）→ 建案應失敗（案件數不增）
+            page.click('a.module-card[href="#cases-module"]')
+            page.wait_for_timeout(300)
             page.click("#logout" if page.query_selector("#logout") else "text=登出")
             page.wait_for_selector("#login-form", state="visible", timeout=10000)
             page.fill('#login-form input[name="username"]', "ap01")
