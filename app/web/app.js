@@ -13,6 +13,7 @@ const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
 const cioCasesBody = document.querySelector("#cio-cases-body");
 const monthlyBody = document.querySelector("#monthly-spending-body");
+const setText = (sel, txt) => { const el = document.querySelector(sel); if (el) el.textContent = txt; };
 const formTitle = document.querySelector("#form-title");
 const submitCase = document.querySelector("#submit-case");
 const cancelEdit = document.querySelector("#cancel-edit");
@@ -722,6 +723,9 @@ async function loadDashboard() {
     metric("付款", data.counts.payments),
     metric("文件", data.counts.documents),
   ].join("");
+  setText("#nav-count-cases", `案件 ${data.counts.cases}`);
+  setText("#nav-count-contracts", `合約 ${data.counts.contracts}`);
+  setText("#nav-count-payments", `付款 ${data.counts.payments}`);
 }
 
 async function loadCases() {
@@ -793,6 +797,7 @@ async function loadTodo() {
   if (!todoList) return;
   const payload = await api("/api/todo");
   const items = payload.data || [];
+  setText("#nav-count-todo", `待辦 ${items.length}`);
   todoList.innerHTML = items.length
     ? items
         .map(
