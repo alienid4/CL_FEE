@@ -12,6 +12,7 @@ const documents = document.querySelector("#documents");
 const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
 const cioCasesBody = document.querySelector("#cio-cases-body");
+const monthlyBody = document.querySelector("#monthly-spending-body");
 const formTitle = document.querySelector("#form-title");
 const submitCase = document.querySelector("#submit-case");
 const cancelEdit = document.querySelector("#cancel-edit");
@@ -828,8 +829,28 @@ function renderCioTable() {
     : `<tr><td colspan="9" class="muted">目前沒有案件資料。</td></tr>`;
 }
 
+async function loadMonthly() {
+  if (!monthlyBody) return;
+  const payload = await api("/api/reports/monthly-spending");
+  const rows = payload.data || [];
+  monthlyBody.innerHTML = rows.length
+    ? rows
+        .map(
+          (r) => `
+            <tr>
+              <td>${escapeHtml(r.month)}</td>
+              <td>${r.count}</td>
+              <td>${Number(r.total || 0).toLocaleString()}</td>
+              <td>${Number(r.paid || 0).toLocaleString()}</td>
+              <td>${Number(r.pending || 0).toLocaleString()}</td>
+            </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="5" class="muted">目前沒有付款資料。</td></tr>`;
+}
+
 async function refresh() {
-  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo()]);
+  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo(), loadMonthly()]);
 }
 
 function resetForm() {

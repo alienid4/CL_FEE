@@ -132,6 +132,8 @@ def test_health_openapi_and_web(tmp_path):
         assert "需處理案件（待辦）" in home.text  # 假面板已換成真待辦
         assert "來自真實案件" in home.text
         assert 'id="todo-list"' in home.text  # 由 /api/todo 動態載入
+        assert "月度支出彙總" in home.text  # 真月度支出面板
+        assert 'id="monthly-spending-body"' in home.text
         assert "EVID-2026-0001" in home.text
         assert "檢視角色" not in home.text
         assert "使用者：" not in home.text
