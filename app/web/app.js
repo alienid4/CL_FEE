@@ -29,6 +29,17 @@ const caseTabs = [...document.querySelectorAll("[data-case-tab]")];
 const casePanels = [...document.querySelectorAll("[data-case-panel]")];
 const moduleCards = [...document.querySelectorAll(".module-card")];
 const modulePanels = [...document.querySelectorAll(".module-panel")];
+if (modulePanels.length && !document.querySelector("#module-unbuilt")) {
+  const ph = document.createElement("section");
+  ph.className = "module-panel";
+  ph.id = "module-unbuilt";
+  ph.hidden = true;
+  ph.innerHTML =
+    '<div class="watch-list"><div class="section-heading compact"><h2>此功能尚未啟用</h2></div>' +
+    '<p class="muted">此模組（預算 / 專案 / 簽呈 / 請購）仍在規劃中，pilot 階段先不開放。核心流程請用「案件管理」。</p></div>';
+  modulePanels[0].parentNode.appendChild(ph);
+  modulePanels.push(ph);
+}
 const moduleExtras = [...document.querySelectorAll("[data-module-parent]")];
 const drillCards = [...document.querySelectorAll("[data-drill-target]")];
 let lastImportPreview = null;
@@ -240,7 +251,7 @@ function activateCaseTab(tabName) {
 
 function activateModuleCard(card) {
   if (!card || card.hidden) return;
-  const targetId = card.getAttribute("href")?.replace("#", "");
+  const targetId = ("unbuilt" in card.dataset) ? "module-unbuilt" : card.getAttribute("href")?.replace("#", "");
   for (const moduleCard of moduleCards) {
     moduleCard.classList.toggle("active", moduleCard === card);
   }
