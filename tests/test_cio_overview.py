@@ -66,6 +66,23 @@ def test_drilldown_360_from_overview(tmp_path):
         assert len(detail["contracts"]) == 1
 
 
+def test_drilldown_shows_full_control_chain(tmp_path):
+    """CIO 下探案件要看得到整條控管鏈：對應預算/專案/簽呈/請購，不只合約付款。"""
+    with _client(tmp_path) as client:
+        case = client.post("/api/cases", json={"case_code": "CHAIN-1", "title": "鏈"}).json()["data"]
+        cid = case["id"]
+        client.post("/api/budgets", json={"budget_code": "B-CH", "amount": 500, "case_id": cid})
+        client.post("/api/projects", json={"project_code": "P-CH", "project_name": "專", "case_id": cid})
+        client.post("/api/signoffs", json={"signoff_code": "S-CH", "subject": "簽", "amount": 500, "case_id": cid})
+        client.post("/api/purchases", json={"purchase_code": "PO-CH", "item_name": "品", "amount": 500, "case_id": cid})
+        d = client.get(f"/api/cases/{cid}/360").json()["data"]
+        assert any(b["budget_code"] == "B-CH" for b in d["budgets"])
+        assert any(p["project_code"] == "P-CH" for p in d["projects"])
+        assert any(s["signoff_code"] == "S-CH" for s in d["signoffs"])
+        assert any(p["purchase_code"] == "PO-CH" for p in d["purchases"])
+        assert d["totals"]["budget_amount"] == 500
+
+
 def test_cio_sees_only_overview_module(tmp_path):
     with _client(tmp_path, login="ap01") as client:
         me = client.get("/api/auth/me").json()["data"]

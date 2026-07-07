@@ -1035,6 +1035,18 @@ async function loadCioDrill(caseId) {
     const documents = (d.documents || [])
       .map((doc) => `<li>${escapeHtml(doc.file_name)} ｜ ${escapeHtml(labelStatus(doc.status || "active"))}</li>`)
       .join("") || `<li class="muted">無文件</li>`;
+    const budgets = (d.budgets || [])
+      .map((b) => `<li><strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.category))} ｜ ${escapeHtml(valueOrDash(b.unit_name))} ｜ 金額：${money(b.amount)} 元</li>`)
+      .join("") || `<li class="muted">無關聯預算</li>`;
+    const signoffs = (d.signoffs || [])
+      .map((s) => `<li><strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")} ｜ 申請人：${escapeHtml(valueOrDash(s.applicant))} ｜ 金額：${money(s.amount)} 元 ｜ ${escapeHtml(labelStatus(s.status))}</li>`)
+      .join("") || `<li class="muted">無關聯簽呈</li>`;
+    const purchases = (d.purchases || [])
+      .map((p) => `<li><strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")} ｜ 廠商：${escapeHtml(valueOrDash(p.vendor_name))} ｜ 金額：${money(p.amount)} 元 ｜ ${escapeHtml(labelStatus(p.status))}</li>`)
+      .join("") || `<li class="muted">無關聯請購</li>`;
+    const projects = (d.projects || [])
+      .map((p) => `<li><strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")} ｜ 進度 ${Number(p.progress || 0)}% ｜ ${escapeHtml(labelStatus(p.status))}</li>`)
+      .join("") || `<li class="muted">無關聯專案</li>`;
     cioDrill.innerHTML = `
       <div class="section-heading compact">
         <h2>追查：${escapeHtml(c.case_code || "")}　${escapeHtml(c.title || "")}</h2>
@@ -1046,6 +1058,10 @@ async function loadCioDrill(caseId) {
         ${metric("狀態", escapeHtml(labelStatus(c.status || "")))}
         ${metric("付款合計", `${money((d.totals || {}).payment_amount)} 元`)}
       </div>
+      <h3>對應預算</h3><ul class="note-list">${budgets}</ul>
+      <h3>對應專案</h3><ul class="note-list">${projects}</ul>
+      <h3>對應簽呈</h3><ul class="note-list">${signoffs}</ul>
+      <h3>對應請購</h3><ul class="note-list">${purchases}</ul>
       <h3>關聯合約</h3><ul class="note-list">${contracts}</ul>
       <h3>付款明細</h3><ul class="note-list">${payments}</ul>
       <h3>文件</h3><ul class="note-list">${documents}</ul>`;

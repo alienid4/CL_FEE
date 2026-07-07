@@ -847,14 +847,26 @@ def case_360(case_id: int) -> dict[str, Any]:
             (case_id,),
         ).fetchall()
         documents = conn.execute("SELECT * FROM documents WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
+        # 追查「這筆費用對應的預算/專案/簽呈/請購」——CIO 下探時要看得到整條控管鏈
+        budgets = conn.execute("SELECT * FROM budgets WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
+        projects = conn.execute("SELECT * FROM projects WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
+        signoffs = conn.execute("SELECT * FROM signoffs WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
+        purchases = conn.execute("SELECT * FROM purchases WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
         return {
             "case": case,
             "contracts": contracts,
             "payments": payments,
             "documents": documents,
+            "budgets": budgets,
+            "projects": projects,
+            "signoffs": signoffs,
+            "purchases": purchases,
             "totals": {
                 "contract_amount": sum(row["amount"] for row in contracts),
                 "payment_amount": sum(row["payment_amount"] for row in payments),
                 "document_count": len(documents),
+                "budget_amount": sum(row["amount"] for row in budgets),
+                "signoff_amount": sum(row["amount"] for row in signoffs),
+                "purchase_amount": sum(row["amount"] for row in purchases),
             },
         }
