@@ -117,66 +117,16 @@
                   <tr>
                     <th>項次</th>
                     <th>案件編號</th>
-                    <th>預算歸屬</th>
-                    <th>成案狀態</th>
                     <th>案件名稱</th>
-                    <th>主要來源</th>
-                    <th>目前卡點</th>
+                    <th>狀態</th>
+                    <th>金額</th>
                     <th>負責人</th>
+                    <th>備註</th>
                     <th>下一步</th>
                     <th>操作</th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>CASE-2026-0008</td>
-                    <td><span class="badge danger">預算外</span></td>
-                    <td><span class="badge ok">成案</span></td>
-                    <td>板橋機房網路線路銷約與擴充</td>
-                    <td>合約 / 簽約增購</td>
-                    <td><span class="badge warn">付款期程待確認</span></td>
-                    <td>王小明</td>
-                    <td>補預算外原因與核准依據</td>
-                    <td><button type="button" class="secondary">看稽核項</button></td>
-                  </tr>
-                  <tr>
-                    <td>2</td>
-                    <td>CASE-2026-0012</td>
-                    <td><span class="badge neutral">不執行</span></td>
-                    <td><span class="badge neutral">未成案</span></td>
-                    <td>XX電信固定費用</td>
-                    <td>費用預估 / 月租</td>
-                    <td><span class="badge pending">本月發票等待</span></td>
-                    <td>蔡世偉</td>
-                    <td>補本月發票與付款證明</td>
-                    <td><button type="button" class="secondary">更多</button></td>
-                  </tr>
-                  <tr>
-                    <td>3</td>
-                    <td>CASE-2026-0013</td>
-                    <td><span class="badge ok">預算內</span></td>
-                    <td><span class="badge ok">成案</span></td>
-                    <td>XX系統自動化</td>
-                    <td>專案 / 主管交辦</td>
-                    <td><span class="badge blue">專案追蹤中</span></td>
-                    <td>吳承翰</td>
-                    <td>更新專案進度</td>
-                    <td><button type="button" class="secondary">更多</button></td>
-                  </tr>
-                  <tr>
-                    <td>4</td>
-                    <td>CASE-2026-0031</td>
-                    <td><span class="badge warn">待判定</span></td>
-                    <td><span class="badge warn">待判定</span></td>
-                    <td>IBM AIX/R6 維護</td>
-                    <td>預算 / 費用預估</td>
-                    <td><span class="badge pending">同案待確認</span></td>
-                    <td>雷子慶</td>
-                    <td>確認 IBM R6 / AIX 是否同案</td>
-                    <td><button type="button" class="secondary">同案整理</button></td>
-                  </tr>
-                </tbody>
+                <tbody id="cio-cases-body"></tbody>
               </table>
             </div>
             </section>
@@ -838,6 +788,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=todo-click-20260707"></script>
+    <script src="/static/app.js?v=cio-table-20260707"></script>
   </body>
 </html>

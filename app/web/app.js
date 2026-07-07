@@ -11,6 +11,7 @@ const payments = document.querySelector("#payments");
 const documents = document.querySelector("#documents");
 const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
+const cioCasesBody = document.querySelector("#cio-cases-body");
 const formTitle = document.querySelector("#form-title");
 const submitCase = document.querySelector("#submit-case");
 const cancelEdit = document.querySelector("#cancel-edit");
@@ -744,6 +745,7 @@ async function loadCases() {
         )
         .join("")
     : `<p class="muted">目前沒有案件資料。</p>`;
+  renderCioTable();
 }
 
 async function loadResource(type) {
@@ -802,6 +804,28 @@ async function loadTodo() {
         )
         .join("")
     : `<li><small class="muted">目前沒有需處理的案件。</small></li>`;
+}
+
+function renderCioTable() {
+  if (!cioCasesBody) return;
+  cioCasesBody.innerHTML = caseCache.length
+    ? caseCache
+        .map(
+          (c, i) => `
+            <tr data-case-id="${c.id}">
+              <td>${i + 1}</td>
+              <td>${escapeHtml(c.case_code)}</td>
+              <td>${escapeHtml(c.title)}</td>
+              <td><span class="badge ${c.status === "reviewing" ? "warn" : c.status === "disabled" ? "neutral" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span></td>
+              <td>${Number(c.amount || 0).toLocaleString()}</td>
+              <td>${escapeHtml(c.owner || "未指派")}</td>
+              <td>${escapeHtml(c.note || "—")}</td>
+              <td>${escapeHtml(c.next_step || "—")}</td>
+              <td><button type="button" class="secondary" data-cio-edit>編輯</button></td>
+            </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="9" class="muted">目前沒有案件資料。</td></tr>`;
 }
 
 async function refresh() {
@@ -924,6 +948,16 @@ if (todoList) {
     const li = event.target.closest("li[data-case-id]");
     if (!li || !li.dataset.caseId) return;
     startEdit(li.dataset.caseId);
+    form.scrollIntoView({ block: "center" });
+  });
+}
+
+if (cioCasesBody) {
+  cioCasesBody.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-cio-edit]")) return;
+    const tr = event.target.closest("tr[data-case-id]");
+    if (!tr) return;
+    startEdit(tr.dataset.caseId);
     form.scrollIntoView({ block: "center" });
   });
 }
