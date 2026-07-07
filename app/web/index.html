@@ -115,6 +115,13 @@
               </table>
             </div>
           </section>
+          <section class="watch-list" aria-label="expiring contracts">
+            <div class="section-heading compact">
+              <h2>合約續約提醒</h2>
+              <span class="muted">90 天內到期或已過期的合約（真實資料）。</span>
+            </div>
+            <ul class="note-list" id="expiring-list"></ul>
+          </section>
 
           <section class="case-tab-panel active" data-case-panel="list">
             <section class="watch-list">
@@ -745,6 +752,7 @@
               <option value="closed">已結案</option>
               <option value="disabled">已停用</option>
             </select>
+            <input name="end_date" placeholder="到期日 YYYY-MM-DD" />
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
@@ -802,6 +810,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=export-csv-20260707"></script>
+    <script src="/static/app.js?v=contract-expiry-20260707"></script>
   </body>
 </html>

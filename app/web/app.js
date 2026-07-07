@@ -125,7 +125,7 @@ const resourceConfig = {
     idAttr: "contract-id",
     idField: "contractId",
     api: "/api/contracts",
-    fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "status"],
+    fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "status", "end_date"],
     numberFields: ["amount", "case_id"],
     canDisable: true,
     render: (item) => `
@@ -865,8 +865,29 @@ async function loadMonthly() {
     : `<tr><td colspan="5" class="muted">目前沒有付款資料。</td></tr>`;
 }
 
+async function loadExpiring() {
+  const el = document.querySelector("#expiring-list");
+  if (!el) return;
+  const payload = await api("/api/reports/expiring-contracts");
+  const items = payload.data || [];
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = items.length
+    ? items
+        .map((c) => {
+          const overdue = c.end_date && c.end_date < today;
+          return `
+            <li>
+              <span class="badge ${overdue ? "danger" : "warn"}">${overdue ? "已過期" : "快到期"}</span>
+              <strong>${escapeHtml(c.contract_code)}　${escapeHtml(c.contract_name)}</strong>
+              <small>到期日：${escapeHtml(c.end_date)}；廠商：${escapeHtml(c.vendor_name || "—")}；金額：${Number(c.amount || 0).toLocaleString()}</small>
+            </li>`;
+        })
+        .join("")
+    : `<li><small class="muted">目前沒有快到期或已過期的合約。</small></li>`;
+}
+
 async function refresh() {
-  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo(), loadMonthly()]);
+  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring()]);
 }
 
 function resetForm() {
