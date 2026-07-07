@@ -56,6 +56,8 @@ def test_handler_forbidden_from_audit_and_import(tmp_path):
         assert client.get("/api/audit-logs").status_code == 403          # 承辦不得看稽核
         assert client.get("/api/import-batches").status_code == 403       # 承辦不得看匯入
         assert client.post("/api/import-batches", json={"source_name": "x.csv"}).status_code == 403
+        assert client.get("/api/dev-console/status").status_code == 403   # 承辦不得用 dev-console
+        assert client.post("/api/dev-console/run", json={"command_id": "fast_ci", "dry_run": True}).status_code == 403
         client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
         assert client.get("/api/audit-logs").status_code == 200           # 主管仍可用
         assert client.get("/api/import-batches").status_code == 200

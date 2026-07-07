@@ -49,7 +49,7 @@ def _load_dotenv(env_path: Path | None = None) -> None:
     env_path = env_path or (Path(__file__).resolve().parent.parent / ".env")
     if not env_path.exists():
         return
-    for raw in env_path.read_text(encoding="utf-8").splitlines():
+    for raw in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -169,7 +169,7 @@ class LoginIn(BaseModel):
 
 
 AUTH_COOKIE_NAME = "ai_fee_user"
-HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches")  # 承辦不得使用（稽核/匯入）
+HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
     "ap01": {
         "username": "ap01",
