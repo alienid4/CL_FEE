@@ -20,6 +20,7 @@ from app.store import (
     case_360,
     cases_needing_attention,
     confirm_import_batch_cases_dry_run,
+    expiring_contracts,
     create_import_batch,
     dashboard_summary,
     delete_row,
@@ -88,6 +89,7 @@ class ContractIn(BaseModel):
     amount: float = 0
     status: str = "active"
     case_id: int | None = None
+    end_date: str = ""
 
 
 class ContractPatch(BaseModel):
@@ -97,6 +99,7 @@ class ContractPatch(BaseModel):
     amount: float | None = None
     status: str | None = None
     case_id: int | None = None
+    end_date: str | None = None
 
 
 class PaymentIn(BaseModel):
@@ -381,6 +384,10 @@ def create_app() -> FastAPI:
     @app.get("/api/todo")
     def todo_cases() -> dict[str, Any]:
         return ok(cases_needing_attention())
+
+    @app.get("/api/reports/expiring-contracts")
+    def expiring() -> dict[str, Any]:
+        return ok(expiring_contracts())
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:

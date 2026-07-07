@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import date, timedelta
 import json
 from pathlib import Path
 import sqlite3
@@ -67,6 +68,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     amount REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active',
     case_id INTEGER,
+    end_date TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -163,6 +165,7 @@ def initialize_database() -> None:
         ensure_column(conn, "audit_logs", "actor", "TEXT NOT NULL DEFAULT 'local-dev'")
         ensure_column(conn, "cases", "note", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "next_step", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "contracts", "end_date", "TEXT NOT NULL DEFAULT ''")
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -196,7 +199,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step"},
-        "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id"},
+        "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
     }
@@ -535,6 +538,24 @@ def cases_needing_attention() -> list[dict[str, Any]]:
         return conn.execute(
             "SELECT id, case_code, title, status, note, next_step, owner, amount "
             f"FROM cases WHERE {where} ORDER BY id DESC LIMIT 100",
+            params,
+        ).fetchall()
+
+
+def expiring_contracts(within_days: int = 90) -> list[dict[str, Any]]:
+    """快到期或已過期的合約：有到期日且 <= 今天+within_days，未作廢。承辦只看自己案件下的。"""
+    scope = _owner_scope.get()
+    threshold = (date.today() + timedelta(days=within_days)).isoformat()
+    where = "end_date <> '' AND end_date <= ? AND status <> 'disabled'"
+    params: list[Any] = [threshold]
+    if scope is not None:
+        sw, sp = _scope_where("contracts", scope)
+        if sw:
+            where = f"({where}) AND {sw}"
+            params += sp
+    with connect() as conn:
+        return conn.execute(
+            f"SELECT * FROM contracts WHERE {where} ORDER BY end_date ASC LIMIT 100",
             params,
         ).fetchall()
 
