@@ -18,6 +18,7 @@ from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
     case_360,
+    cases_needing_attention,
     confirm_import_batch_cases_dry_run,
     create_import_batch,
     dashboard_summary,
@@ -376,6 +377,10 @@ def create_app() -> FastAPI:
     @app.get("/api/reports/monthly-spending")
     def monthly_spending() -> dict[str, Any]:
         return ok(monthly_spending_summary())
+
+    @app.get("/api/todo")
+    def todo_cases() -> dict[str, Any]:
+        return ok(cases_needing_attention())
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:

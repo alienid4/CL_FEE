@@ -523,6 +523,22 @@ def monthly_spending_summary() -> list[dict[str, Any]]:
         return conn.execute(sql, params).fetchall()
 
 
+def cases_needing_attention() -> list[dict[str, Any]]:
+    """需處理案件：未作廢，且(審核中 或 有填下一步)。承辦只看自己的。"""
+    scope = _owner_scope.get()
+    where = "status <> 'disabled' AND (status = 'reviewing' OR TRIM(next_step) <> '')"
+    params: list[Any] = []
+    if scope is not None:
+        where = f"({where}) AND owner = ?"
+        params.append(scope)
+    with connect() as conn:
+        return conn.execute(
+            "SELECT id, case_code, title, status, note, next_step, owner, amount "
+            f"FROM cases WHERE {where} ORDER BY id DESC LIMIT 100",
+            params,
+        ).fetchall()
+
+
 def search_records(query: str) -> list[dict[str, Any]]:
     pattern = f"%{query}%"
     scope = _owner_scope.get()
