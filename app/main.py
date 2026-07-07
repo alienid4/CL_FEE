@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+import csv
 import hashlib
 import hmac
+import io
 import os
 from pathlib import Path
 import secrets
@@ -510,6 +512,23 @@ def create_app() -> FastAPI:
     @app.get("/api/cases")
     def cases(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
         return ok(list_rows("cases", limit))
+
+    @app.get("/api/cases.csv", include_in_schema=False)
+    def export_cases_csv() -> Response:
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["案件編號", "案件名稱", "狀態", "金額", "負責人", "風險", "備註", "下一步"])
+        for r in list_rows("cases", 500):
+            writer.writerow([
+                r.get("case_code", ""), r.get("title", ""), r.get("status", ""),
+                r.get("amount", 0), r.get("owner", ""), r.get("risk_level", ""),
+                r.get("note", ""), r.get("next_step", ""),
+            ])
+        return Response(
+            content="﻿" + buf.getvalue(),  # BOM 讓 Excel 正確辨識 UTF-8
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=cases.csv"},
+        )
 
     @app.patch("/api/cases/{case_id}")
     def update_case(case_id: int, payload: CasePatch) -> dict[str, Any]:

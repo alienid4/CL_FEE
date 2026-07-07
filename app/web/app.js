@@ -999,6 +999,10 @@ if (cioCasesBody) {
   });
 }
 
+document.querySelector("#export-cases")?.addEventListener("click", () => {
+  window.location.href = "/api/cases.csv";
+});
+
 cases.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
