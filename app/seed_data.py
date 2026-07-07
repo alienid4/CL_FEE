@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from datetime import date
+from datetime import date, timedelta
 
 from app import store
 
@@ -23,6 +23,14 @@ def _next_month() -> str:
     if today.month == 12:
         return f"{today.year + 1}-01"
     return f"{today.year}-{today.month + 1:02d}"
+
+
+def _offset_date(days: int) -> str:
+    return (date.today() + timedelta(days=days)).isoformat()
+
+
+# demo 案件的預計完成日（相對今天算，永遠能展示催辦）：index -> 天數偏移
+_CASE_DUE_OFFSETS = {0: -6, 2: 7}  # DEMO-C01 逾期 6 天、DEMO-C03 還剩 7 天
 
 # 說明：日期挑選讓 demo 能展示「到期提醒」與「月度支出」等真功能。
 _CASES = [
@@ -85,7 +93,12 @@ def clear_demo_data() -> dict[str, int]:
 def load_demo_data() -> dict[str, int]:
     """先清空舊 demo 再插入一組完整示範資料，回傳各表載入筆數。"""
     clear_demo_data()
-    case_ids = [store.insert_row("cases", dict(payload))["id"] for payload in _CASES]
+    case_ids = []
+    for idx, payload in enumerate(_CASES):
+        row = dict(payload)
+        if idx in _CASE_DUE_OFFSETS:
+            row["due_date"] = _offset_date(_CASE_DUE_OFFSETS[idx])  # 供催辦清單展示
+        case_ids.append(store.insert_row("cases", row)["id"])
 
     contract_ids: list[int] = []
     for payload, case_idx in _CONTRACTS:

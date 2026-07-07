@@ -108,6 +108,9 @@ def main() -> int:
             page.click("#demo-seed")
             page.wait_for_selector("#demo-status:has-text('已載入')", timeout=8000)
             results.append(("載入示範資料後狀態回饋", "已載入" in page.inner_text("#demo-status")))
+            # 催辦清單：demo 有一筆逾期案件（DEMO-C01）；等 refresh 載入完成
+            page.wait_for_timeout(1000)
+            results.append(("催辦清單出現逾期項目", "已逾期" in page.inner_text("#reminders-list")))
             page.click('button[data-case-tab="list"]')
             page.wait_for_timeout(600)
             results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))

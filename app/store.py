@@ -240,6 +240,7 @@ def initialize_database() -> None:
         ensure_column(conn, "audit_logs", "actor", "TEXT NOT NULL DEFAULT 'local-dev'")
         ensure_column(conn, "cases", "note", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "next_step", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "due_date", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "created_by", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "approved_by", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "approved_at", "TEXT NOT NULL DEFAULT ''")
@@ -278,7 +279,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def allowed_fields() -> dict[str, set[str]]:
     return {
-        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "created_by"},
+        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
@@ -690,6 +691,63 @@ def expiring_contracts(within_days: int = 90) -> list[dict[str, Any]]:
             f"SELECT * FROM contracts WHERE {where} ORDER BY end_date ASC LIMIT 100",
             params,
         ).fetchall()
+
+
+def overdue_reminders(within_days: int = 14) -> list[dict[str, Any]]:
+    """催辦清單：逾期或即將到期、但尚未完成的『案件』與『合約』，供主動提醒。
+    - 案件：有預計完成日(due_date) 且未核准/未作廢。
+    - 合約：有到期日(end_date) 且未作廢。
+    依 owner 範圍過濾（承辦只看自己的）。逾期(date<今天)標 overdue，其餘標 soon。"""
+    scope = _owner_scope.get()
+    today = date.today()
+    today_s = today.isoformat()
+    horizon = (today + timedelta(days=within_days)).isoformat()
+
+    def _days(date_str: str) -> int:
+        try:
+            return (date.fromisoformat(date_str) - today).days
+        except ValueError:
+            return 0
+
+    items: list[dict[str, Any]] = []
+    with connect() as conn:
+        # 案件：未完成且有預計完成日
+        c_where = "due_date <> '' AND due_date <= ? AND status NOT IN ('approved', 'disabled')"
+        c_params: list[Any] = [horizon]
+        if scope is not None:
+            c_where = f"({c_where}) AND owner = ?"
+            c_params.append(scope)
+        for r in conn.execute(
+            f"SELECT id, case_code, title, owner, due_date, status FROM cases WHERE {c_where} ORDER BY due_date ASC LIMIT 100",
+            c_params,
+        ).fetchall():
+            items.append({
+                "type": "case", "id": r["id"], "code": r["case_code"], "title": r["title"],
+                "owner": r["owner"], "date": r["due_date"], "status": r["status"],
+                "days": _days(r["due_date"]), "severity": "overdue" if r["due_date"] < today_s else "soon",
+            })
+
+        # 合約：未作廢且有到期日
+        k_where = "k.end_date <> '' AND k.end_date <= ? AND k.status <> 'disabled'"
+        k_params: list[Any] = [horizon]
+        if scope is not None:
+            sw, sp = _scope_where("contracts", scope)
+            if sw:
+                k_where = f"({k_where}) AND {sw.replace('case_id', 'k.case_id')}"
+                k_params += sp
+        for r in conn.execute(
+            "SELECT k.id, k.contract_code, k.contract_name, c.owner, k.end_date, k.status "
+            f"FROM contracts k LEFT JOIN cases c ON c.id = k.case_id WHERE {k_where} ORDER BY k.end_date ASC LIMIT 100",
+            k_params,
+        ).fetchall():
+            items.append({
+                "type": "contract", "id": r["id"], "code": r["contract_code"], "title": r["contract_name"],
+                "owner": r["owner"], "date": r["end_date"], "status": r["status"],
+                "days": _days(r["end_date"]), "severity": "overdue" if r["end_date"] < today_s else "soon",
+            })
+
+    items.sort(key=lambda x: x["date"])
+    return items
 
 
 # 雙人複核規則 (b)：核准前不算數 —— CIO 畫面的金額只計「已核准」案件下的付款。

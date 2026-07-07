@@ -1054,11 +1054,38 @@ async function loadCioDrill(caseId) {
   }
 }
 
+async function loadReminders() {
+  const el = document.querySelector("#reminders-list");
+  if (!el) return;
+  const payload = await api("/api/reports/reminders");
+  const items = payload.data || [];
+  const countEl = document.querySelector("#reminders-count");
+  const overdue = items.filter((i) => i.severity === "overdue").length;
+  if (countEl) {
+    countEl.hidden = items.length === 0;
+    countEl.textContent = overdue ? `${overdue} 逾期 / 共 ${items.length}` : `${items.length}`;
+  }
+  el.innerHTML = items.length
+    ? items
+        .map((i) => {
+          const kind = i.type === "case" ? "案件" : "合約";
+          const tag = i.severity === "overdue" ? `已逾期 ${Math.abs(i.days)} 天` : `剩 ${i.days} 天`;
+          return `
+            <li>
+              <span class="badge ${i.severity === "overdue" ? "danger" : "warn"}">${tag}</span>
+              <strong>${escapeHtml(kind)}｜${escapeHtml(i.code)}　${escapeHtml(i.title)}</strong>
+              <small>期限：${escapeHtml(i.date)}；負責人：${escapeHtml(i.owner || "未指派")}；狀態：${escapeHtml(labelStatus(i.status))}</small>
+            </li>`;
+        })
+        .join("")
+    : `<li><small class="muted">目前沒有逾期或即將到期的催辦項目。</small></li>`;
+}
+
 async function refresh() {
   await Promise.all([
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
-    loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(),
+    loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
   ]);
 }
 
@@ -1081,6 +1108,7 @@ function startEdit(id) {
   form.elements.status.value = item.status || "draft";
   form.elements.note.value = item.note || "";
   form.elements.next_step.value = item.next_step || "";
+  if (form.elements.due_date) form.elements.due_date.value = item.due_date || "";
   formTitle.textContent = `編輯 ${item.case_code}`;
   submitCase.textContent = "儲存";
   cancelEdit.hidden = false;

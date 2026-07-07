@@ -136,6 +136,13 @@
               </div>
               <ul class="note-list" id="expiring-list"></ul>
             </section>
+            <section class="watch-list" aria-label="overdue reminders">
+              <div class="section-heading compact">
+                <h2>催辦清單 <span id="reminders-count" class="badge warn" hidden></span></h2>
+                <span class="muted">逾期或即將到期、但尚未完成的案件與合約（14 天內）。承辦只看自己的。</span>
+              </div>
+              <ul class="note-list" id="reminders-list"></ul>
+            </section>
           </section>
 
         </section>
@@ -335,6 +342,7 @@
             </select>
             <input name="note" placeholder="備註（自由文字說明）" />
             <input name="next_step" placeholder="下一步 / 待辦動作" />
+            <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供逾期催辦）" />
             <button type="submit" id="submit-case">儲存</button>
             <button type="button" id="cancel-edit" class="secondary" hidden>取消</button>
           </form>
@@ -508,6 +516,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=eight-modules-20260707"></script>
+    <script src="/static/app.js?v=reminders-20260707"></script>
   </body>
 </html>

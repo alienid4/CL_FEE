@@ -24,6 +24,7 @@ from app.store import (
     case_360,
     cases_needing_attention,
     cio_overview,
+    overdue_reminders,
     submit_case,
     confirm_import_batch_cases_dry_run,
     expiring_contracts,
@@ -75,6 +76,7 @@ class CaseIn(BaseModel):
     risk_level: str = "normal"
     note: str = ""
     next_step: str = ""
+    due_date: str = ""
 
 
 class CasePatch(BaseModel):
@@ -86,6 +88,7 @@ class CasePatch(BaseModel):
     risk_level: str | None = None
     note: str | None = None
     next_step: str | None = None
+    due_date: str | None = None
 
 
 class ContractIn(BaseModel):
@@ -505,6 +508,10 @@ def create_app() -> FastAPI:
     @app.get("/api/reports/cio-overview")
     def cio_overview_report() -> dict[str, Any]:
         return ok(cio_overview())
+
+    @app.get("/api/reports/reminders")
+    def reminders() -> dict[str, Any]:
+        return ok(overdue_reminders())
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:
