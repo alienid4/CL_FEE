@@ -28,7 +28,7 @@ def test_load_then_clear(tmp_path):
         contracts = client.get("/api/contracts").json()["data"]
         assert any(c["contract_code"] == "DEMO-K01" for c in contracts)
         payments = client.get("/api/payments").json()["data"]
-        assert len(payments) == 3
+        assert len(payments) == 4  # 3 筆固定月份 + 1 筆動態「下月」給 CIO 看板
 
         r = client.post("/api/dev-console/demo-data/clear")
         assert r.status_code == 200

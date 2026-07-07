@@ -11,9 +11,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from datetime import date
+
 from app import store
 
 DEMO_PREFIX = "DEMO-"
+
+
+def _next_month() -> str:
+    today = date.today()
+    if today.month == 12:
+        return f"{today.year + 1}-01"
+    return f"{today.year}-{today.month + 1:02d}"
 
 # 說明：日期挑選讓 demo 能展示「到期提醒」與「月度支出」等真功能。
 _CASES = [
@@ -86,6 +95,15 @@ def load_demo_data() -> dict[str, int]:
     for payload, contract_idx in _PAYMENTS:
         store.insert_row("payments", {**payload, "contract_id": contract_ids[contract_idx]})
 
+    # 額外一筆「下個月」的付款，讓 CIO 決策總覽的「下月應付」有東西可看（相對今天動態計算）
+    store.insert_row("payments", {
+        "contract_id": contract_ids[0],
+        "payment_month": _next_month(),
+        "payment_amount": 800000,
+        "invoice_status": "not_received",
+        "status": "pending",
+    })
+
     for payload, case_idx, contract_idx in _DOCUMENTS:
         store.insert_row("documents", {
             **payload,
@@ -96,7 +114,7 @@ def load_demo_data() -> dict[str, int]:
     return {
         "cases": len(_CASES),
         "contracts": len(_CONTRACTS),
-        "payments": len(_PAYMENTS),
+        "payments": len(_PAYMENTS) + 1,  # 含動態的下月付款
         "documents": len(_DOCUMENTS),
     }
 
