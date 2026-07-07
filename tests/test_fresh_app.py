@@ -29,7 +29,9 @@ def test_local_mock_login_accounts(tmp_path):
         assert cio["username"] == "ap01"
         assert cio["role_name"] == "CIO"
         assert cio["role_code"] == "cio"
-        assert "budget" in cio["allowed_modules"]
+        # CIO 極簡：只給「決策總覽」一個模組，其他完全隱藏
+        assert cio["allowed_modules"] == ["cio-overview"]
+        assert cio["default_module"] == "cio-overview"
         assert cio["allowed_actions"] == ["read"]  # CIO 唯讀（只看重點數據）
 
         current = client.get("/api/auth/me")

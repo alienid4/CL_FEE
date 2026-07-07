@@ -100,7 +100,7 @@ def main() -> int:
             page.wait_for_timeout(600)
             results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))
 
-            # 4) 換 CIO（唯讀）→ 建案應失敗（案件數不增）
+            # 4) 換 CIO（極簡）：只看到決策總覽，其他模組與建案表單完全隱藏
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)
             page.click("#logout" if page.query_selector("#logout") else "text=登出")
@@ -109,13 +109,12 @@ def main() -> int:
             page.fill('#login-form input[name="password"]', "e2e-pass")
             page.click('#login-form button[type="submit"]')
             page.wait_for_selector("#app-shell", state="visible", timeout=10000)
-            before = page.inner_text("#cases")
-            page.fill('#case-form input[name="case_code"]', "CIO-BLOCK")
-            page.fill('#case-form input[name="title"]', "CIO 不該能建")
-            page.click("#submit-case")
             page.wait_for_timeout(500)
-            after = page.inner_text("#cases")
-            results.append(("CIO 唯讀：建案被擋（清單無 CIO-BLOCK）", "CIO-BLOCK" not in after))
+            results.append(("CIO 看得到決策總覽", page.is_visible('a.module-card[href="#cio-overview"]')))
+            results.append(("CIO 看不到合約模組(完全隱藏)", not page.is_visible('a.module-card[href="#contracts-module"]')))
+            results.append(("CIO 落在決策總覽面板", page.is_visible("#cio-overview")))
+            results.append(("CIO 沒有建案表單(唯讀+隱藏)", not page.is_visible("#case-form")))
+            results.append(("CIO 資金看板顯示要準備的資金", "要準備的資金" in page.inner_text("#cio-metrics")))
 
             browser.close()
 

@@ -42,6 +42,7 @@
         </section>
 
         <nav class="module-list">
+          <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
           <a class="module-card" href="#budget" data-roles="cio manager_assistant" data-unbuilt><span>▦</span><strong>預算</strong><small>尚未啟用</small></a>
           <a class="module-card" href="#projects" data-roles="cio manager_assistant handler" data-unbuilt><span>▦</span><strong>專案</strong><small>尚未啟用</small></a>
           <a class="module-card" href="#signoff" data-roles="cio manager_assistant" data-unbuilt><span>▦</span><strong>簽呈</strong><small>尚未啟用</small></a>
@@ -140,6 +141,31 @@
         </section>
 
         <section class="module-workspace" aria-label="next module checkpoints">
+          <section class="dashboard-panel module-panel" id="cio-overview" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">決策總覽</p>
+                <p class="muted">大方向資金與下月要出的款；點任一列可逐層追查到承辦、合約、付款明細。</p>
+              </div>
+            </div>
+            <section class="metrics" id="cio-metrics" aria-label="資金看板"></section>
+            <section class="watch-list" aria-label="下月要出的款">
+              <div class="section-heading compact">
+                <h2>下月要出的款</h2>
+                <span class="muted" id="cio-next-month-label"></span>
+              </div>
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr><th>案件編號</th><th>案件名稱</th><th>承辦</th><th>合約</th><th>金額</th><th>狀態</th></tr>
+                  </thead>
+                  <tbody id="cio-upcoming-body"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="watch-list" id="cio-drill" aria-label="追查明細" hidden></section>
+          </section>
+
           <section class="dashboard-panel module-panel" id="budget" hidden>
             <!-- 預算：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
           </section>
@@ -369,6 +395,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=demo-seed-20260707"></script>
+    <script src="/static/app.js?v=cio-overview-20260707"></script>
   </body>
 </html>

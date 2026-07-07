@@ -22,6 +22,7 @@ from app.settings import get_settings
 from app.store import (
     case_360,
     cases_needing_attention,
+    cio_overview,
     confirm_import_batch_cases_dry_run,
     expiring_contracts,
     create_import_batch,
@@ -185,17 +186,9 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
         "role_code": "cio",
         "role_name": "CIO",
         "display_name": "CIO",
-        "default_module": "cases-module",
-        "allowed_modules": [
-            "budget",
-            "projects",
-            "signoff",
-            "cases-module",
-            "data-review",
-            "contracts-module",
-            "purchases",
-            "payments-module",
-        ],
+        # CIO 極簡：只給「決策總覽」，其他模組連卡片都不顯示（不是灰色，是隱藏）
+        "default_module": "cio-overview",
+        "allowed_modules": ["cio-overview"],
         "allowed_actions": ["read"],
     },
     "ap02": {
@@ -397,6 +390,10 @@ def create_app() -> FastAPI:
     @app.get("/api/reports/expiring-contracts")
     def expiring() -> dict[str, Any]:
         return ok(expiring_contracts())
+
+    @app.get("/api/reports/cio-overview")
+    def cio_overview_report() -> dict[str, Any]:
+        return ok(cio_overview())
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:

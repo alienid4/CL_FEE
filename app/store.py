@@ -581,6 +581,55 @@ def expiring_contracts(within_days: int = 90) -> list[dict[str, Any]]:
         ).fetchall()
 
 
+def cio_overview() -> dict[str, Any]:
+    """CIO 決策總覽：大方向資金（下月應付 / 要準備的資金）+ 下月要出的款（可下探至案件）。
+    依 owner 範圍過濾（CIO/主管 scope=None 看全部；承辦只看自己案件下的付款）。"""
+    scope = _owner_scope.get()
+    today = date.today()
+    this_month = today.strftime("%Y-%m")
+    if today.month == 12:
+        next_month = f"{today.year + 1}-01"
+    else:
+        next_month = f"{today.year}-{today.month + 1:02d}"
+
+    pw, pp = _scope_where("payments", scope) if scope is not None else ("", [])
+    tail = f" AND {pw}" if pw else ""
+
+    with connect() as conn:
+        def _sum(cond: str, params: list[Any]) -> float:
+            return conn.execute(
+                f"SELECT COALESCE(SUM(payment_amount), 0) AS s FROM payments WHERE {cond}",
+                params,
+            ).fetchone()["s"]
+
+        next_month_total = _sum(f"payment_month = ?{tail}", [next_month, *pp])
+        this_month_total = _sum(f"payment_month = ?{tail}", [this_month, *pp])
+        funds_to_prepare = _sum(f"status <> 'closed'{tail}", [*pp])  # 尚未結案 = 要準備的資金
+
+        # 下月要出的每一筆款，連到所屬案件（供 CIO 逐層下探）
+        detail_sql = (
+            "SELECT c.id AS case_id, c.case_code, c.title AS case_title, c.owner, "
+            "k.contract_code, p.payment_month, p.payment_amount, p.status "
+            "FROM payments p JOIN contracts k ON k.id = p.contract_id "
+            "JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ?"
+        )
+        detail_params: list[Any] = [next_month]
+        if scope is not None:
+            detail_sql += " AND c.owner = ?"
+            detail_params.append(scope)
+        detail_sql += " ORDER BY p.payment_amount DESC LIMIT 100"
+        upcoming = conn.execute(detail_sql, detail_params).fetchall()
+
+    return {
+        "this_month": this_month,
+        "next_month": next_month,
+        "next_month_total": next_month_total,
+        "this_month_total": this_month_total,
+        "funds_to_prepare": funds_to_prepare,
+        "upcoming_next_month": upcoming,
+    }
+
+
 def search_records(query: str) -> list[dict[str, Any]]:
     pattern = f"%{query}%"
     scope = _owner_scope.get()

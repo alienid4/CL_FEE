@@ -12,6 +12,10 @@ const documents = document.querySelector("#documents");
 const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
 const cioCasesBody = document.querySelector("#cio-cases-body");
+const cioMetrics = document.querySelector("#cio-metrics");
+const cioUpcomingBody = document.querySelector("#cio-upcoming-body");
+const cioDrill = document.querySelector("#cio-drill");
+const cioNextMonthLabel = document.querySelector("#cio-next-month-label");
 const monthlyBody = document.querySelector("#monthly-spending-body");
 const demoControls = document.querySelector("#demo-controls");
 const demoSeed = document.querySelector("#demo-seed");
@@ -894,8 +898,74 @@ async function loadExpiring() {
     : `<li><small class="muted">目前沒有快到期或已過期的合約。</small></li>`;
 }
 
+async function loadCioOverview() {
+  if (!cioMetrics) return;
+  const payload = await api("/api/reports/cio-overview");
+  const d = payload.data || {};
+  cioMetrics.innerHTML = [
+    metric("下月應付", `${money(d.next_month_total)} 元`),
+    metric("要準備的資金", `${money(d.funds_to_prepare)} 元`),
+    metric("本月應付", `${money(d.this_month_total)} 元`),
+  ].join("");
+  if (cioNextMonthLabel) cioNextMonthLabel.textContent = d.next_month ? `付款月份：${d.next_month}` : "";
+  const rows = d.upcoming_next_month || [];
+  if (cioUpcomingBody) {
+    cioUpcomingBody.innerHTML = rows.length
+      ? rows
+          .map(
+            (r) => `
+            <tr data-case-id="${r.case_id}" class="clickable" title="點擊追查明細">
+              <td>${escapeHtml(r.case_code)}</td>
+              <td>${escapeHtml(r.case_title)}</td>
+              <td>${escapeHtml(r.owner || "未指派")}</td>
+              <td>${escapeHtml(valueOrDash(r.contract_code))}</td>
+              <td>${money(r.payment_amount)}</td>
+              <td>${escapeHtml(labelStatus(r.status))}</td>
+            </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="6" class="muted">下月沒有排定要出的款。</td></tr>`;
+  }
+}
+
+async function loadCioDrill(caseId) {
+  if (!cioDrill) return;
+  cioDrill.hidden = false;
+  cioDrill.innerHTML = `<p class="muted">追查中…</p>`;
+  try {
+    const payload = await api(`/api/cases/${caseId}/360`);
+    const d = payload.data || {};
+    const c = d.case || {};
+    const contracts = (d.contracts || [])
+      .map((k) => `<li><strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")} ｜ 廠商：${escapeHtml(valueOrDash(k.vendor_name))} ｜ 金額：${money(k.amount)} ｜ 到期：${escapeHtml(valueOrDash(k.end_date))}</li>`)
+      .join("") || `<li class="muted">無關聯合約</li>`;
+    const payments = (d.payments || [])
+      .map((p) => `<li>${escapeHtml(p.payment_month)} ｜ ${money(p.payment_amount)} 元 ｜ ${escapeHtml(labelStatus(p.status))}</li>`)
+      .join("") || `<li class="muted">無付款紀錄</li>`;
+    const documents = (d.documents || [])
+      .map((doc) => `<li>${escapeHtml(doc.file_name)} ｜ ${escapeHtml(labelStatus(doc.status || "active"))}</li>`)
+      .join("") || `<li class="muted">無文件</li>`;
+    cioDrill.innerHTML = `
+      <div class="section-heading compact">
+        <h2>追查：${escapeHtml(c.case_code || "")}　${escapeHtml(c.title || "")}</h2>
+        <button type="button" class="secondary" id="cio-drill-close">收起</button>
+      </div>
+      <div class="metrics">
+        ${metric("案件金額", `${money(c.amount)} 元`)}
+        ${metric("承辦", escapeHtml(c.owner || "未指派"))}
+        ${metric("狀態", escapeHtml(labelStatus(c.status || "")))}
+        ${metric("付款合計", `${money((d.totals || {}).payment_amount)} 元`)}
+      </div>
+      <h3>關聯合約</h3><ul class="note-list">${contracts}</ul>
+      <h3>付款明細</h3><ul class="note-list">${payments}</ul>
+      <h3>文件</h3><ul class="note-list">${documents}</ul>`;
+  } catch (error) {
+    cioDrill.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
 async function refresh() {
-  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring()]);
+  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview()]);
 }
 
 function resetForm() {
@@ -1025,6 +1095,21 @@ if (cioCasesBody) {
     if (!tr) return;
     startEdit(tr.dataset.caseId);
     form.scrollIntoView({ block: "center" });
+  });
+}
+
+if (cioUpcomingBody) {
+  cioUpcomingBody.addEventListener("click", (event) => {
+    const tr = event.target.closest("tr[data-case-id]");
+    if (!tr || !tr.dataset.caseId) return;
+    loadCioDrill(tr.dataset.caseId);
+    cioDrill?.scrollIntoView({ block: "nearest" });
+  });
+}
+
+if (cioDrill) {
+  cioDrill.addEventListener("click", (event) => {
+    if (event.target.id === "cio-drill-close") cioDrill.hidden = true;
   });
 }
 
