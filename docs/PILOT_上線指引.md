@@ -47,10 +47,10 @@ Copy-Item data\fee_control.db ("backup\fee_control_" + (Get-Date -Format yyyyMMd
 - session cookie 有 HMAC 簽章，偽造無效；密碼 pbkdf2 加鹽雜湊、常數時間比對。
 - 稽核 `audit_logs` 記錄真實操作者。
 - 刪除有子列的資料會被擋（避免孤立），建議一律用「作廢」而非刪除。
+- **角色權限**：處長/CIO(ap01) 唯讀、看全局重點；主管/助理(ap02) 可讀寫、看全部；承辦(ap03) 可讀寫但**只看自己的案件**，且不得使用稽核與匯入。
 
 ## 5. 誠實的已知限制（pilot 階段可接受，正式擴大前要處理）
 
-- **無角色權限細分**：目前「有登入就能操作所有功能」。承辦/主管/處長還沒做「只能做各自的事」。
 - **session 8 小時過期**：cookie 逾時需重新登入（可用 `SESSION_MAX_AGE_SECONDS` 調整）；重啟服務或更換 `SESSION_SECRET` 也會讓所有人重新登入。
 - **僅限本機 HTTP**：不要把 8888 埠開放到公司網路或外網；要跨機器使用需另加 HTTPS 與強化。
 - **資料庫為 SQLite**：適合 pilot 小量使用；使用者變多或要正式化，再遷 Microsoft SQL Server（已列為未來重大事項）。
