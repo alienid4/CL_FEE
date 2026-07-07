@@ -51,6 +51,16 @@ def test_includes_overdue_contract(tmp_path):
         assert k is not None and k["type"] == "contract" and k["severity"] == "overdue"
 
 
+def test_includes_overdue_project(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/projects", json={"project_code": "PJ-LATE", "project_name": "落後專案", "due_date": _d(-4), "status": "active"})
+        client.post("/api/projects", json={"project_code": "PJ-DONE", "project_name": "已完成", "due_date": _d(-4), "status": "completed"})
+        items = client.get("/api/reports/reminders").json()["data"]
+        by = {i["code"]: i for i in items}
+        assert by["PJ-LATE"]["type"] == "project" and by["PJ-LATE"]["severity"] == "overdue"
+        assert "PJ-DONE" not in by  # 已完成不催
+
+
 def test_scoped_for_handler(tmp_path):
     with _client(tmp_path) as client:  # ap02 建兩筆
         client.post("/api/cases", json={"case_code": "MINE", "title": "我的", "owner": "ap03", "due_date": _d(-1)})

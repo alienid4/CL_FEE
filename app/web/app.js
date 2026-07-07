@@ -212,7 +212,7 @@ const resourceConfig = {
   project: {
     plural: "projects", idAttr: "project-id", idField: "projectId", api: "/api/projects",
     navCount: "nav-count-projects", navLabel: "專案",
-    fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "note"],
+    fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note"],
     numberFields: ["progress", "case_id"], canDisable: true,
     render: (item) => `
       <strong>${escapeHtml(item.project_code)}</strong>
@@ -1158,7 +1158,7 @@ async function loadReminders() {
   el.innerHTML = items.length
     ? items
         .map((i) => {
-          const kind = i.type === "case" ? "案件" : "合約";
+          const kind = i.type === "case" ? "案件" : i.type === "project" ? "專案" : "合約";
           const tag = i.severity === "overdue" ? `已逾期 ${Math.abs(i.days)} 天` : `剩 ${i.days} 天`;
           return `
             <li>

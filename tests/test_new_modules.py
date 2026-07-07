@@ -60,6 +60,28 @@ def test_case_link_optional_and_settable(tmp_path):
         assert b["case_id"] == case["id"]
 
 
+def test_projects_purchases_signoffs_scoped_for_handler(tmp_path):
+    """專案/請購/簽呈依案件歸屬隔離：承辦只看自己案件下的；預算不隔離。"""
+    with _client(tmp_path, login=None) as client:
+        from app import store
+        mine = store.insert_row("cases", {"case_code": "SC-MINE", "title": "m", "owner": "ap03"})
+        theirs = store.insert_row("cases", {"case_code": "SC-THEIRS", "title": "t", "owner": "ap02"})
+        for tbl, code_f, code in [("projects", "project_code", "PJ"), ("purchases", "purchase_code", "PO"), ("signoffs", "signoff_code", "SG")]:
+            store.insert_row(tbl, {code_f: f"{code}-MINE", **({"project_name": "n"} if tbl == "projects" else {"subject": "s"} if tbl == "signoffs" else {"item_name": "i"}), "case_id": mine["id"]})
+            store.insert_row(tbl, {code_f: f"{code}-THEIRS", **({"project_name": "n"} if tbl == "projects" else {"subject": "s"} if tbl == "signoffs" else {"item_name": "i"}), "case_id": theirs["id"]})
+        store.insert_row("budgets", {"budget_code": "BUD-ORG"})  # 全公司預算
+
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        pj = [r["project_code"] for r in client.get("/api/projects").json()["data"]]
+        assert "PJ-MINE" in pj and "PJ-THEIRS" not in pj
+        po = [r["purchase_code"] for r in client.get("/api/purchases").json()["data"]]
+        assert "PO-MINE" in po and "PO-THEIRS" not in po
+        sg = [r["signoff_code"] for r in client.get("/api/signoffs").json()["data"]]
+        assert "SG-MINE" in sg and "SG-THEIRS" not in sg
+        bud = [r["budget_code"] for r in client.get("/api/budgets").json()["data"]]
+        assert "BUD-ORG" in bud  # 預算不隔離，承辦也看得到
+
+
 def test_search_covers_new_modules(tmp_path):
     with _client(tmp_path) as client:
         client.post("/api/budgets", json={"budget_code": "SRCH-BUD", "category": "找找"})

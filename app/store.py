@@ -33,7 +33,9 @@ def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
     owned = "SELECT id FROM cases WHERE owner = ?"
     if table == "cases":
         return "owner = ?", [scope]
-    if table == "contracts":
+    if table in ("contracts", "projects", "signoffs", "purchases"):
+        # 這些都靠 case_id 掛在案件上 → 依案件歸屬隔離（承辦只看自己案件下的）。
+        # 預算(budgets) 不在此列：預算是全公司資料，不做 owner 隔離。
         return f"case_id IN ({owned})", [scope]
     if table == "payments":
         return f"contract_id IN (SELECT id FROM contracts WHERE case_id IN ({owned}))", [scope]
@@ -245,6 +247,7 @@ def initialize_database() -> None:
         ensure_column(conn, "cases", "approved_by", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "approved_at", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "contracts", "end_date", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "projects", "due_date", "TEXT NOT NULL DEFAULT ''")
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -284,7 +287,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"},
-        "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "note"},
+        "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
     }
@@ -723,6 +726,24 @@ def overdue_reminders(within_days: int = 14) -> list[dict[str, Any]]:
         ).fetchall():
             items.append({
                 "type": "case", "id": r["id"], "code": r["case_code"], "title": r["title"],
+                "owner": r["owner"], "date": r["due_date"], "status": r["status"],
+                "days": _days(r["due_date"]), "severity": "overdue" if r["due_date"] < today_s else "soon",
+            })
+
+        # 專案：未完成且有預計完成日（比照案件納入催辦）
+        pj_where = "due_date <> '' AND due_date <= ? AND status NOT IN ('completed', 'disabled')"
+        pj_params: list[Any] = [horizon]
+        if scope is not None:
+            sw, sp = _scope_where("projects", scope)
+            if sw:
+                pj_where = f"({pj_where}) AND {sw}"
+                pj_params += sp
+        for r in conn.execute(
+            f"SELECT id, project_code, project_name, owner, due_date, status FROM projects WHERE {pj_where} ORDER BY due_date ASC LIMIT 100",
+            pj_params,
+        ).fetchall():
+            items.append({
+                "type": "project", "id": r["id"], "code": r["project_code"], "title": r["project_name"],
                 "owner": r["owner"], "date": r["due_date"], "status": r["status"],
                 "days": _days(r["due_date"]), "severity": "overdue" if r["due_date"] < today_s else "soon",
             })

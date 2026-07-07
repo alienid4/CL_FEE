@@ -182,6 +182,7 @@ class ProjectIn(BaseModel):
     owner: str = ""
     status: str = "active"
     case_id: int | None = None
+    due_date: str = ""
     note: str = ""
 
 
@@ -194,6 +195,7 @@ class ProjectPatch(BaseModel):
     owner: str | None = None
     status: str | None = None
     case_id: int | None = None
+    due_date: str | None = None
     note: str | None = None
 
 
