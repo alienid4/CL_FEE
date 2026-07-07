@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS import_rows (
 
 STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     "cases": {
-        "status": {"draft", "reviewing", "approved", "disabled"},
+        "status": {"draft", "pending_review", "reviewing", "approved", "disabled"},
     },
     "contracts": {
         "status": {"active", "reviewing", "closed", "disabled"},
@@ -175,6 +175,9 @@ def initialize_database() -> None:
         ensure_column(conn, "audit_logs", "actor", "TEXT NOT NULL DEFAULT 'local-dev'")
         ensure_column(conn, "cases", "note", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "next_step", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "created_by", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "approved_by", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "approved_at", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "contracts", "end_date", "TEXT NOT NULL DEFAULT ''")
 
 
@@ -186,8 +189,10 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
 
 def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     scope = _owner_scope.get()
-    if table == "cases" and scope is not None:
-        payload = {**payload, "owner": scope}  # 承辦建案自動歸自己
+    if table == "cases":
+        payload = {**payload, "created_by": _current_actor.get()}  # 記錄建立者，供雙人複核擋自己核自己
+        if scope is not None:
+            payload = {**payload, "owner": scope}  # 承辦建案自動歸自己
     allowed = allowed_fields()
     fields = {key: value for key, value in payload.items() if key in allowed[table]}
     if not fields:
@@ -208,7 +213,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def allowed_fields() -> dict[str, set[str]]:
     return {
-        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step"},
+        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "created_by"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
@@ -283,6 +288,39 @@ def disable_row(table: str, row_id: int) -> dict[str, Any]:
             raise LookupError(f"{table} row {row_id} not found")
         after = get_row(conn, table, row_id)
         write_audit_log(conn, table, row_id, "disable", before, after)
+        return after
+
+
+def submit_case(case_id: int) -> dict[str, Any]:
+    """送出複核：draft/reviewing -> pending_review。承辦可送自己的（套 owner 範圍）。"""
+    scope = _owner_scope.get()
+    with connect() as conn:
+        before = get_row(conn, "cases", case_id)
+        if scope is not None and not _row_in_scope(conn, "cases", case_id, scope):
+            raise LookupError(f"cases row {case_id} not found")  # 非本人範圍，視同不存在
+        if before["status"] not in ("draft", "reviewing"):
+            raise RuntimeError(f"案件目前狀態為 {before['status']}，無法送出複核。")
+        conn.execute("UPDATE cases SET status = 'pending_review' WHERE id = ?", (case_id,))
+        after = get_row(conn, "cases", case_id)
+        write_audit_log(conn, "cases", case_id, "submit", before, after)
+        return after
+
+
+def approve_case(case_id: int, approver: str) -> dict[str, Any]:
+    """核准：pending_review -> approved。雙人複核鐵則——建立者不得核准自己的案件。
+    （角色限制「只有助理/主管可核」在 API 層擋；此處核准者看全部，不套 owner 範圍。）"""
+    with connect() as conn:
+        before = get_row(conn, "cases", case_id)
+        if before["status"] != "pending_review":
+            raise RuntimeError(f"案件目前狀態為 {before['status']}，只有『待複核』能核准。")
+        if (before.get("created_by") or "") == approver:
+            raise PermissionError("不能核准自己建立的案件，需由另一人複核。")
+        conn.execute(
+            "UPDATE cases SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
+            (approver, case_id),
+        )
+        after = get_row(conn, "cases", case_id)
+        write_audit_log(conn, "cases", case_id, "approve", before, after)
         return after
 
 
@@ -581,9 +619,16 @@ def expiring_contracts(within_days: int = 90) -> list[dict[str, Any]]:
         ).fetchall()
 
 
+# 雙人複核規則 (b)：核准前不算數 —— CIO 畫面的金額只計「已核准」案件下的付款。
+_APPROVED_PAYMENT_CLAUSE = (
+    "contract_id IN (SELECT id FROM contracts WHERE case_id IN "
+    "(SELECT id FROM cases WHERE status = 'approved'))"
+)
+
+
 def cio_overview() -> dict[str, Any]:
     """CIO 決策總覽：大方向資金（下月應付 / 要準備的資金）+ 下月要出的款（可下探至案件）。
-    依 owner 範圍過濾（CIO/主管 scope=None 看全部；承辦只看自己案件下的付款）。"""
+    金額只算『已核准』案件（未複核的錢不讓 CIO 看到當真）；並依 owner 範圍過濾。"""
     scope = _owner_scope.get()
     today = date.today()
     this_month = today.strftime("%Y-%m")
@@ -594,6 +639,7 @@ def cio_overview() -> dict[str, Any]:
 
     pw, pp = _scope_where("payments", scope) if scope is not None else ("", [])
     tail = f" AND {pw}" if pw else ""
+    approved = f" AND {_APPROVED_PAYMENT_CLAUSE}"  # 只算已核准案件的付款
 
     with connect() as conn:
         def _sum(cond: str, params: list[Any]) -> float:
@@ -602,16 +648,16 @@ def cio_overview() -> dict[str, Any]:
                 params,
             ).fetchone()["s"]
 
-        next_month_total = _sum(f"payment_month = ?{tail}", [next_month, *pp])
-        this_month_total = _sum(f"payment_month = ?{tail}", [this_month, *pp])
-        funds_to_prepare = _sum(f"status <> 'closed'{tail}", [*pp])  # 尚未結案 = 要準備的資金
+        next_month_total = _sum(f"payment_month = ?{tail}{approved}", [next_month, *pp])
+        this_month_total = _sum(f"payment_month = ?{tail}{approved}", [this_month, *pp])
+        funds_to_prepare = _sum(f"status <> 'closed'{tail}{approved}", [*pp])  # 尚未結案 = 要準備的資金
 
-        # 下月要出的每一筆款，連到所屬案件（供 CIO 逐層下探）
+        # 下月要出的每一筆款，連到所屬案件（供 CIO 逐層下探）；只列已核准案件
         detail_sql = (
             "SELECT c.id AS case_id, c.case_code, c.title AS case_title, c.owner, "
             "k.contract_code, p.payment_month, p.payment_amount, p.status "
             "FROM payments p JOIN contracts k ON k.id = p.contract_id "
-            "JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ?"
+            "JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ? AND c.status = 'approved'"
         )
         detail_params: list[Any] = [next_month]
         if scope is not None:

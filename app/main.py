@@ -20,9 +20,11 @@ from app.seed_data import clear_demo_data, demo_counts, load_demo_data
 from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
+    approve_case,
     case_360,
     cases_needing_attention,
     cio_overview,
+    submit_case,
     confirm_import_batch_cases_dry_run,
     expiring_contracts,
     create_import_batch,
@@ -217,6 +219,25 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
         "default_module": "cases-module",
         "allowed_modules": ["projects", "cases-module", "purchases", "payments-module", "data-review"],
         "allowed_actions": ["read", "edit"],
+    },
+    # 第二位助理：雙人複核需要「另一位」助理來核，助理自己建的案件不能自己核
+    "ap04": {
+        "username": "ap04",
+        "role_code": "manager_assistant",
+        "role_name": "助理B",
+        "display_name": "助理B",
+        "default_module": "cases-module",
+        "allowed_modules": [
+            "budget",
+            "projects",
+            "signoff",
+            "cases-module",
+            "data-review",
+            "contracts-module",
+            "purchases",
+            "payments-module",
+        ],
+        "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },
 }
 
@@ -524,6 +545,8 @@ def create_app() -> FastAPI:
 
     @app.post("/api/cases", status_code=201)
     def create_case(payload: CaseIn) -> dict[str, Any]:
+        if payload.status == "approved":
+            raise HTTPException(status_code=422, detail="案件需經雙人複核核准，不能直接建立為『已核准』。")
         return handle_create("cases", payload.model_dump())
 
     @app.get("/api/cases")
@@ -549,7 +572,32 @@ def create_app() -> FastAPI:
 
     @app.patch("/api/cases/{case_id}")
     def update_case(case_id: int, payload: CasePatch) -> dict[str, Any]:
+        if payload.status == "approved":
+            raise HTTPException(status_code=422, detail="案件需經雙人複核核准，不能直接改為『已核准』。")
         return handle_change("cases", case_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/cases/{case_id}/submit")
+    def submit_case_endpoint(case_id: int) -> dict[str, Any]:
+        try:
+            return ok(submit_case(case_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/cases/{case_id}/approve")
+    def approve_case_endpoint(case_id: int, request: Request) -> dict[str, Any]:
+        approver = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        if LOCAL_AUTH_USERS.get(approver, {}).get("role_code") != "manager_assistant":
+            raise HTTPException(status_code=403, detail="只有助理/主管能複核核准案件。")
+        try:
+            return ok(approve_case(case_id, approver))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/cases/{case_id}/disable")
     def disable_case(case_id: int) -> dict[str, Any]:

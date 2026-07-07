@@ -434,7 +434,7 @@ def audit_count(client, **params):
             "/api/cases",
             {"case_code": "CASE-STATUS", "title": "Status case"},
             "/api/cases/{id}",
-            "approved",
+            "reviewing",  # 'approved' 不能直接設（須走雙人複核 /approve）
         ),
         (
             "/api/contracts",

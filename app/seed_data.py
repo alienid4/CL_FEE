@@ -95,9 +95,10 @@ def load_demo_data() -> dict[str, int]:
     for payload, contract_idx in _PAYMENTS:
         store.insert_row("payments", {**payload, "contract_id": contract_ids[contract_idx]})
 
-    # 額外一筆「下個月」的付款，讓 CIO 決策總覽的「下月應付」有東西可看（相對今天動態計算）
+    # 額外一筆「下個月」的付款，讓 CIO 決策總覽的「下月應付」有東西可看（相對今天動態計算）。
+    # 掛在 DEMO-K02（案 DEMO-C02 為 approved）——CIO 金額只算已核准案件，未核准的不會顯示。
     store.insert_row("payments", {
-        "contract_id": contract_ids[0],
+        "contract_id": contract_ids[1],
         "payment_month": _next_month(),
         "payment_amount": 800000,
         "invoice_status": "not_received",

@@ -1,4 +1,4 @@
-"""CIO 決策總覽：大方向資金彙總 + 下月要出的款下探 + 模組極簡。"""
+"""CIO 決策總覽：大方向資金彙總（只算已核准）+ 下月要出的款下探 + 模組極簡。"""
 import os
 from datetime import date
 
@@ -29,16 +29,30 @@ def _seed_case_with_next_month_payment(client, case_code, owner, amount):
     return case["id"]
 
 
-def test_overview_sums_next_month(tmp_path):
+def _submit_and_approve(client, case_id, creator="ap02", approver="ap04"):
+    """走完雙人複核：建立者送出 → 另一位助理核准 → 還原登入為建立者。"""
+    client.post(f"/api/cases/{case_id}/submit")
+    client.post("/api/auth/login", json={"username": approver, "password": "T3st!Pass"})
+    r = client.post(f"/api/cases/{case_id}/approve")
+    client.post("/api/auth/login", json={"username": creator, "password": "T3st!Pass"})
+    return r
+
+
+def test_overview_counts_only_approved(tmp_path):
     with _client(tmp_path) as client:
-        _seed_case_with_next_month_payment(client, "CT-1", "ap03", 15000000)
+        cid = _seed_case_with_next_month_payment(client, "CT-1", "ap03", 15000000)
+        # 尚未核准 → CIO 看不到這筆錢
+        before = client.get("/api/reports/cio-overview").json()["data"]
+        assert before["next_month_total"] == 0
+        assert before["upcoming_next_month"] == []
+        # 核准後 → CIO 才看得到
+        _submit_and_approve(client, cid)
         data = client.get("/api/reports/cio-overview").json()["data"]
         assert data["next_month"] == _next_month()
         assert data["next_month_total"] == 15000000
-        assert data["funds_to_prepare"] == 15000000  # pending 未結案
+        assert data["funds_to_prepare"] == 15000000
         codes = [row["case_code"] for row in data["upcoming_next_month"]]
         assert "CT-1" in codes
-        # 下月要出的款帶得出承辦，供 CIO 追查
         assert any(row["owner"] == "ap03" for row in data["upcoming_next_month"])
 
 
@@ -60,11 +74,11 @@ def test_cio_sees_only_overview_module(tmp_path):
 
 
 def test_overview_scoped_for_handler(tmp_path):
-    with _client(tmp_path, login=None) as client:
-        # 主管先建：一筆自己的、一筆承辦的
-        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
-        _seed_case_with_next_month_payment(client, "MINE-03", "ap03", 1000000)
-        _seed_case_with_next_month_payment(client, "OTHER-02", "ap02", 9000000)
+    with _client(tmp_path) as client:  # ap02
+        mine = _seed_case_with_next_month_payment(client, "MINE-03", "ap03", 1000000)
+        other = _seed_case_with_next_month_payment(client, "OTHER-02", "ap02", 9000000)
+        _submit_and_approve(client, mine)
+        _submit_and_approve(client, other)
         # 換承辦 ap03：只看得到自己案件下的款
         client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         data = client.get("/api/reports/cio-overview").json()["data"]
