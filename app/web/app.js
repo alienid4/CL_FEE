@@ -988,15 +988,89 @@ async function loadExpiring() {
     : `<li><small class="muted">目前沒有快到期或已過期的合約。</small></li>`;
 }
 
+// ---- 內嵌 SVG 圖表（不依賴外部函式庫，離線可用）----
+const CHART_COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2", "#64748b"];
+
+function donutSVG(segments, { size = 132, thickness = 22, center = "" } = {}) {
+  const pos = segments.filter((s) => s.value > 0);
+  const total = pos.reduce((s, x) => s + x.value, 0);
+  const r = (size - thickness) / 2;
+  const cx = size / 2;
+  const circ = 2 * Math.PI * r;
+  let offset = 0;
+  const rings = total
+    ? pos
+        .map((s) => {
+          const dash = (s.value / total) * circ;
+          const el = `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${thickness}" stroke-dasharray="${dash.toFixed(2)} ${(circ - dash).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cx})"/>`;
+          offset += dash;
+          return el;
+        })
+        .join("")
+    : "";
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="圓餅圖">
+    <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="#e5e7eb" stroke-width="${thickness}"/>${rings}
+    ${center ? `<text x="${cx}" y="${cx}" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="600" fill="currentColor">${escapeHtml(center)}</text>` : ""}
+  </svg>`;
+}
+
+function barsSVG(bars, { width = 300, height = 150 } = {}) {
+  const max = Math.max(1, ...bars.map((b) => b.value));
+  const n = bars.length || 1;
+  const gap = 12;
+  const bw = Math.max(8, (width - gap * (n + 1)) / n);
+  const chartH = height - 26;
+  const body = bars
+    .map((b, i) => {
+      const h = (b.value / max) * chartH;
+      const x = gap + i * (bw + gap);
+      const y = chartH - h;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${b.color || CHART_COLORS[0]}"/>
+        <text x="${(x + bw / 2).toFixed(1)}" y="${height - 8}" text-anchor="middle" font-size="10" fill="currentColor">${escapeHtml(b.label)}</text>`;
+    })
+    .join("");
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="長條圖">${body}</svg>`;
+}
+
+function chartLegend(segments) {
+  return `<ul style="list-style:none;margin:8px 0 0;padding:0;font-size:12px;display:flex;flex-wrap:wrap;gap:4px 12px;">${segments
+    .map((s) => `<li style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:2px;background:${s.color};display:inline-block;"></span>${escapeHtml(s.label)}${s.text ? `：${escapeHtml(s.text)}` : ""}</li>`)
+    .join("")}</ul>`;
+}
+
+function chartCard(title, inner) {
+  return `<article class="chart-card" style="flex:1 1 240px;min-width:220px;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;">
+    <h3 style="margin:0 0 8px;font-size:14px;">${escapeHtml(title)}</h3>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">${inner}</div>
+  </article>`;
+}
+
 async function loadCioOverview() {
   if (!cioMetrics) return;
   const payload = await api("/api/reports/cio-overview");
   const d = payload.data || {};
+  const unplanned = d.unplanned_next_month || 0;
+  const planned = Math.max(0, (d.next_month_total || 0) - unplanned);
   cioMetrics.innerHTML = [
     metric("下月應付", `${money(d.next_month_total)} 元`),
     metric("要準備的資金", `${money(d.funds_to_prepare)} 元`),
     metric("本月應付", `${money(d.this_month_total)} 元`),
+    metric("下月預算外", `${money(unplanned)} 元`),
   ].join("");
+  const cioCharts = document.querySelector("#cio-charts");
+  if (cioCharts) {
+    const planSeg = [
+      { label: "計畫內（有預算）", value: planned, color: CHART_COLORS[1], text: `${money(planned)} 元` },
+      { label: "預算外（無對應預算）", value: unplanned, color: CHART_COLORS[3], text: `${money(unplanned)} 元` },
+    ];
+    const flow = [
+      { label: "本月", value: d.this_month_total || 0, color: CHART_COLORS[6] },
+      { label: "下月", value: d.next_month_total || 0, color: CHART_COLORS[0] },
+    ];
+    cioCharts.innerHTML =
+      chartCard("下月支出：計畫內 vs 預算外", donutSVG(planSeg, { center: unplanned > 0 ? "留意" : "OK" }) + chartLegend(planSeg)) +
+      chartCard("應付現金流（本月／下月）", barsSVG(flow));
+  }
   if (cioNextMonthLabel) cioNextMonthLabel.textContent = d.next_month ? `付款月份：${d.next_month}` : "";
   const rows = d.upcoming_next_month || [];
   if (cioUpcomingBody) {
@@ -1005,7 +1079,7 @@ async function loadCioOverview() {
           .map(
             (r) => `
             <tr data-case-id="${r.case_id}" class="clickable" title="點擊追查明細">
-              <td>${escapeHtml(r.case_code)}</td>
+              <td>${escapeHtml(r.case_code)}${r.unplanned ? ' <span class="badge danger">預算外</span>' : ""}</td>
               <td>${escapeHtml(r.case_title)}</td>
               <td>${escapeHtml(r.owner || "未指派")}</td>
               <td>${escapeHtml(valueOrDash(r.contract_code))}</td>
@@ -1097,11 +1171,31 @@ async function loadReminders() {
     : `<li><small class="muted">目前沒有逾期或即將到期的催辦項目。</small></li>`;
 }
 
+async function loadManagerCharts() {
+  const el = document.querySelector("#manager-charts");
+  if (!el) return;
+  const [ms, cs] = await Promise.all([api("/api/reports/monthly-spending"), api("/api/cases")]);
+  const months = (ms.data || []).slice(0, 6).reverse();  // 舊到新
+  const bars = months.map((m) => ({ label: m.month, value: m.total || 0, color: CHART_COLORS[0] }));
+  // 案件狀態分布
+  const counts = {};
+  for (const c of cs.data || []) counts[c.status] = (counts[c.status] || 0) + 1;
+  const order = ["draft", "pending_review", "reviewing", "approved", "disabled"];
+  const segs = order
+    .filter((s) => counts[s])
+    .map((s, i) => ({ label: labelStatus(s), value: counts[s], color: CHART_COLORS[i % CHART_COLORS.length], text: `${counts[s]} 件` }));
+  const totalCases = (cs.data || []).length;
+  el.innerHTML =
+    chartCard("月度支出趨勢", bars.length ? barsSVG(bars) : `<p class="muted">尚無付款資料</p>`) +
+    chartCard("案件狀態分布", segs.length ? donutSVG(segs, { center: `${totalCases} 件` }) + chartLegend(segs) : `<p class="muted">尚無案件</p>`);
+}
+
 async function refresh() {
   await Promise.all([
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
+    loadManagerCharts(),
   ]);
 }
 

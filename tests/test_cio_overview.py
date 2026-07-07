@@ -83,6 +83,25 @@ def test_drilldown_shows_full_control_chain(tmp_path):
         assert d["totals"]["budget_amount"] == 500
 
 
+def test_unplanned_flag_when_no_budget(tmp_path):
+    """下月要出的款，案件若無對應預算 → 標記預算外；有預算則否。"""
+    with _client(tmp_path) as client:
+        # 無預算的案件
+        cid = _seed_case_with_next_month_payment(client, "NOBUD", "ap03", 300)
+        _submit_and_approve(client, cid)
+        data = client.get("/api/reports/cio-overview").json()["data"]
+        row = next(r for r in data["upcoming_next_month"] if r["case_code"] == "NOBUD")
+        assert row["unplanned"] is True
+        assert data["unplanned_next_month"] == 300
+
+        # 補上對應預算 → 不再算預算外
+        client.post("/api/budgets", json={"budget_code": "BUD-NOBUD", "amount": 300, "case_id": cid})
+        data2 = client.get("/api/reports/cio-overview").json()["data"]
+        row2 = next(r for r in data2["upcoming_next_month"] if r["case_code"] == "NOBUD")
+        assert row2["unplanned"] is False
+        assert data2["unplanned_next_month"] == 0
+
+
 def test_cio_sees_only_overview_module(tmp_path):
     with _client(tmp_path, login="ap01") as client:
         me = client.get("/api/auth/me").json()["data"]

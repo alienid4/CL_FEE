@@ -58,3 +58,13 @@ def test_case_link_optional_and_settable(tmp_path):
         case = client.post("/api/cases", json={"case_code": "LINK-1", "title": "關聯案"}).json()["data"]
         b = client.post("/api/budgets", json={"budget_code": "B-LINK", "amount": 100, "case_id": case["id"]}).json()["data"]
         assert b["case_id"] == case["id"]
+
+
+def test_search_covers_new_modules(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/budgets", json={"budget_code": "SRCH-BUD", "category": "找找"})
+        client.post("/api/signoffs", json={"signoff_code": "SRCH-SGN", "subject": "找找"})
+        client.post("/api/purchases", json={"purchase_code": "SRCH-PO", "item_name": "找找"})
+        client.post("/api/projects", json={"project_code": "SRCH-PRJ", "project_name": "找找"})
+        codes = {r["code"] for r in client.get("/api/search", params={"q": "SRCH"}).json()["data"]}
+        assert {"SRCH-BUD", "SRCH-SGN", "SRCH-PO", "SRCH-PRJ"} <= codes

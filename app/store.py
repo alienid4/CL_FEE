@@ -783,10 +783,12 @@ def cio_overview() -> dict[str, Any]:
         this_month_total = _sum(f"payment_month = ?{tail}{approved}", [this_month, *pp])
         funds_to_prepare = _sum(f"status <> 'closed'{tail}{approved}", [*pp])  # 尚未結案 = 要準備的資金
 
-        # 下月要出的每一筆款，連到所屬案件（供 CIO 逐層下探）；只列已核准案件
+        # 下月要出的每一筆款，連到所屬案件（供 CIO 逐層下探）；只列已核准案件。
+        # budget_links=0 代表案件沒關聯任何預算 → 視為「預算外/計畫外」支出，CIO 要特別留意。
         detail_sql = (
             "SELECT c.id AS case_id, c.case_code, c.title AS case_title, c.owner, "
-            "k.contract_code, p.payment_month, p.payment_amount, p.status "
+            "k.contract_code, p.payment_month, p.payment_amount, p.status, "
+            "(SELECT COUNT(*) FROM budgets b WHERE b.case_id = c.id AND b.status <> 'disabled') AS budget_links "
             "FROM payments p JOIN contracts k ON k.id = p.contract_id "
             "JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ? AND c.status = 'approved'"
         )
@@ -795,7 +797,14 @@ def cio_overview() -> dict[str, Any]:
             detail_sql += " AND c.owner = ?"
             detail_params.append(scope)
         detail_sql += " ORDER BY p.payment_amount DESC LIMIT 100"
-        upcoming = conn.execute(detail_sql, detail_params).fetchall()
+        upcoming = []
+        unplanned_total = 0.0
+        for r in conn.execute(detail_sql, detail_params).fetchall():
+            item = dict(r)
+            item["unplanned"] = (r["budget_links"] or 0) == 0  # 無對應預算＝計畫外
+            if item["unplanned"]:
+                unplanned_total += r["payment_amount"]
+            upcoming.append(item)
 
     return {
         "this_month": this_month,
@@ -803,6 +812,7 @@ def cio_overview() -> dict[str, Any]:
         "next_month_total": next_month_total,
         "this_month_total": this_month_total,
         "funds_to_prepare": funds_to_prepare,
+        "unplanned_next_month": unplanned_total,  # 下月「預算外/計畫外」金額
         "upcoming_next_month": upcoming,
     }
 
@@ -816,6 +826,10 @@ def search_records(query: str) -> list[dict[str, Any]]:
             "case": ("cases", "case_code", "title", "owner"),
             "contract": ("contracts", "contract_code", "contract_name", "vendor_name"),
             "document": ("documents", "file_name", "document_type", "source_note"),
+            "budget": ("budgets", "budget_code", "category", "unit_name"),
+            "project": ("projects", "project_code", "project_name", "source"),
+            "signoff": ("signoffs", "signoff_code", "subject", "applicant"),
+            "purchase": ("purchases", "purchase_code", "item_name", "vendor_name"),
         }.items():
             source, code_field, title_field, extra_field = fields
             sql = (

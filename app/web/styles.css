@@ -980,3 +980,14 @@ form,
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* 內嵌 SVG 圖表版面 */
+.chart-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.chart-card h3 {
+  color: inherit;
+}

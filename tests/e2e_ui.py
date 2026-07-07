@@ -111,6 +111,7 @@ def main() -> int:
             # 催辦清單：demo 有一筆逾期案件（DEMO-C01）；等 refresh 載入完成
             page.wait_for_timeout(1000)
             results.append(("催辦清單出現逾期項目", "已逾期" in page.inner_text("#reminders-list")))
+            results.append(("主管儀表板出現圖表(SVG)", page.locator("#manager-charts svg").count() >= 1))
             page.click('button[data-case-tab="list"]')
             page.wait_for_timeout(600)
             results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))
@@ -149,6 +150,9 @@ def main() -> int:
             results.append(("CIO 落在決策總覽面板", page.is_visible("#cio-overview")))
             results.append(("CIO 沒有建案表單(唯讀+隱藏)", not page.is_visible("#case-form")))
             results.append(("CIO 資金看板顯示要準備的資金", "要準備的資金" in page.inner_text("#cio-metrics")))
+            page.wait_for_timeout(500)
+            results.append(("CIO 決策總覽出現圖表(SVG)", page.locator("#cio-charts svg").count() >= 1))
+            results.append(("CIO 看板有預算外卡片", "下月預算外" in page.inner_text("#cio-metrics")))
 
             browser.close()
 
