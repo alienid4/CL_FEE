@@ -501,6 +501,24 @@ def dashboard_summary() -> dict[str, Any]:
         }
 
 
+def monthly_spending_summary() -> list[dict[str, Any]]:
+    """依月份彙總付款：每月總額、已付(closed)、待付(其餘)、筆數。依 owner 範圍過濾。"""
+    scope = _owner_scope.get()
+    where, params = _scope_where("payments", scope) if scope is not None else ("", [])
+    sql = (
+        "SELECT payment_month AS month, COUNT(*) AS count, "
+        "COALESCE(SUM(payment_amount), 0) AS total, "
+        "COALESCE(SUM(CASE WHEN status = 'closed' THEN payment_amount ELSE 0 END), 0) AS paid, "
+        "COALESCE(SUM(CASE WHEN status <> 'closed' THEN payment_amount ELSE 0 END), 0) AS pending "
+        "FROM payments"
+    )
+    if where:
+        sql += f" WHERE {where}"
+    sql += " GROUP BY payment_month ORDER BY payment_month DESC"
+    with connect() as conn:
+        return conn.execute(sql, params).fetchall()
+
+
 def search_records(query: str) -> list[dict[str, Any]]:
     pattern = f"%{query}%"
     scope = _owner_scope.get()

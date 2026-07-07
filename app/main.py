@@ -30,6 +30,7 @@ from app.store import (
     list_import_rows,
     list_audit_logs,
     list_rows,
+    monthly_spending_summary,
     preflight_import_batch_confirm,
     preview_import_mapping,
     search_records,
@@ -367,6 +368,10 @@ def create_app() -> FastAPI:
     @app.get("/api/dashboard")
     def dashboard() -> dict[str, Any]:
         return ok(dashboard_summary())
+
+    @app.get("/api/reports/monthly-spending")
+    def monthly_spending() -> dict[str, Any]:
+        return ok(monthly_spending_summary())
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:
