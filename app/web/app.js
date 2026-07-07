@@ -762,8 +762,9 @@ async function loadCases() {
               <strong>${escapeHtml(item.case_code)}</strong>
               <span>${escapeHtml(item.title)}</span>
               <span class="muted">${escapeHtml(item.owner || "未指派")}</span>
-              <span>${escapeHtml(item.status)}</span>
+              <span class="badge ${item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : ""}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>
               <span class="actions">
+                ${caseWorkflowButtons(item)}
                 <button type="button" class="secondary" data-action="edit">編輯</button>
                 <button type="button" class="secondary" data-action="disable">停用</button>
                 <button type="button" class="danger" data-action="delete">刪除</button>
@@ -814,7 +815,23 @@ async function loadDocuments() {
   await loadResource("document");
 }
 
-const STATUS_LABELS = { draft: "草稿", reviewing: "審核中", approved: "已核准", disabled: "已停用" };
+const STATUS_LABELS = { draft: "草稿", pending_review: "待複核", reviewing: "審核中", approved: "已核准", disabled: "已停用" };
+
+// 依角色/建立者算出案件的複核動作按鈕（送出複核 / 核准）
+function caseWorkflowButtons(item) {
+  const btns = [];
+  if (item.status === "draft" || item.status === "reviewing") {
+    btns.push(`<button type="button" class="secondary" data-action="submit">送出複核</button>`);
+  }
+  if (item.status === "pending_review" && currentUser && currentUser.role_code === "manager_assistant") {
+    if ((item.created_by || "") === currentUser.username) {
+      btns.push(`<span class="muted" title="不能核准自己建立的案件">待他人複核</span>`);
+    } else {
+      btns.push(`<button type="button" data-action="approve">核准</button>`);
+    }
+  }
+  return btns.join(" ");
+}
 
 async function loadTodo() {
   if (!todoList) return;
@@ -845,7 +862,7 @@ function renderCioTable() {
               <td>${i + 1}</td>
               <td>${escapeHtml(c.case_code)}</td>
               <td>${escapeHtml(c.title)}</td>
-              <td><span class="badge ${c.status === "reviewing" ? "warn" : c.status === "disabled" ? "neutral" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span></td>
+              <td><span class="badge ${c.status === "reviewing" || c.status === "pending_review" ? "warn" : c.status === "disabled" ? "neutral" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span></td>
               <td>${Number(c.amount || 0).toLocaleString()}</td>
               <td>${escapeHtml(c.owner || "未指派")}</td>
               <td>${escapeHtml(c.note || "—")}</td>
@@ -1127,11 +1144,21 @@ cases.addEventListener("click", async (event) => {
     startEdit(id);
     return;
   }
-  if (action === "disable") {
-    await api(`/api/cases/${id}/disable`, { method: "POST" });
-  }
-  if (action === "delete") {
-    await api(`/api/cases/${id}`, { method: "DELETE" });
+  try {
+    if (action === "submit") {
+      await api(`/api/cases/${id}/submit`, { method: "POST" });
+    }
+    if (action === "approve") {
+      await api(`/api/cases/${id}/approve`, { method: "POST" });
+    }
+    if (action === "disable") {
+      await api(`/api/cases/${id}/disable`, { method: "POST" });
+    }
+    if (action === "delete") {
+      await api(`/api/cases/${id}`, { method: "DELETE" });
+    }
+  } catch (error) {
+    window.alert(error.message);
   }
   resetForm();
   await refresh();

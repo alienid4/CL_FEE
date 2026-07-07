@@ -30,6 +30,7 @@ def main() -> int:
         "AP01_PASSWORD": "e2e-pass",
         "AP02_PASSWORD": "e2e-pass",
         "AP03_PASSWORD": "e2e-pass",
+        "AP04_PASSWORD": "e2e-pass",
         "SESSION_SECRET": "e2e-secret-fixed",
     }
     proc = subprocess.Popen(
@@ -99,6 +100,25 @@ def main() -> int:
             page.click('button[data-case-tab="list"]')
             page.wait_for_timeout(600)
             results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))
+
+            # 3.8) 雙人複核：ap02 送出 E2E-001 → 待複核；建立者不能自己核；ap04 核准 → 已核准
+            row = page.locator("#cases .row", has_text="E2E-001")
+            row.get_by_role("button", name="送出複核").click()
+            page.wait_for_timeout(600)
+            row = page.locator("#cases .row", has_text="E2E-001")
+            results.append(("送出後狀態為待複核", "待複核" in row.inner_text()))
+            results.append(("建立者看不到自己案件的核准鈕", row.get_by_role("button", name="核准").count() == 0))
+            page.click("#logout" if page.query_selector("#logout") else "text=登出")
+            page.wait_for_selector("#login-form", state="visible", timeout=10000)
+            page.fill('#login-form input[name="username"]', "ap04")
+            page.fill('#login-form input[name="password"]', "e2e-pass")
+            page.click('#login-form button[type="submit"]')
+            page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+            page.wait_for_timeout(500)
+            row4 = page.locator("#cases .row", has_text="E2E-001")
+            row4.get_by_role("button", name="核准").click()
+            page.wait_for_timeout(600)
+            results.append(("另一助理核准後狀態為已核准", "已核准" in page.locator("#cases .row", has_text="E2E-001").inner_text()))
 
             # 4) 換 CIO（極簡）：只看到決策總覽，其他模組與建案表單完全隱藏
             page.click('a.module-card[href="#cases-module"]')
