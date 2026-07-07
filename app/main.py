@@ -160,6 +160,7 @@ class LoginIn(BaseModel):
 
 
 AUTH_COOKIE_NAME = "ai_fee_user"
+HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches")  # 承辦不得使用（稽核/匯入）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
     "ap01": {
         "username": "ap01",
@@ -312,8 +313,11 @@ def create_app() -> FastAPI:
             username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
             if not username:
                 return JSONResponse({"detail": "請先登入。"}, status_code=401)
+            user = LOCAL_AUTH_USERS[username]
+            if user["role_code"] == "handler" and any(path.startswith(p) for p in HANDLER_FORBIDDEN_PREFIXES):
+                return JSONResponse({"detail": "權限不足：承辦無權使用此功能。"}, status_code=403)
             if request.method in ("POST", "PATCH", "PUT", "DELETE"):
-                if "edit" not in LOCAL_AUTH_USERS[username]["allowed_actions"]:
+                if "edit" not in user["allowed_actions"]:
                     return JSONResponse({"detail": "權限不足：此帳號僅供檢視。"}, status_code=403)
         return await call_next(request)
 

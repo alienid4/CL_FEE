@@ -83,6 +83,7 @@ def test_audit_log_records_real_actor(tmp_path):
     with client_for(tmp_path) as client:
         client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         client.post("/api/cases", json={"case_code": "K3", "title": "case"})
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})  # 換能看稽核的角色
         logs = client.get("/api/audit-logs", params={"limit": 5}).json()["data"]
         actors = [row.get("actor") for row in logs]
         assert "ap03" in actors  # 稽核應記錄實際操作者，而非 local-dev

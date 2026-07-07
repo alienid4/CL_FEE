@@ -48,3 +48,14 @@ def test_manager_sees_all(tmp_path):
         client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
         codes = {r["case_code"] for r in client.get("/api/cases").json()["data"]}
         assert codes == {"A", "B"}  # 主管/助理看得到全部
+
+
+def test_handler_forbidden_from_audit_and_import(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        assert client.get("/api/audit-logs").status_code == 403          # 承辦不得看稽核
+        assert client.get("/api/import-batches").status_code == 403       # 承辦不得看匯入
+        assert client.post("/api/import-batches", json={"source_name": "x.csv"}).status_code == 403
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
+        assert client.get("/api/audit-logs").status_code == 200           # 主管仍可用
+        assert client.get("/api/import-batches").status_code == 200
