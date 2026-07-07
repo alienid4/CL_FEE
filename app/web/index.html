@@ -75,54 +75,6 @@
             </div>
           </div>
 
-          <p class="summary-line">資料來源：案件清單 / 八功能總覽。此頁先以主管查核與風險處理為主。</p>
-
-          <section class="kpi-grid" aria-label="case summary">
-            <article class="kpi-card primary">
-              <span>預算內</span>
-              <strong>2案 / 1,980萬</strong>
-              <small>已對應年度預算項目，可回查預算編號。</small>
-            </article>
-            <article class="kpi-card danger">
-              <span>預算外</span>
-              <strong>1案 / 180萬</strong>
-              <small>臨時追加或預算尚未定義，需主管確認。</small>
-            </article>
-            <article class="kpi-card warn">
-              <span>待判定</span>
-              <strong>1案</strong>
-              <small>找不到預算項目，尚未人工標註。</small>
-            </article>
-            <article class="kpi-card">
-              <span>不執行 / 未成案</span>
-              <strong>1案</strong>
-              <small>保留條件歷程，不列入預算小金額。</small>
-            </article>
-          </section>
-
-          <section class="metrics" id="metrics" aria-label="live system metrics"></section>
-          <section class="watch-list" aria-label="monthly spending">
-            <div class="section-heading compact">
-              <h2>月度支出彙總</h2>
-              <span class="muted">依付款月份彙總：總額 / 已付 / 待付（真實資料）。</span>
-            </div>
-            <div class="table-shell">
-              <table>
-                <thead>
-                  <tr><th>月份</th><th>筆數</th><th>總額</th><th>已付</th><th>待付</th></tr>
-                </thead>
-                <tbody id="monthly-spending-body"></tbody>
-              </table>
-            </div>
-          </section>
-          <section class="watch-list" aria-label="expiring contracts">
-            <div class="section-heading compact">
-              <h2>合約續約提醒</h2>
-              <span class="muted">90 天內到期或已過期的合約（真實資料）。</span>
-            </div>
-            <ul class="note-list" id="expiring-list"></ul>
-          </section>
-
           <section class="case-tab-panel active" data-case-panel="list">
             <section class="watch-list">
             <div class="section-heading compact">
@@ -154,49 +106,27 @@
           </section>
 
           <section class="case-tab-panel" data-case-panel="dashboard" hidden>
-            <section class="dashboard-cards">
-              <article class="kpi-card primary">
-                <span>案件總數</span>
-                <strong>4案</strong>
-                <small>預算內 2、預算外 1、待判定 1。</small>
-              </article>
-              <article class="kpi-card">
-                <span>已串流程</span>
-                <strong>3案</strong>
-                <small>可回查預算、專案、簽呈、合約或付款。</small>
-              </article>
-              <article class="kpi-card warn">
-                <span>待確認</span>
-                <strong>2案</strong>
-                <small>付款期程與同案整理仍需補證據。</small>
-              </article>
-            </section>
-            <section class="dashboard-split">
-              <div class="mini-dashboard-card">
-                <h2>預算歸屬結構</h2>
-                <div class="bar-row"><span>預算內</span><meter min="0" max="4" value="2"></meter><strong>2案</strong></div>
-                <div class="bar-row"><span>預算外</span><meter min="0" max="4" value="1"></meter><strong>1案</strong></div>
-                <div class="bar-row"><span>待判定</span><meter min="0" max="4" value="1"></meter><strong>1案</strong></div>
+            <section class="metrics" id="metrics" aria-label="live system metrics"></section>
+            <section class="watch-list" aria-label="monthly spending">
+              <div class="section-heading compact">
+                <h2>月度支出彙總</h2>
+                <span class="muted">依付款月份彙總：總額 / 已付 / 待付（真實資料）。</span>
               </div>
-              <div class="mini-dashboard-card">
-                <h2>目前卡點</h2>
-                <ul class="tight-list">
-                  <li><strong>付款期程待確認</strong><span>板橋機房網路線路銷約與擴充</span></li>
-                  <li><strong>本月發票等待</strong><span>XX電信固定費用</span></li>
-                  <li><strong>同案待確認</strong><span>IBM AIX/R6 維護</span></li>
-                </ul>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>負責人分布</h2>
+              <div class="table-shell">
                 <table>
-                  <thead><tr><th>負責人</th><th>案件</th><th>待辦</th></tr></thead>
-                  <tbody>
-                    <tr><td>王小明</td><td>1案</td><td>補核准依據</td></tr>
-                    <tr><td>蔡世偉</td><td>1案</td><td>補付款證明</td></tr>
-                    <tr><td>雷子慶</td><td>1案</td><td>同案整理</td></tr>
-                  </tbody>
+                  <thead>
+                    <tr><th>月份</th><th>筆數</th><th>總額</th><th>已付</th><th>待付</th></tr>
+                  </thead>
+                  <tbody id="monthly-spending-body"></tbody>
                 </table>
               </div>
+            </section>
+            <section class="watch-list" aria-label="expiring contracts">
+              <div class="section-heading compact">
+                <h2>合約續約提醒</h2>
+                <span class="muted">90 天內到期或已過期的合約（真實資料）。</span>
+              </div>
+              <ul class="note-list" id="expiring-list"></ul>
             </section>
           </section>
 
@@ -810,6 +740,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=contract-expiry-20260707"></script>
+    <script src="/static/app.js?v=tab-declutter-20260707"></script>
   </body>
 </html>
