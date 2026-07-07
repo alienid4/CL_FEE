@@ -46,6 +46,16 @@ def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
     return "", []
 
 
+def _row_in_scope(conn: sqlite3.Connection, table: str, row_id: int, scope: str) -> bool:
+    """該列是否在 scope(承辦) 的可視範圍內。用於寫入(改/停用/刪)前的越權防護。"""
+    where, params = _scope_where(table, scope)
+    if not where:
+        return True
+    return conn.execute(
+        f"SELECT 1 FROM {table} WHERE id = ? AND ({where}) LIMIT 1", [row_id, *params]
+    ).fetchone() is not None
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS cases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -229,6 +239,7 @@ NULLABLE_FIELDS: dict[str, set[str]] = {
 
 
 def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    scope = _owner_scope.get()
     allowed = allowed_fields()
     nullable = NULLABLE_FIELDS.get(table, set())
     # 允許把可為空的外鍵顯式清成 NULL（解除關聯）；其餘欄位仍略過 None。
@@ -237,12 +248,16 @@ def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, An
         for key, value in payload.items()
         if key in allowed[table] and (value is not None or key in nullable)
     }
+    if scope is not None:
+        fields.pop("owner", None)  # 承辦不得竄改案件歸屬（避免竊佔/送人）
     if not fields:
         raise ValueError("No valid fields supplied.")
     validate_status_fields(table, fields)
     assignments = ", ".join(f"{key} = ?" for key in fields)
     with connect() as conn:
         before = get_row(conn, table, row_id)
+        if scope is not None and not _row_in_scope(conn, table, row_id, scope):
+            raise LookupError(f"{table} row {row_id} not found")  # 非本人範圍，視同不存在
         cursor = conn.execute(
             f"UPDATE {table} SET {assignments} WHERE id = ?",
             [*fields.values(), row_id],
@@ -255,11 +270,14 @@ def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, An
 
 
 def disable_row(table: str, row_id: int) -> dict[str, Any]:
+    scope = _owner_scope.get()
     if "status" not in allowed_fields()[table]:
         raise ValueError(f"{table} does not support disable.")
     validate_status_fields(table, {"status": "disabled"})
     with connect() as conn:
         before = get_row(conn, table, row_id)
+        if scope is not None and not _row_in_scope(conn, table, row_id, scope):
+            raise LookupError(f"{table} row {row_id} not found")  # 非本人範圍，視同不存在
         cursor = conn.execute(f"UPDATE {table} SET status = ? WHERE id = ?", ("disabled", row_id))
         if cursor.rowcount == 0:
             raise LookupError(f"{table} row {row_id} not found")
@@ -275,8 +293,11 @@ CHILD_REFS: dict[str, list[tuple[str, str]]] = {
 
 
 def delete_row(table: str, row_id: int) -> None:
+    scope = _owner_scope.get()
     with connect() as conn:
         before = get_row(conn, table, row_id)
+        if scope is not None and not _row_in_scope(conn, table, row_id, scope):
+            raise LookupError(f"{table} row {row_id} not found")  # 非本人範圍，視同不存在
         # 有子列關聯時不得硬刪（避免靜默孤立子列、金額短少）；請先處理或改用作廢。
         for child_table, fk in CHILD_REFS.get(table, []):
             count = conn.execute(

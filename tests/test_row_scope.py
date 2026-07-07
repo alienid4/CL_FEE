@@ -59,3 +59,31 @@ def test_handler_forbidden_from_audit_and_import(tmp_path):
         client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
         assert client.get("/api/audit-logs").status_code == 200           # 主管仍可用
         assert client.get("/api/import-batches").status_code == 200
+
+
+def test_handler_cannot_write_to_others_records(tmp_path):
+    """越權防護：承辦不得改/作廢/刪/竊佔別人的資料（多 agent 審查抓到的洞）。"""
+    with _client(tmp_path) as client:
+        theirs = _seed("cases", {"case_code": "OWN-BY-2", "title": "t", "owner": "ap02"})
+        their_ct = _seed("contracts", {"contract_code": "CT2", "contract_name": "c", "case_id": theirs["id"]})
+        their_doc = _seed("documents", {"file_name": "d.pdf", "case_id": theirs["id"]})
+        their_pay = _seed("payments", {"contract_id": their_ct["id"], "payment_month": "2026-01", "payment_amount": 100})
+
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        assert client.patch(f"/api/cases/{theirs['id']}", json={"title": "hacked"}).status_code == 404   # 改別人 → 擋
+        assert client.patch(f"/api/cases/{theirs['id']}", json={"owner": "ap03"}).status_code in (404, 422)  # 竊佔 owner → 擋（owner 被丟棄→空欄位）
+        assert client.post(f"/api/contracts/{their_ct['id']}/disable").status_code == 404                 # 作廢別人 → 擋
+        assert client.delete(f"/api/documents/{their_doc['id']}").status_code == 404                      # 刪別人文件 → 擋
+        assert client.delete(f"/api/payments/{their_pay['id']}").status_code == 404                       # 刪別人付款 → 擋
+
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
+        got = next(c for c in client.get("/api/cases").json()["data"] if c["id"] == theirs["id"])
+        assert got["title"] == "t" and got["owner"] == "ap02"  # 資料未被動
+
+
+def test_handler_can_write_to_own_records(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        mine = client.post("/api/cases", json={"case_code": "MY-OWN", "title": "m"}).json()["data"]
+        r = client.patch(f"/api/cases/{mine['id']}", json={"title": "updated"})
+        assert r.status_code == 200 and r.json()["data"]["title"] == "updated"  # 改自己的 → 可以
