@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from app.dev_console import console_status, run_console_command
+from app.notify import send_digests
 from app.seed_data import clear_demo_data, demo_counts, load_demo_data
 from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
@@ -24,7 +25,9 @@ from app.store import (
     case_360,
     cases_needing_attention,
     cio_overview,
+    orphan_payments,
     overdue_reminders,
+    pending_approvals,
     submit_case,
     confirm_import_batch_cases_dry_run,
     expiring_contracts,
@@ -275,6 +278,16 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1)
 
 
+CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "contracts": [("contract_code", "合約編號"), ("contract_name", "合約名稱"), ("vendor_name", "廠商"), ("amount", "金額"), ("status", "狀態"), ("end_date", "到期日"), ("case_id", "案件ID")],
+    "payments": [("payment_month", "付款月份"), ("payment_amount", "付款金額"), ("invoice_status", "發票狀態"), ("status", "狀態"), ("contract_id", "合約ID")],
+    "documents": [("file_name", "檔案名稱"), ("document_type", "類型"), ("source_note", "來源說明"), ("status", "狀態"), ("case_id", "案件ID"), ("contract_id", "合約ID")],
+    "budgets": [("budget_code", "預算編號"), ("category", "類別"), ("unit_name", "單位"), ("fiscal_year", "年度"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
+    "projects": [("project_code", "專案編號"), ("project_name", "專案名稱"), ("source", "來源"), ("necessity", "必要性"), ("progress", "進度"), ("owner", "負責人"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
+    "signoffs": [("signoff_code", "簽呈編號"), ("subject", "主旨"), ("applicant", "申請人"), ("amount", "金額"), ("status", "狀態"), ("sign_date", "簽核日"), ("case_id", "案件ID")],
+    "purchases": [("purchase_code", "請購編號"), ("item_name", "品項"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
+}
+
 AUTH_COOKIE_NAME = "ai_fee_user"
 HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台，含 demo-data）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
@@ -514,6 +527,18 @@ def create_app() -> FastAPI:
     @app.get("/api/reports/reminders")
     def reminders() -> dict[str, Any]:
         return ok(overdue_reminders())
+
+    @app.get("/api/reports/orphan-payments")
+    def orphan_payments_report() -> dict[str, Any]:
+        return ok(orphan_payments())
+
+    @app.get("/api/reports/pending-approvals")
+    def pending_approvals_report() -> dict[str, Any]:
+        return ok(pending_approvals())
+
+    @app.post("/api/reports/reminders/notify")
+    def reminders_notify() -> dict[str, Any]:
+        return ok(send_digests())
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:
@@ -856,6 +881,23 @@ def create_app() -> FastAPI:
     @app.delete("/api/purchases/{purchase_id}", status_code=204)
     def delete_purchase(purchase_id: int) -> None:
         handle_delete("purchases", purchase_id)
+
+    # ---- 各模組 CSV 匯出（Excel 友善，含 UTF-8 BOM；依 owner 範圍匯出）----
+    def _module_csv(table: str) -> Response:
+        cols = CSV_COLUMNS[table]
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([label for _, label in cols])
+        for r in list_rows(table, 500):
+            writer.writerow([r.get(key, "") for key, _ in cols])
+        return Response(
+            content="﻿" + buf.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f"attachment; filename={table}.csv"},
+        )
+
+    for _table in CSV_COLUMNS:
+        app.add_api_route(f"/api/{_table}.csv", (lambda t: lambda: _module_csv(t))(_table), include_in_schema=False)
 
     @app.get("/api/search")
     def search(q: str = Query(min_length=1)) -> dict[str, Any]:

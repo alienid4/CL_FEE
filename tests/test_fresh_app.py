@@ -469,30 +469,34 @@ def test_status_dictionary_rejects_invalid_status_and_preserves_audit(
     legal_status,
 ):
     with client_for(tmp_path) as client:
+        # 付款需要真實存在的合約（關聯 ID 存在性檢查）：先建一個合約當 contract_id=1
+        if path == "/api/payments":
+            client.post("/api/contracts", json={"contract_code": "FK-CT", "contract_name": "FK 合約"})
         before_invalid_create = audit_count(client)
         invalid_create = client.post(path, json={**payload, "status": "not-a-real-status"})
         assert invalid_create.status_code == 422
         assert "Invalid" in invalid_create.json()["detail"]
         assert audit_count(client) == before_invalid_create
 
+        table = path.rsplit("/", 1)[-1]  # 依表過濾稽核，避免不同表同 id 相撞
         created = client.post(path, json={**payload, "status": legal_status})
         assert created.status_code == 201
         created_data = created.json()["data"]
         row_id = created_data["id"]
         assert created_data["status"] == legal_status
-        assert audit_count(client, row_id=row_id, action="create") == 1
+        assert audit_count(client, table_name=table, row_id=row_id, action="create") == 1
 
-        before_invalid_update = audit_count(client, row_id=row_id)
+        before_invalid_update = audit_count(client, table_name=table, row_id=row_id)
         invalid_update = client.patch(patch_path.format(id=row_id), json={"status": "not-a-real-status"})
         assert invalid_update.status_code == 422
         assert "Invalid" in invalid_update.json()["detail"]
-        assert audit_count(client, row_id=row_id) == before_invalid_update
-        assert audit_count(client, row_id=row_id, action="update") == 0
+        assert audit_count(client, table_name=table, row_id=row_id) == before_invalid_update
+        assert audit_count(client, table_name=table, row_id=row_id, action="update") == 0
 
         disabled = client.post(f"{path}/{row_id}/disable")
         assert disabled.status_code == 200
         assert disabled.json()["data"]["status"] == "disabled"
-        assert audit_count(client, row_id=row_id, action="disable") == 1
+        assert audit_count(client, table_name=table, row_id=row_id, action="disable") == 1
 
         after_disable = client.get(
             "/api/audit-logs",

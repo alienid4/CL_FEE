@@ -256,6 +256,19 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+_FK_REFS = {"case_id": ("cases", "案件"), "contract_id": ("contracts", "合約")}
+
+
+def _validate_fks(conn: sqlite3.Connection, fields: dict[str, Any]) -> None:
+    """關聯 ID（case_id / contract_id）若有填，必須指向存在的資料，否則擋下。"""
+    for fk, (ref_table, label) in _FK_REFS.items():
+        val = fields.get(fk)
+        if val is None:
+            continue
+        if conn.execute(f"SELECT 1 FROM {ref_table} WHERE id = ?", (val,)).fetchone() is None:
+            raise ValueError(f"關聯的{label} ID {val} 不存在，請確認後再填。")
+
+
 def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     scope = _owner_scope.get()
     if table == "cases":
@@ -270,6 +283,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     columns = ", ".join(fields)
     placeholders = ", ".join("?" for _ in fields)
     with connect() as conn:
+        _validate_fks(conn, fields)
         cursor = conn.execute(
             f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
             list(fields.values()),
@@ -340,6 +354,7 @@ def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, An
         before = get_row(conn, table, row_id)
         if scope is not None and not _row_in_scope(conn, table, row_id, scope):
             raise LookupError(f"{table} row {row_id} not found")  # 非本人範圍，視同不存在
+        _validate_fks(conn, fields)
         cursor = conn.execute(
             f"UPDATE {table} SET {assignments} WHERE id = ?",
             [*fields.values(), row_id],
@@ -771,6 +786,27 @@ def overdue_reminders(within_days: int = 14) -> list[dict[str, Any]]:
     return items
 
 
+def orphan_payments() -> list[dict[str, Any]]:
+    """未歸戶付款：所屬合約沒有掛案件（case_id 為空）→ 沒人追、CIO 也看不到。給主管檢視。"""
+    with connect() as conn:
+        return conn.execute(
+            "SELECT p.id, p.payment_month, p.payment_amount, p.status, k.contract_code "
+            "FROM payments p JOIN contracts k ON k.id = p.contract_id "
+            "WHERE k.case_id IS NULL AND p.status <> 'disabled' ORDER BY p.id DESC LIMIT 100"
+        ).fetchall()
+
+
+def pending_approvals() -> list[dict[str, Any]]:
+    """待我複核：狀態為 pending_review 且非我建立的案件（雙人複核，不能核自己的）。"""
+    actor = _current_actor.get()
+    with connect() as conn:
+        return conn.execute(
+            "SELECT id, case_code, title, owner, amount, created_by FROM cases "
+            "WHERE status = 'pending_review' AND created_by <> ? ORDER BY id DESC LIMIT 100",
+            (actor,),
+        ).fetchall()
+
+
 # 雙人複核規則 (b)：核准前不算數 —— CIO 畫面的金額只計「已核准」案件下的付款。
 _APPROVED_PAYMENT_CLAUSE = (
     "contract_id IN (SELECT id FROM contracts WHERE case_id IN "
@@ -804,12 +840,24 @@ def cio_overview() -> dict[str, Any]:
         this_month_total = _sum(f"payment_month = ?{tail}{approved}", [this_month, *pp])
         funds_to_prepare = _sum(f"status <> 'closed'{tail}{approved}", [*pp])  # 尚未結案 = 要準備的資金
 
+        # D：未來 6 個月現金流預測（含本月），只算已核准案件的付款
+        forecast = []
+        y, m = today.year, today.month
+        for _ in range(6):
+            mon = f"{y}-{m:02d}"
+            forecast.append({"month": mon, "total": _sum(f"payment_month = ?{tail}{approved}", [mon, *pp])})
+            m = 1 if m == 12 else m + 1
+            y = y + 1 if m == 1 else y
+
         # 下月要出的每一筆款，連到所屬案件（供 CIO 逐層下探）；只列已核准案件。
-        # budget_links=0 代表案件沒關聯任何預算 → 視為「預算外/計畫外」支出，CIO 要特別留意。
+        # budget_links=0 代表案件沒關聯任何預算 → 視為「預算外/計畫外」支出。
+        # E：case_budget_total>0 且 案件付款合計>預算合計 → 超支。
         detail_sql = (
             "SELECT c.id AS case_id, c.case_code, c.title AS case_title, c.owner, "
             "k.contract_code, p.payment_month, p.payment_amount, p.status, "
-            "(SELECT COUNT(*) FROM budgets b WHERE b.case_id = c.id AND b.status <> 'disabled') AS budget_links "
+            "(SELECT COUNT(*) FROM budgets b WHERE b.case_id = c.id AND b.status <> 'disabled') AS budget_links, "
+            "(SELECT COALESCE(SUM(b.amount),0) FROM budgets b WHERE b.case_id = c.id AND b.status <> 'disabled') AS case_budget_total, "
+            "(SELECT COALESCE(SUM(pp.payment_amount),0) FROM payments pp JOIN contracts kk ON kk.id = pp.contract_id WHERE kk.case_id = c.id) AS case_payment_total "
             "FROM payments p JOIN contracts k ON k.id = p.contract_id "
             "JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ? AND c.status = 'approved'"
         )
@@ -820,11 +868,15 @@ def cio_overview() -> dict[str, Any]:
         detail_sql += " ORDER BY p.payment_amount DESC LIMIT 100"
         upcoming = []
         unplanned_total = 0.0
+        overspent_count = 0
         for r in conn.execute(detail_sql, detail_params).fetchall():
             item = dict(r)
             item["unplanned"] = (r["budget_links"] or 0) == 0  # 無對應預算＝計畫外
+            item["overspent"] = (r["case_budget_total"] or 0) > 0 and (r["case_payment_total"] or 0) > r["case_budget_total"]
             if item["unplanned"]:
                 unplanned_total += r["payment_amount"]
+            if item["overspent"]:
+                overspent_count += 1
             upcoming.append(item)
 
     return {
@@ -834,6 +886,8 @@ def cio_overview() -> dict[str, Any]:
         "this_month_total": this_month_total,
         "funds_to_prepare": funds_to_prepare,
         "unplanned_next_month": unplanned_total,  # 下月「預算外/計畫外」金額
+        "overspent_count": overspent_count,       # 下月清單中超支案件數
+        "forecast": forecast,                     # 未來 6 個月現金流
         "upcoming_next_month": upcoming,
     }
 

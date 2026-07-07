@@ -82,6 +82,16 @@ def test_projects_purchases_signoffs_scoped_for_handler(tmp_path):
         assert "BUD-ORG" in bud  # 預算不隔離，承辦也看得到
 
 
+def test_fk_existence_checked(tmp_path):
+    """關聯 ID 不存在要被擋（避免付款掛到不存在的合約、資料掛到不存在的案件）。"""
+    with _client(tmp_path) as client:
+        assert client.post("/api/payments", json={"contract_id": 9999, "payment_month": "2026-09", "payment_amount": 100}).status_code == 422
+        assert client.post("/api/budgets", json={"budget_code": "B-BADFK", "case_id": 9999}).status_code == 422
+        # 存在就通過
+        ct = client.post("/api/contracts", json={"contract_code": "OK-CT", "contract_name": "c"}).json()["data"]
+        assert client.post("/api/payments", json={"contract_id": ct["id"], "payment_month": "2026-09", "payment_amount": 100}).status_code == 201
+
+
 def test_search_covers_new_modules(tmp_path):
     with _client(tmp_path) as client:
         client.post("/api/budgets", json={"budget_code": "SRCH-BUD", "category": "找找"})

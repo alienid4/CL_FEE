@@ -1063,13 +1063,10 @@ async function loadCioOverview() {
       { label: "計畫內（有預算）", value: planned, color: CHART_COLORS[1], text: `${money(planned)} 元` },
       { label: "預算外（無對應預算）", value: unplanned, color: CHART_COLORS[3], text: `${money(unplanned)} 元` },
     ];
-    const flow = [
-      { label: "本月", value: d.this_month_total || 0, color: CHART_COLORS[6] },
-      { label: "下月", value: d.next_month_total || 0, color: CHART_COLORS[0] },
-    ];
+    const flow = (d.forecast || []).map((f, i) => ({ label: f.month.slice(5), value: f.total || 0, color: i === 0 ? CHART_COLORS[6] : CHART_COLORS[0] }));
     cioCharts.innerHTML =
       chartCard("下月支出：計畫內 vs 預算外", donutSVG(planSeg, { center: unplanned > 0 ? "留意" : "OK" }) + chartLegend(planSeg)) +
-      chartCard("應付現金流（本月／下月）", barsSVG(flow));
+      chartCard("未來 6 個月應付現金流", flow.length ? barsSVG(flow, { width: 340 }) : `<p class="muted">尚無資料</p>`);
   }
   if (cioNextMonthLabel) cioNextMonthLabel.textContent = d.next_month ? `付款月份：${d.next_month}` : "";
   const rows = d.upcoming_next_month || [];
@@ -1079,7 +1076,7 @@ async function loadCioOverview() {
           .map(
             (r) => `
             <tr data-case-id="${r.case_id}" class="clickable" title="點擊追查明細">
-              <td>${escapeHtml(r.case_code)}${r.unplanned ? ' <span class="badge danger">預算外</span>' : ""}</td>
+              <td>${escapeHtml(r.case_code)}${r.unplanned ? ' <span class="badge danger">預算外</span>' : ""}${r.overspent ? ' <span class="badge danger">超支</span>' : ""}</td>
               <td>${escapeHtml(r.case_title)}</td>
               <td>${escapeHtml(r.owner || "未指派")}</td>
               <td>${escapeHtml(valueOrDash(r.contract_code))}</td>
@@ -1171,6 +1168,42 @@ async function loadReminders() {
     : `<li><small class="muted">目前沒有逾期或即將到期的催辦項目。</small></li>`;
 }
 
+async function loadPendingApprovals() {
+  const el = document.querySelector("#pending-approvals-list");
+  const wrap = document.querySelector("#pending-approvals");
+  if (!el || !wrap) return;
+  const canApprove = currentUser && currentUser.role_code === "manager_assistant";
+  wrap.hidden = !canApprove;
+  if (!canApprove) return;
+  const items = (await api("/api/reports/pending-approvals")).data || [];
+  const countEl = document.querySelector("#pending-approvals-count");
+  if (countEl) { countEl.hidden = items.length === 0; countEl.textContent = `${items.length}`; }
+  el.innerHTML = items.length
+    ? items
+        .map((c) => `
+          <li data-case-id="${c.id}">
+            <strong>${escapeHtml(c.case_code)}　${escapeHtml(c.title)}</strong>
+            <small>承辦：${escapeHtml(c.owner || "未指派")}｜建立者：${escapeHtml(valueOrDash(c.created_by))}｜金額：${money(c.amount)} 元</small>
+            <button type="button" data-action="approve-pending">核准</button>
+          </li>`)
+        .join("")
+    : `<li><small class="muted">目前沒有等你複核的案件。</small></li>`;
+}
+
+async function loadOrphanPayments() {
+  const el = document.querySelector("#orphan-payments-list");
+  const wrap = document.querySelector("#orphan-payments");
+  if (!el || !wrap) return;
+  if (!currentUser || currentUser.role_code !== "manager_assistant") { wrap.hidden = true; return; }
+  const items = (await api("/api/reports/orphan-payments")).data || [];
+  const countEl = document.querySelector("#orphan-payments-count");
+  wrap.hidden = items.length === 0;
+  if (countEl) { countEl.hidden = items.length === 0; countEl.textContent = `${items.length}`; }
+  el.innerHTML = items
+    .map((p) => `<li><span class="badge danger">未歸戶</span> <strong>${escapeHtml(p.contract_code)}</strong> <small>${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}</small></li>`)
+    .join("");
+}
+
 async function loadManagerCharts() {
   const el = document.querySelector("#manager-charts");
   if (!el) return;
@@ -1195,7 +1228,7 @@ async function refresh() {
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
-    loadManagerCharts(),
+    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(),
   ]);
 }
 
@@ -1345,6 +1378,18 @@ if (cioDrill) {
   });
 }
 
+document.querySelector("#pending-approvals-list")?.addEventListener("click", async (event) => {
+  if (!event.target.closest('[data-action="approve-pending"]')) return;
+  const li = event.target.closest("li[data-case-id]");
+  if (!li) return;
+  try {
+    await api(`/api/cases/${li.dataset.caseId}/approve`, { method: "POST" });
+  } catch (error) {
+    window.alert(error.message);
+  }
+  await refresh();
+});
+
 document.querySelector("#export-cases")?.addEventListener("click", () => {
   window.location.href = "/api/cases.csv";
 });
@@ -1433,6 +1478,38 @@ async function runDemo(action) {
 }
 demoSeed?.addEventListener("click", () => runDemo("load"));
 demoClear?.addEventListener("click", () => runDemo("clear"));
+
+// 每個模組的 crud-zone 注入「匯出 CSV」按鈕
+for (const [type, cfg] of Object.entries(resourceConfig)) {
+  const zone = resourceForms[type]?.closest(".crud-zone");
+  const h2 = zone?.querySelector("h2");
+  if (h2 && !h2.querySelector("[data-export]")) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secondary";
+    btn.dataset.export = `${cfg.api}.csv`;
+    btn.textContent = "匯出 CSV";
+    btn.style.marginLeft = "12px";
+    h2.appendChild(btn);
+  }
+}
+document.addEventListener("click", (event) => {
+  const b = event.target.closest("[data-export]");
+  if (b) window.location.href = b.dataset.export;
+});
+
+document.querySelector("#notify-reminders")?.addEventListener("click", async () => {
+  const el = document.querySelector("#notify-preview");
+  try {
+    const res = (await api("/api/reports/reminders/notify", { method: "POST" })).data || {};
+    const digests = res.digests || [];
+    if (!digests.length) { el.textContent = "目前沒有需要通知的催辦項目。"; return; }
+    const head = res.sent ? `已寄出 ${res.count} 封通知。\n\n` : `（${res.reason || "尚未設定 email，先預覽"}）\n\n`;
+    el.textContent = head + digests.map((d) => `▸ ${d.owner}（${d.count} 件）\n${d.body}`).join("\n\n");
+  } catch (error) {
+    el.textContent = `失敗：${error.message}`;
+  }
+});
 
 initializeSession().catch((error) => {
   cases.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;

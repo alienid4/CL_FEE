@@ -115,6 +115,13 @@
               </div>
             </section>
             <section class="metrics" id="metrics" aria-label="live system metrics"></section>
+            <section class="watch-list" id="pending-approvals" aria-label="待我複核" hidden>
+              <div class="section-heading compact">
+                <h2>待我複核 <span id="pending-approvals-count" class="badge warn" hidden></span></h2>
+                <span class="muted">送出複核、且不是你建立的案件，按「核准」即進入系統。</span>
+              </div>
+              <ul class="note-list" id="pending-approvals-list"></ul>
+            </section>
             <section id="manager-charts" class="chart-row" aria-label="儀表板圖表"></section>
             <section class="watch-list" aria-label="monthly spending">
               <div class="section-heading compact">
@@ -140,9 +147,18 @@
             <section class="watch-list" aria-label="overdue reminders">
               <div class="section-heading compact">
                 <h2>催辦清單 <span id="reminders-count" class="badge warn" hidden></span></h2>
-                <span class="muted">逾期或即將到期、但尚未完成的案件與合約（14 天內）。承辦只看自己的。</span>
+                <button type="button" id="notify-reminders" class="secondary">產生催辦通知</button>
               </div>
+              <span class="muted">逾期或即將到期、但尚未完成的案件/合約/專案（14 天內）。承辦只看自己的。</span>
               <ul class="note-list" id="reminders-list"></ul>
+              <div id="notify-preview" class="muted" style="white-space:pre-wrap;margin-top:.5rem;"></div>
+            </section>
+            <section class="watch-list" id="orphan-payments" aria-label="未歸戶付款" hidden>
+              <div class="section-heading compact">
+                <h2>未歸戶付款 <span id="orphan-payments-count" class="badge danger" hidden></span></h2>
+                <span class="muted">所屬合約沒有掛案件的付款——CIO 追不到，請補上關聯案件。</span>
+              </div>
+              <ul class="note-list" id="orphan-payments-list"></ul>
             </section>
           </section>
 
@@ -519,6 +535,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=charts-unplanned-20260707"></script>
+    <script src="/static/app.js?v=review-fixes-20260707"></script>
   </body>
 </html>
