@@ -804,6 +804,8 @@ function startEdit(id) {
   form.elements.owner.value = item.owner || "";
   form.elements.amount.value = item.amount || 0;
   form.elements.status.value = item.status || "draft";
+  form.elements.note.value = item.note || "";
+  form.elements.next_step.value = item.next_step || "";
   formTitle.textContent = `編輯 ${item.case_code}`;
   submitCase.textContent = "儲存";
   cancelEdit.hidden = false;
