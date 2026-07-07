@@ -102,6 +102,17 @@
           </section>
 
           <section class="case-tab-panel" data-case-panel="dashboard" hidden>
+            <section class="watch-list" id="demo-controls" aria-label="示範資料" hidden>
+              <div class="section-heading compact">
+                <h2>示範資料（測試用）</h2>
+                <span class="muted">一鍵載入明顯標示「［測試］/ DEMO-」的測試資料，正式上線前請按清空。</span>
+              </div>
+              <div class="demo-actions">
+                <button type="button" id="demo-seed" class="secondary">載入示範資料</button>
+                <button type="button" id="demo-clear" class="secondary">清空示範資料</button>
+                <span class="muted" id="demo-status" role="status" aria-live="polite"></span>
+              </div>
+            </section>
             <section class="metrics" id="metrics" aria-label="live system metrics"></section>
             <section class="watch-list" aria-label="monthly spending">
               <div class="section-heading compact">
@@ -358,6 +369,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=tab-declutter-20260707"></script>
+    <script src="/static/app.js?v=demo-seed-20260707"></script>
   </body>
 </html>

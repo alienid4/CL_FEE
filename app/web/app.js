@@ -13,6 +13,10 @@ const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
 const cioCasesBody = document.querySelector("#cio-cases-body");
 const monthlyBody = document.querySelector("#monthly-spending-body");
+const demoControls = document.querySelector("#demo-controls");
+const demoSeed = document.querySelector("#demo-seed");
+const demoClear = document.querySelector("#demo-clear");
+const demoStatus = document.querySelector("#demo-status");
 const setText = (sel, txt) => { const el = document.querySelector(sel); if (el) el.textContent = txt; };
 const formTitle = document.querySelector("#form-title");
 const submitCase = document.querySelector("#submit-case");
@@ -277,6 +281,10 @@ function applyRoleVisibility(user) {
     const targetId = card.getAttribute("href")?.replace("#", "");
     const allowedByPolicy = allowedModules.size ? allowedModules.has(targetId) : rolesForCard(card).includes(user.role_code);
     card.hidden = !allowedByPolicy;
+  }
+  // 示範資料工具只給主管/助理（有 edit）；CIO 唯讀、承辦被後端擋，也不顯示。
+  if (demoControls) {
+    demoControls.hidden = user.role_code !== "manager_assistant";
   }
   const visibleCards = moduleCards.filter((card) => !card.hidden);
   const defaultCard =
@@ -1077,6 +1085,28 @@ importPreviewForm.addEventListener("submit", submitImportPreview);
 dryRunCases.addEventListener("click", submitDryRunCases);
 preflightCases.addEventListener("click", submitPreflightCases);
 refreshMappingCatalog.addEventListener("click", loadMappingCatalog);
+
+async function runDemo(action) {
+  if (!demoStatus) return;
+  demoStatus.textContent = action === "load" ? "載入中…" : "清空中…";
+  if (demoSeed) demoSeed.disabled = true;
+  if (demoClear) demoClear.disabled = true;
+  try {
+    const res = await api(`/api/dev-console/demo-data/${action}`, { method: "POST" });
+    const counts = res.data || {};
+    const total = Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0);
+    demoStatus.textContent = action === "load" ? `已載入 ${total} 筆示範資料` : `已清空 ${total} 筆示範資料`;
+    await refresh();
+  } catch (error) {
+    demoStatus.textContent = `失敗：${error.message}`;
+  } finally {
+    if (demoSeed) demoSeed.disabled = false;
+    if (demoClear) demoClear.disabled = false;
+  }
+}
+demoSeed?.addEventListener("click", () => runDemo("load"));
+demoClear?.addEventListener("click", () => runDemo("clear"));
+
 initializeSession().catch((error) => {
   cases.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;
   contracts.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;

@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from app.dev_console import console_status, run_console_command
+from app.seed_data import clear_demo_data, demo_counts, load_demo_data
 from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
@@ -177,7 +178,7 @@ class LoginIn(BaseModel):
 
 
 AUTH_COOKIE_NAME = "ai_fee_user"
-HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台）
+HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台，含 demo-data）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
     "ap01": {
         "username": "ap01",
@@ -409,6 +410,19 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Unknown control panel command.") from exc
         except subprocess.TimeoutExpired as exc:
             raise HTTPException(status_code=504, detail=f"Command timed out after {exc.timeout} seconds.") from exc
+
+    # 測試種子資料（demo）：掛在 /api/dev-console 底下 → 承辦被既有前綴擋、CIO 唯讀擋，只有主管/助理可用。
+    @app.get("/api/dev-console/demo-data/status")
+    def demo_data_status() -> dict[str, Any]:
+        return ok(demo_counts())
+
+    @app.post("/api/dev-console/demo-data/load")
+    def demo_data_load() -> dict[str, Any]:
+        return ok(load_demo_data())
+
+    @app.post("/api/dev-console/demo-data/clear")
+    def demo_data_clear() -> dict[str, Any]:
+        return ok(clear_demo_data())
 
     @app.get("/api/audit-logs")
     def audit_logs(

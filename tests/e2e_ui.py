@@ -86,6 +86,20 @@ def main() -> int:
             page.wait_for_timeout(700)
             results.append(("新增合約出現在真清單", "E2E-CON-1" in page.inner_text("#contracts")))
 
+            # 3.7) 示範資料：主管在主管儀表板可一鍵載入（DEMO- 標示）
+            page.click('a.module-card[href="#cases-module"]')
+            page.wait_for_timeout(300)
+            page.click('button[data-case-tab="dashboard"]')
+            page.wait_for_timeout(300)
+            demo_visible = page.is_visible("#demo-controls")
+            results.append(("主管可見示範資料工具", demo_visible))
+            page.click("#demo-seed")
+            page.wait_for_selector("#demo-status:has-text('已載入')", timeout=8000)
+            results.append(("載入示範資料後狀態回饋", "已載入" in page.inner_text("#demo-status")))
+            page.click('button[data-case-tab="list"]')
+            page.wait_for_timeout(600)
+            results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))
+
             # 4) 換 CIO（唯讀）→ 建案應失敗（案件數不增）
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)
