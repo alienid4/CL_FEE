@@ -668,26 +668,10 @@
             </section>
             <section class="watch-list">
               <div class="section-heading compact">
-                <h2>備註與人工提醒</h2>
-                <span class="muted">這裡只呈現說明，不代表正式流程或資料已寫入。</span>
+                <h2>需處理案件（待辦）</h2>
+                <span class="muted">來自真實案件：狀態為「審核中」或已填「下一步」者。</span>
               </div>
-              <ul class="note-list">
-                <li id="data-review-missing-row" tabindex="-1">
-                  <span class="badge warn">待確認</span>
-                  <strong>付款期程與預算外原因一致性</strong>
-                  <small>相關模組：案件 / 付款；備註：需人工確認預算外依據；下一步：補來源說明。</small>
-                </li>
-                <li>
-                  <span class="badge danger">需補件</span>
-                  <strong>簽呈金額缺漏</strong>
-                  <small>相關模組：簽呈；備註：有一筆金額空白；下一步：回填來源列。</small>
-                </li>
-                <li id="data-review-write-block-row" tabindex="-1">
-                  <span class="badge danger">封鎖</span>
-                  <strong>正式寫入 Gate</strong>
-                  <small>相關模組：匯入確認；備註：尚未完成高風險審核；下一步：維持唯讀。</small>
-                </li>
-              </ul>
+              <ul class="note-list" id="todo-list"></ul>
             </section>
             <section class="dashboard-split">
               <div class="mini-dashboard-card">
@@ -854,6 +838,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=case-note-20260707"></script>
+    <script src="/static/app.js?v=todo-20260707"></script>
   </body>
 </html>

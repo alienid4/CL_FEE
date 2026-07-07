@@ -10,6 +10,7 @@ const contracts = document.querySelector("#contracts");
 const payments = document.querySelector("#payments");
 const documents = document.querySelector("#documents");
 const form = document.querySelector("#case-form");
+const todoList = document.querySelector("#todo-list");
 const formTitle = document.querySelector("#form-title");
 const submitCase = document.querySelector("#submit-case");
 const cancelEdit = document.querySelector("#cancel-edit");
@@ -783,8 +784,28 @@ async function loadDocuments() {
   await loadResource("document");
 }
 
+const STATUS_LABELS = { draft: "草稿", reviewing: "審核中", approved: "已核准", disabled: "已停用" };
+
+async function loadTodo() {
+  if (!todoList) return;
+  const payload = await api("/api/todo");
+  const items = payload.data || [];
+  todoList.innerHTML = items.length
+    ? items
+        .map(
+          (c) => `
+            <li data-case-id="${c.id}">
+              <span class="badge ${c.status === "reviewing" ? "warn" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span>
+              <strong>${escapeHtml(c.case_code)}　${escapeHtml(c.title)}</strong>
+              <small>備註：${escapeHtml(c.note || "—")}；下一步：${escapeHtml(c.next_step || "—")}；負責人：${escapeHtml(c.owner || "未指派")}</small>
+            </li>`
+        )
+        .join("")
+    : `<li><small class="muted">目前沒有需處理的案件。</small></li>`;
+}
+
 async function refresh() {
-  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog()]);
+  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo()]);
 }
 
 function resetForm() {

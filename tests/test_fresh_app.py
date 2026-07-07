@@ -129,9 +129,9 @@ def test_health_openapi_and_web(tmp_path):
         assert "PAY-2025-0001" in home.text
         assert "正式寫入封鎖" in home.text
         assert "來源舉證鏈" in home.text
-        assert "備註與人工提醒" in home.text
-        assert "這裡只呈現說明，不代表正式流程或資料已寫入。" in home.text
-        assert 'class="note-list"' in home.text
+        assert "需處理案件（待辦）" in home.text  # 假面板已換成真待辦
+        assert "來自真實案件" in home.text
+        assert 'id="todo-list"' in home.text  # 由 /api/todo 動態載入
         assert "EVID-2026-0001" in home.text
         assert "檢視角色" not in home.text
         assert "使用者：" not in home.text
