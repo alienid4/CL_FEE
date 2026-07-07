@@ -126,11 +126,16 @@ def test_health_openapi_and_web(tmp_path):
         assert 'id="purchases"' in home.text
         assert 'id="payments-module"' in home.text
         assert 'id="data-review"' in home.text
-        # 預算/專案/簽呈/請購為 data-unbuilt 模組，假表已掏空（點擊只顯示「尚未啟用」）
-        assert "年度預算編列" not in home.text  # budget 假內容已移除
-        assert "PROJ-2026-0001" not in home.text  # projects 假內容已移除
-        assert "SIGN-2026-0001" not in home.text  # signoff 假內容已移除
-        assert "PR-2025-0001" not in home.text  # purchases 假內容已移除
+        # 預算/專案/簽呈/請購已做成真模組：各有 crud-zone 表單與即時清單容器
+        assert 'id="budget-form"' in home.text and 'id="budgets"' in home.text
+        assert 'id="project-form"' in home.text and 'id="projects-list"' in home.text
+        assert 'id="signoff-form"' in home.text and 'id="signoffs"' in home.text
+        assert 'id="purchase-form"' in home.text and 'id="purchases-list"' in home.text
+        # 舊 Codex 假資料（寫死的假編號）仍不得出現
+        assert "PROJ-2026-0001" not in home.text
+        assert "SIGN-2026-0001" not in home.text
+        assert "PR-2025-0001" not in home.text
+        assert "36,022萬" not in home.text
         # 合約/付款模組的靜態假表已移除，改由下方 crud-zone 的 #contracts / #payments 即時載入
         assert "CON-2026-0001" not in home.text  # 合約假表已移除
         assert "PAY-2025-0001" not in home.text  # 付款假表已移除

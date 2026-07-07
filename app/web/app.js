@@ -9,6 +9,10 @@ const cases = document.querySelector("#cases");
 const contracts = document.querySelector("#contracts");
 const payments = document.querySelector("#payments");
 const documents = document.querySelector("#documents");
+const budgetsList = document.querySelector("#budgets");
+const projectsList = document.querySelector("#projects-list");
+const signoffsList = document.querySelector("#signoffs");
+const purchasesList = document.querySelector("#purchases-list");
 const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
 const cioCasesBody = document.querySelector("#cio-cases-body");
@@ -57,9 +61,19 @@ const resourceForms = {
   contract: document.querySelector("#contract-form"),
   payment: document.querySelector("#payment-form"),
   document: document.querySelector("#document-form"),
+  budget: document.querySelector("#budget-form"),
+  project: document.querySelector("#project-form"),
+  signoff: document.querySelector("#signoff-form"),
+  purchase: document.querySelector("#purchase-form"),
 };
-const resourceLists = { contract: contracts, payment: payments, document: documents };
-const resourceCaches = { contract: [], payment: [], document: [] };
+const resourceLists = {
+  contract: contracts, payment: payments, document: documents,
+  budget: budgetsList, project: projectsList, signoff: signoffsList, purchase: purchasesList,
+};
+const resourceCaches = {
+  contract: [], payment: [], document: [],
+  budget: [], project: [], signoff: [], purchase: [],
+};
 const statusLabels = {
   draft: "草稿",
   reviewing: "審核中",
@@ -70,6 +84,12 @@ const statusLabels = {
   pending: "待處理",
   scheduled: "已排程",
   archived: "已歸檔",
+  completed: "已完成",
+  paused: "暫停",
+  submitted: "送簽",
+  rejected: "退回",
+  ordered: "已下單",
+  arrived: "已到貨",
   not_received: "尚未收到發票",
   received: "已收到發票",
   verified: "已驗證發票",
@@ -174,6 +194,58 @@ const resourceConfig = {
       <span>${escapeHtml(labelStatus(item.status || "active"))}</span>
       <span class="muted">案件 ${escapeHtml(valueOrDash(item.case_id))} / 合約 ${escapeHtml(valueOrDash(item.contract_id))}</span>
       <span>${escapeHtml(valueOrDash(item.source_note))}</span>
+    `,
+  },
+  budget: {
+    plural: "budgets", idAttr: "budget-id", idField: "budgetId", api: "/api/budgets",
+    navCount: "nav-count-budgets", navLabel: "預算",
+    fields: ["budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"],
+    numberFields: ["amount", "case_id"], canDisable: true,
+    render: (item) => `
+      <strong>${escapeHtml(item.budget_code)}</strong>
+      <span>${escapeHtml(valueOrDash(item.category))}</span>
+      <span class="muted">${escapeHtml(valueOrDash(item.unit_name))}｜${escapeHtml(valueOrDash(item.fiscal_year))}</span>
+      <span class="amount">${money(item.amount)} 元</span>
+      <span>${escapeHtml(labelStatus(item.status))}</span>
+    `,
+  },
+  project: {
+    plural: "projects", idAttr: "project-id", idField: "projectId", api: "/api/projects",
+    navCount: "nav-count-projects", navLabel: "專案",
+    fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "note"],
+    numberFields: ["progress", "case_id"], canDisable: true,
+    render: (item) => `
+      <strong>${escapeHtml(item.project_code)}</strong>
+      <span>${escapeHtml(item.project_name)}</span>
+      <span class="muted">${escapeHtml(valueOrDash(item.owner))}｜${escapeHtml(valueOrDash(item.necessity))}</span>
+      <span>進度 ${Number(item.progress || 0)}%</span>
+      <span>${escapeHtml(labelStatus(item.status))}</span>
+    `,
+  },
+  signoff: {
+    plural: "signoffs", idAttr: "signoff-id", idField: "signoffId", api: "/api/signoffs",
+    navCount: "nav-count-signoffs", navLabel: "簽呈",
+    fields: ["signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"],
+    numberFields: ["amount", "case_id"], canDisable: true,
+    render: (item) => `
+      <strong>${escapeHtml(item.signoff_code)}</strong>
+      <span>${escapeHtml(item.subject)}</span>
+      <span class="muted">${escapeHtml(valueOrDash(item.applicant))}｜${escapeHtml(valueOrDash(item.sign_date))}</span>
+      <span class="amount">${money(item.amount)} 元</span>
+      <span>${escapeHtml(labelStatus(item.status))}</span>
+    `,
+  },
+  purchase: {
+    plural: "purchases", idAttr: "purchase-id", idField: "purchaseId", api: "/api/purchases",
+    navCount: "nav-count-purchases", navLabel: "請購",
+    fields: ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"],
+    numberFields: ["quantity", "amount", "case_id"], canDisable: true,
+    render: (item) => `
+      <strong>${escapeHtml(item.purchase_code)}</strong>
+      <span>${escapeHtml(item.item_name)}</span>
+      <span class="muted">${escapeHtml(valueOrDash(item.vendor_name))}｜數量 ${Number(item.quantity || 0)}</span>
+      <span class="amount">${money(item.amount)} 元</span>
+      <span>${escapeHtml(labelStatus(item.status))}</span>
     `,
   },
 };
@@ -784,6 +856,7 @@ async function loadResource(type) {
   resourceLists[type].innerHTML = payload.data.length
     ? payload.data.map((item) => renderResourceRow(type, item)).join("")
     : emptyList(config.plural);
+  if (config.navCount) setText(`#${config.navCount}`, `${config.navLabel} ${payload.data.length}`);
 }
 
 function renderResourceRow(type, item) {
@@ -982,7 +1055,11 @@ async function loadCioDrill(caseId) {
 }
 
 async function refresh() {
-  await Promise.all([loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(), loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview()]);
+  await Promise.all([
+    loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
+    loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
+    loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(),
+  ]);
 }
 
 function resetForm() {

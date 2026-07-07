@@ -103,6 +103,59 @@ CREATE TABLE IF NOT EXISTS documents (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS budgets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    budget_code TEXT NOT NULL UNIQUE,
+    category TEXT NOT NULL DEFAULT '',
+    unit_name TEXT NOT NULL DEFAULT '',
+    fiscal_year TEXT NOT NULL DEFAULT '',
+    amount REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    case_id INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_code TEXT NOT NULL UNIQUE,
+    project_name TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT '',
+    necessity TEXT NOT NULL DEFAULT '',
+    progress REAL NOT NULL DEFAULT 0,
+    owner TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    case_id INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS signoffs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    signoff_code TEXT NOT NULL UNIQUE,
+    subject TEXT NOT NULL,
+    applicant TEXT NOT NULL DEFAULT '',
+    amount REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'draft',
+    sign_date TEXT NOT NULL DEFAULT '',
+    case_id INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    purchase_code TEXT NOT NULL UNIQUE,
+    item_name TEXT NOT NULL,
+    vendor_name TEXT NOT NULL DEFAULT '',
+    quantity REAL NOT NULL DEFAULT 0,
+    amount REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    case_id INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     table_name TEXT NOT NULL,
@@ -146,6 +199,18 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     },
     "documents": {
         "status": {"active", "reviewing", "archived", "disabled"},
+    },
+    "budgets": {
+        "status": {"active", "closed", "disabled"},
+    },
+    "projects": {
+        "status": {"active", "completed", "paused", "disabled"},
+    },
+    "signoffs": {
+        "status": {"draft", "submitted", "approved", "rejected", "disabled"},
+    },
+    "purchases": {
+        "status": {"pending", "ordered", "arrived", "closed", "disabled"},
     },
 }
 
@@ -217,6 +282,10 @@ def allowed_fields() -> dict[str, set[str]]:
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
+        "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"},
+        "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "note"},
+        "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
+        "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
     }
 
 
@@ -240,6 +309,10 @@ def get_row(conn: sqlite3.Connection, table: str, row_id: int) -> dict[str, Any]
 NULLABLE_FIELDS: dict[str, set[str]] = {
     "contracts": {"case_id"},
     "documents": {"case_id", "contract_id"},
+    "budgets": {"case_id"},
+    "projects": {"case_id"},
+    "signoffs": {"case_id"},
+    "purchases": {"case_id"},
 }
 
 

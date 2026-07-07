@@ -148,6 +148,96 @@ class DocumentPatch(BaseModel):
     contract_id: int | None = None
 
 
+class BudgetIn(BaseModel):
+    budget_code: str = Field(min_length=1)
+    category: str = ""
+    unit_name: str = ""
+    fiscal_year: str = ""
+    amount: float = 0
+    status: str = "active"
+    case_id: int | None = None
+    note: str = ""
+
+
+class BudgetPatch(BaseModel):
+    budget_code: str | None = Field(default=None, min_length=1)
+    category: str | None = None
+    unit_name: str | None = None
+    fiscal_year: str | None = None
+    amount: float | None = None
+    status: str | None = None
+    case_id: int | None = None
+    note: str | None = None
+
+
+class ProjectIn(BaseModel):
+    project_code: str = Field(min_length=1)
+    project_name: str = Field(min_length=1)
+    source: str = ""
+    necessity: str = ""
+    progress: float = 0
+    owner: str = ""
+    status: str = "active"
+    case_id: int | None = None
+    note: str = ""
+
+
+class ProjectPatch(BaseModel):
+    project_code: str | None = Field(default=None, min_length=1)
+    project_name: str | None = Field(default=None, min_length=1)
+    source: str | None = None
+    necessity: str | None = None
+    progress: float | None = None
+    owner: str | None = None
+    status: str | None = None
+    case_id: int | None = None
+    note: str | None = None
+
+
+class SignoffIn(BaseModel):
+    signoff_code: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    applicant: str = ""
+    amount: float = 0
+    status: str = "draft"
+    sign_date: str = ""
+    case_id: int | None = None
+    note: str = ""
+
+
+class SignoffPatch(BaseModel):
+    signoff_code: str | None = Field(default=None, min_length=1)
+    subject: str | None = Field(default=None, min_length=1)
+    applicant: str | None = None
+    amount: float | None = None
+    status: str | None = None
+    sign_date: str | None = None
+    case_id: int | None = None
+    note: str | None = None
+
+
+class PurchaseIn(BaseModel):
+    purchase_code: str = Field(min_length=1)
+    item_name: str = Field(min_length=1)
+    vendor_name: str = ""
+    quantity: float = 0
+    amount: float = 0
+    status: str = "pending"
+    case_id: int | None = None
+    note: str = ""
+
+
+class PurchasePatch(BaseModel):
+    purchase_code: str | None = Field(default=None, min_length=1)
+    item_name: str | None = Field(default=None, min_length=1)
+    vendor_name: str | None = None
+    quantity: float | None = None
+    amount: float | None = None
+    status: str | None = None
+    case_id: int | None = None
+    note: str | None = None
+
+
 class ImportBatchIn(BaseModel):
     source_name: str = Field(min_length=1)
     status: str = "created"
@@ -673,6 +763,90 @@ def create_app() -> FastAPI:
     @app.delete("/api/documents/{document_id}", status_code=204)
     def delete_document(document_id: int) -> None:
         handle_delete("documents", document_id)
+
+    # ---- 預算 budgets ----
+    @app.post("/api/budgets", status_code=201)
+    def create_budget(payload: BudgetIn) -> dict[str, Any]:
+        return handle_create("budgets", payload.model_dump())
+
+    @app.get("/api/budgets")
+    def budgets(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("budgets", limit))
+
+    @app.patch("/api/budgets/{budget_id}")
+    def update_budget(budget_id: int, payload: BudgetPatch) -> dict[str, Any]:
+        return handle_change("budgets", budget_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/budgets/{budget_id}/disable")
+    def disable_budget(budget_id: int) -> dict[str, Any]:
+        return handle_disable("budgets", budget_id)
+
+    @app.delete("/api/budgets/{budget_id}", status_code=204)
+    def delete_budget(budget_id: int) -> None:
+        handle_delete("budgets", budget_id)
+
+    # ---- 專案 projects ----
+    @app.post("/api/projects", status_code=201)
+    def create_project(payload: ProjectIn) -> dict[str, Any]:
+        return handle_create("projects", payload.model_dump())
+
+    @app.get("/api/projects")
+    def projects(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("projects", limit))
+
+    @app.patch("/api/projects/{project_id}")
+    def update_project(project_id: int, payload: ProjectPatch) -> dict[str, Any]:
+        return handle_change("projects", project_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/projects/{project_id}/disable")
+    def disable_project(project_id: int) -> dict[str, Any]:
+        return handle_disable("projects", project_id)
+
+    @app.delete("/api/projects/{project_id}", status_code=204)
+    def delete_project(project_id: int) -> None:
+        handle_delete("projects", project_id)
+
+    # ---- 簽呈 signoffs ----
+    @app.post("/api/signoffs", status_code=201)
+    def create_signoff(payload: SignoffIn) -> dict[str, Any]:
+        return handle_create("signoffs", payload.model_dump())
+
+    @app.get("/api/signoffs")
+    def signoffs(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("signoffs", limit))
+
+    @app.patch("/api/signoffs/{signoff_id}")
+    def update_signoff(signoff_id: int, payload: SignoffPatch) -> dict[str, Any]:
+        return handle_change("signoffs", signoff_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/signoffs/{signoff_id}/disable")
+    def disable_signoff(signoff_id: int) -> dict[str, Any]:
+        return handle_disable("signoffs", signoff_id)
+
+    @app.delete("/api/signoffs/{signoff_id}", status_code=204)
+    def delete_signoff(signoff_id: int) -> None:
+        handle_delete("signoffs", signoff_id)
+
+    # ---- 請購 purchases ----
+    @app.post("/api/purchases", status_code=201)
+    def create_purchase(payload: PurchaseIn) -> dict[str, Any]:
+        return handle_create("purchases", payload.model_dump())
+
+    @app.get("/api/purchases")
+    def purchases(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("purchases", limit))
+
+    @app.patch("/api/purchases/{purchase_id}")
+    def update_purchase(purchase_id: int, payload: PurchasePatch) -> dict[str, Any]:
+        return handle_change("purchases", purchase_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/purchases/{purchase_id}/disable")
+    def disable_purchase(purchase_id: int) -> dict[str, Any]:
+        return handle_disable("purchases", purchase_id)
+
+    @app.delete("/api/purchases/{purchase_id}", status_code=204)
+    def delete_purchase(purchase_id: int) -> None:
+        handle_delete("purchases", purchase_id)
 
     @app.get("/api/search")
     def search(q: str = Query(min_length=1)) -> dict[str, Any]:

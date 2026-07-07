@@ -87,6 +87,17 @@ def main() -> int:
             page.wait_for_timeout(700)
             results.append(("新增合約出現在真清單", "E2E-CON-1" in page.inner_text("#contracts")))
 
+            # 3.6) 八大功能之一「預算」：模組已啟用（非「尚未啟用」），可新增
+            page.click('a.module-card[href="#budget"]')
+            page.wait_for_timeout(400)
+            results.append(("預算模組已啟用(非尚未啟用)", not page.is_visible("#module-unbuilt")))
+            page.fill('#budget-form input[name="budget_code"]', "E2E-BUD-1")
+            page.fill('#budget-form input[name="category"]', "基礎建設")
+            page.fill('#budget-form input[name="amount"]', "26742000")
+            page.click('#budget-form button[type="submit"]')
+            page.wait_for_timeout(700)
+            results.append(("新增預算出現在真清單", "E2E-BUD-1" in page.inner_text("#budgets")))
+
             # 3.7) 示範資料：主管在主管儀表板可一鍵載入（DEMO- 標示）
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)

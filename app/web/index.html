@@ -43,13 +43,13 @@
 
         <nav class="module-list">
           <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
-          <a class="module-card" href="#budget" data-roles="cio manager_assistant" data-unbuilt><span>▦</span><strong>預算</strong><small>尚未啟用</small></a>
-          <a class="module-card" href="#projects" data-roles="cio manager_assistant handler" data-unbuilt><span>▦</span><strong>專案</strong><small>尚未啟用</small></a>
-          <a class="module-card" href="#signoff" data-roles="cio manager_assistant" data-unbuilt><span>▦</span><strong>簽呈</strong><small>尚未啟用</small></a>
+          <a class="module-card" href="#budget" data-roles="cio manager_assistant"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
+          <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
+          <a class="module-card" href="#signoff" data-roles="cio manager_assistant"><span>▦</span><strong>簽呈</strong><small id="nav-count-signoffs">簽呈 …</small></a>
           <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
           <a class="module-card" href="#data-review" data-roles="cio manager_assistant"><span>▦</span><strong>核准</strong><small>尚未啟用</small></a>
           <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
-          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler" data-unbuilt><span>▦</span><strong>請購</strong><small>尚未啟用</small></a>
+          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>請購</strong><small id="nav-count-purchases">請購 …</small></a>
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
           <a class="module-card" href="#data-review" data-roles="cio manager_assistant handler"><span>▦</span><strong>資料檢核</strong><small id="nav-count-todo">待辦 …</small></a>
         </nav>
@@ -167,15 +167,30 @@
           </section>
 
           <section class="dashboard-panel module-panel" id="budget" hidden>
-            <!-- 預算：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">預算</p>
+                <p class="muted">年度預算編列即時由後端載入，顯示於下方（含新增／編輯）。</p>
+              </div>
+            </div>
           </section>
 
           <section class="dashboard-panel module-panel" id="projects" hidden>
-            <!-- 專案：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">專案</p>
+                <p class="muted">專案清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
+              </div>
+            </div>
           </section>
 
           <section class="dashboard-panel module-panel" id="signoff" hidden>
-            <!-- 簽呈：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">簽呈</p>
+                <p class="muted">簽呈清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
+              </div>
+            </div>
           </section>
 
           <section class="dashboard-panel module-panel" id="contracts-module" hidden>
@@ -188,7 +203,12 @@
           </section>
 
           <section class="dashboard-panel module-panel" id="purchases" hidden>
-            <!-- 請購：後端尚未接。此模組卡標記 data-unbuilt，點擊只顯示「尚未啟用」placeholder，本區塊不渲染。 -->
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">請購</p>
+                <p class="muted">請購清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
+              </div>
+            </div>
           </section>
 
           <section class="dashboard-panel module-panel" id="payments-module" hidden>
@@ -392,8 +412,102 @@
           </form>
           <div id="documents" class="list compact-list"></div>
         </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="budget" hidden>
+          <h2>預算</h2>
+          <form id="budget-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="budget_code" placeholder="預算編號" required />
+            <input name="category" placeholder="類別（基礎建設/工具/資安/交易平台/其他）" />
+            <input name="unit_name" placeholder="單位名稱" />
+            <input name="fiscal_year" placeholder="年度，例如 2026" />
+            <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
+            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="status">
+              <option value="active">有效</option>
+              <option value="closed">已結案</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <input name="note" placeholder="備註" />
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="budgets" class="list compact-list"></div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
+          <h2>專案</h2>
+          <form id="project-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="project_code" placeholder="專案編號" required />
+            <input name="project_name" placeholder="專案名稱" required />
+            <input name="source" placeholder="來源／需求單位" />
+            <input name="necessity" placeholder="必要性（必要/警示/一般）" />
+            <input name="progress" placeholder="進度 %" type="number" min="0" max="100" step="1" />
+            <input name="owner" placeholder="負責人" />
+            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="status">
+              <option value="active">進行中</option>
+              <option value="completed">已完成</option>
+              <option value="paused">暫停</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <input name="note" placeholder="備註" />
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="projects-list" class="list compact-list"></div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="signoff" hidden>
+          <h2>簽呈</h2>
+          <form id="signoff-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="signoff_code" placeholder="簽呈編號" required />
+            <input name="subject" placeholder="主旨" required />
+            <input name="applicant" placeholder="申請人" />
+            <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+            <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
+            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="status">
+              <option value="draft">草稿</option>
+              <option value="submitted">送簽</option>
+              <option value="approved">已核</option>
+              <option value="rejected">退回</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <input name="note" placeholder="備註" />
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="signoffs" class="list compact-list"></div>
+        </section>
+
+        <section class="panel crud-zone module-extra" data-module-parent="purchases" hidden>
+          <h2>請購</h2>
+          <form id="purchase-form" class="resource-form">
+            <input name="id" type="hidden" />
+            <input name="purchase_code" placeholder="請購編號" required />
+            <input name="item_name" placeholder="品項" required />
+            <input name="vendor_name" placeholder="廠商" />
+            <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
+            <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="status">
+              <option value="pending">待處理</option>
+              <option value="ordered">已下單</option>
+              <option value="arrived">已到貨</option>
+              <option value="closed">已結案</option>
+              <option value="disabled">已停用</option>
+            </select>
+            <input name="note" placeholder="備註" />
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
+          <div id="purchases-list" class="list compact-list"></div>
+        </section>
       </main>
     </div>
-    <script src="/static/app.js?v=approval-20260707"></script>
+    <script src="/static/app.js?v=eight-modules-20260707"></script>
   </body>
 </html>
