@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS cases (
     status TEXT NOT NULL DEFAULT 'draft',
     amount REAL NOT NULL DEFAULT 0,
     risk_level TEXT NOT NULL DEFAULT 'normal',
+    note TEXT NOT NULL DEFAULT '',
+    next_step TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -159,6 +161,8 @@ def initialize_database() -> None:
         conn.executescript(SCHEMA)
         ensure_column(conn, "documents", "status", "TEXT NOT NULL DEFAULT 'active'")
         ensure_column(conn, "audit_logs", "actor", "TEXT NOT NULL DEFAULT 'local-dev'")
+        ensure_column(conn, "cases", "note", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "next_step", "TEXT NOT NULL DEFAULT ''")
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -191,7 +195,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def allowed_fields() -> dict[str, set[str]]:
     return {
-        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level"},
+        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},

@@ -65,6 +65,8 @@ class CaseIn(BaseModel):
     status: str = "draft"
     amount: float = 0
     risk_level: str = "normal"
+    note: str = ""
+    next_step: str = ""
 
 
 class CasePatch(BaseModel):
@@ -74,6 +76,8 @@ class CasePatch(BaseModel):
     status: str | None = None
     amount: float | None = None
     risk_level: str | None = None
+    note: str | None = None
+    next_step: str | None = None
 
 
 class ContractIn(BaseModel):
