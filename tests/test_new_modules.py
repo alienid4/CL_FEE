@@ -139,3 +139,11 @@ def test_search_covers_new_modules(tmp_path):
         client.post("/api/projects", json={"project_code": "SRCH-PRJ", "project_name": "找找"})
         codes = {r["code"] for r in client.get("/api/search", params={"q": "SRCH"}).json()["data"]}
         assert {"SRCH-BUD", "SRCH-SGN", "SRCH-PO", "SRCH-PRJ"} <= codes
+
+
+def test_search_finds_project_by_owner(tmp_path):
+    """全文搜尋要搜得到負責人（先前只搜編號/名稱/來源，搜人名找不到）。"""
+    with _client(tmp_path) as client:
+        client.post("/api/projects", json={"project_code": "OWN-1", "project_name": "資產治理", "owner": "吳承恩"})
+        codes = {r["code"] for r in client.get("/api/search", params={"q": "吳承恩"}).json()["data"]}
+        assert "OWN-1" in codes
