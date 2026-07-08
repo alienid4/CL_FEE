@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cl-fee",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8025", "--log-level", "warning"],
+      "port": 8025,
+      "env": {
+        "AP01_PASSWORD": "T3st!Pass",
+        "AP02_PASSWORD": "T3st!Pass",
+        "AP03_PASSWORD": "T3st!Pass",
+        "AP04_PASSWORD": "T3st!Pass",
+        "ADMIN_PASSWORD": "T3st!Pass"
+      }
+    }
+  ]
+}

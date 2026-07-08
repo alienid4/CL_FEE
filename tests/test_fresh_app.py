@@ -190,8 +190,10 @@ def test_health_openapi_and_web(tmp_path):
         assert 'button.getAttribute("data-resource-id") || row?.getAttribute(`data-${config.idAttr}`)' in script.text
         assert "await startResourceEdit(type, id)" in script.text
         assert "await loadResource(type)" in script.text
-        assert "案件 ${escapeHtml(valueOrDash(item.case_id))} / 合約 ${escapeHtml(valueOrDash(item.contract_id))}" in script.text
-        assert 'class="mini-row" data-${config.idAttr}="${item.id}"' in script.text
+        assert "案件 ${escapeHtml(valueOrDash(i.case_id))}／合約 ${escapeHtml(valueOrDash(i.contract_id))}" in script.text
+        assert 'class="grid-table"' in script.text  # 模組清單已改為 Excel 式表格
+        assert '<tr data-${config.idAttr}="${item.id}">' in script.text  # 一列一筆
+        assert 'details class="row-menu"' in script.text  # 編輯/停用/刪除收進下拉
         assert "data-source-row-id" in script.text
         assert "對應版本 ${escapeHtml(mappingVersion)}" in script.text
         assert "來源列 #" in script.text

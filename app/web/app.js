@@ -158,13 +158,14 @@ const resourceConfig = {
     fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "status", "end_date"],
     numberFields: ["amount", "case_id"],
     canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(item.contract_code)}</strong>
-      <span>${escapeHtml(item.contract_name)}</span>
-      <span class="muted">${escapeHtml(valueOrDash(item.vendor_name))}</span>
-      <span class="amount">${money(item.amount)} 元</span>
-      <span>${escapeHtml(labelStatus(item.status))}</span>
-    `,
+    columns: [
+      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>` },
+      { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name) },
+      { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
+      { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
+      { label: "到期日", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.end_date))}</span>` },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ],
   },
   payment: {
     plural: "payments",
@@ -176,13 +177,14 @@ const resourceConfig = {
              "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount"],
     numberFields: ["contract_id", "payment_amount", "net_amount", "tax_amount"],
     canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(valueOrDash(item.item) === "—" ? item.payment_month : item.item)}</strong>
-      <span class="muted">${escapeHtml(valueOrDash(item.vendor))}｜${escapeHtml(item.payment_month)}${item.period ? "｜" + escapeHtml(item.period) : ""}</span>
-      <span class="amount">${money(item.payment_amount)} 元</span>
-      <span class="muted">${escapeHtml(labelStatus(item.invoice_status))}</span>
-      <span>${escapeHtml(labelStatus(item.status))}</span>
-    `,
+    columns: [
+      { label: "核銷項目", cell: (i) => `<strong>${escapeHtml(valueOrDash(i.item) === "-" ? valueOrDash(i.payment_month) : i.item)}</strong>` },
+      { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor))}</span>` },
+      { label: "期間", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.payment_month))}${i.period ? "｜" + escapeHtml(i.period) : ""}</span>` },
+      { label: "金額", cls: "num", cell: (i) => `${money(i.payment_amount)} 元` },
+      { label: "發票", cell: (i) => escapeHtml(labelStatus(i.invoice_status)) },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ],
   },
   document: {
     plural: "documents",
@@ -192,26 +194,26 @@ const resourceConfig = {
     fields: ["file_name", "document_type", "source_note", "status", "case_id", "contract_id"],
     numberFields: ["case_id", "contract_id"],
     canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(item.file_name)}</strong>
-      <span>${escapeHtml(labelDocumentType(item.document_type))}</span>
-      <span>${escapeHtml(labelStatus(item.status || "active"))}</span>
-      <span class="muted">案件 ${escapeHtml(valueOrDash(item.case_id))} / 合約 ${escapeHtml(valueOrDash(item.contract_id))}</span>
-      <span>${escapeHtml(valueOrDash(item.source_note))}</span>
-    `,
+    columns: [
+      { label: "檔名", cell: (i) => `<strong>${escapeHtml(i.file_name)}</strong>` },
+      { label: "類型", cell: (i) => escapeHtml(labelDocumentType(i.document_type)) },
+      { label: "關聯", cell: (i) => `<span class="muted">案件 ${escapeHtml(valueOrDash(i.case_id))}／合約 ${escapeHtml(valueOrDash(i.contract_id))}</span>` },
+      { label: "來源", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.source_note))}</span>` },
+      { label: "狀態", cell: (i) => statusChip(i.status || "active") },
+    ],
   },
   budget: {
     plural: "budgets", idAttr: "budget-id", idField: "budgetId", api: "/api/budgets",
     navCount: "nav-count-budgets", navLabel: "預算",
     fields: ["budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"],
     numberFields: ["amount", "case_id"], canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(item.budget_code)}</strong>
-      <span>${escapeHtml(valueOrDash(item.category))}</span>
-      <span class="muted">${escapeHtml(valueOrDash(item.unit_name))}｜${escapeHtml(valueOrDash(item.fiscal_year))}</span>
-      <span class="amount">${money(item.amount)} 元</span>
-      <span>${escapeHtml(labelStatus(item.status))}</span>
-    `,
+    columns: [
+      { label: "預算編號", cell: (i) => `<strong>${escapeHtml(i.budget_code)}</strong>` },
+      { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
+      { label: "單位／年度", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.unit_name))}｜${escapeHtml(valueOrDash(i.fiscal_year))}</span>` },
+      { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ],
   },
   project: {
     plural: "projects", idAttr: "project-id", idField: "projectId", api: "/api/projects",
@@ -219,39 +221,43 @@ const resourceConfig = {
     fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
              "level", "progress_planned", "rag_status"],
     numberFields: ["progress", "progress_planned", "case_id"], canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(item.project_code)}</strong>
-      <span>${escapeHtml(item.project_name)}</span>
-      <span class="muted">${escapeHtml(valueOrDash(item.level))}｜${escapeHtml(valueOrDash(item.necessity))}｜${escapeHtml(valueOrDash(item.owner))}</span>
-      <span>預計 ${Number(item.progress_planned || 0)}% / 實際 ${Number(item.progress || 0)}%</span>
-      <span>${escapeHtml(valueOrDash(item.rag_status) === "—" ? labelStatus(item.status) : item.rag_status)}</span>
-    `,
+    columns: [
+      { label: "編號", cell: (i) => `<strong>${escapeHtml(i.project_code)}</strong>` },
+      { label: "專案名稱", cell: (i) => escapeHtml(i.project_name) },
+      { label: "層級", cell: (i) => escapeHtml(valueOrDash(i.level)) },
+      { label: "必要性", cell: (i) => escapeHtml(valueOrDash(i.necessity)) },
+      { label: "負責人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.owner))}</span>` },
+      { label: "進度（預計／實際）", cls: "num", cell: (i) => progressCell(i.progress_planned, i.progress) },
+      { label: "燈號", cell: (i) => ragChip(valueOrDash(i.rag_status) === "-" ? labelStatus(i.status) : i.rag_status) },
+    ],
   },
   signoff: {
     plural: "signoffs", idAttr: "signoff-id", idField: "signoffId", api: "/api/signoffs",
     navCount: "nav-count-signoffs", navLabel: "簽呈",
     fields: ["signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"],
     numberFields: ["amount", "case_id"], canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(item.signoff_code)}</strong>
-      <span>${escapeHtml(item.subject)}</span>
-      <span class="muted">${escapeHtml(valueOrDash(item.applicant))}｜${escapeHtml(valueOrDash(item.sign_date))}</span>
-      <span class="amount">${money(item.amount)} 元</span>
-      <span>${escapeHtml(labelStatus(item.status))}</span>
-    `,
+    columns: [
+      { label: "簽呈編號", cell: (i) => `<strong>${escapeHtml(i.signoff_code)}</strong>` },
+      { label: "主旨", cell: (i) => escapeHtml(i.subject) },
+      { label: "申請人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.applicant))}</span>` },
+      { label: "簽核日", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.sign_date))}</span>` },
+      { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ],
   },
   purchase: {
     plural: "purchases", idAttr: "purchase-id", idField: "purchaseId", api: "/api/purchases",
     navCount: "nav-count-purchases", navLabel: "請購",
     fields: ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"],
     numberFields: ["quantity", "amount", "case_id"], canDisable: true,
-    render: (item) => `
-      <strong>${escapeHtml(item.purchase_code)}</strong>
-      <span>${escapeHtml(item.item_name)}</span>
-      <span class="muted">${escapeHtml(valueOrDash(item.vendor_name))}｜數量 ${Number(item.quantity || 0)}</span>
-      <span class="amount">${money(item.amount)} 元</span>
-      <span>${escapeHtml(labelStatus(item.status))}</span>
-    `,
+    columns: [
+      { label: "請購編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
+      { label: "品項", cell: (i) => escapeHtml(i.item_name) },
+      { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
+      { label: "數量", cls: "num", cell: (i) => `${Number(i.quantity || 0)}` },
+      { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ],
   },
 };
 let caseCache = [];
@@ -888,26 +894,84 @@ async function loadResource(type) {
   const payload = await api(config.api);
   resourceCaches[type] = payload.data;
   resourceLists[type].innerHTML = payload.data.length
-    ? payload.data.map((item) => renderResourceRow(type, item)).join("")
+    ? renderResourceTable(type, payload.data)
     : emptyList(config.plural);
   if (config.navCount) setText(`#${config.navCount}`, `${config.navLabel} ${payload.data.length}`);
 }
 
+// 表格化：一列一筆、欄位對齊，像 Excel 一樣掃視
+function renderResourceTable(type, items) {
+  const config = resourceConfig[type];
+  const head = config.columns
+    .map((c) => `<th${c.cls ? ` class="${c.cls}"` : ""}>${c.label}</th>`)
+    .join("");
+  const body = items.map((item) => renderResourceRow(type, item)).join("");
+  return `
+    <div class="grid-scroll">
+      <table class="grid-table">
+        <thead><tr>${head}<th class="col-actions">操作</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderResourceRow(type, item) {
   const config = resourceConfig[type];
+  const cells = config.columns
+    .map((c) => `<td${c.cls ? ` class="${c.cls}"` : ""}>${c.cell(item)}</td>`)
+    .join("");
+  return `<tr data-${config.idAttr}="${item.id}">${cells}<td class="col-actions">${renderRowMenu(config, item)}</td></tr>`;
+}
+
+// 編輯／停用／刪除收進單一下拉，省版面
+function renderRowMenu(config, item) {
   const disableButton = config.canDisable
-    ? `<button type="button" class="secondary" data-action="disable" data-resource-id="${item.id}">停用</button>`
+    ? `<button type="button" data-action="disable" data-resource-id="${item.id}">停用</button>`
     : "";
   return `
-    <article class="mini-row" data-${config.idAttr}="${item.id}">
-      ${config.render(item)}
-      <span class="actions">
-        <button type="button" class="secondary" data-action="edit" data-resource-id="${item.id}">編輯</button>
+    <details class="row-menu">
+      <summary>操作 ▾</summary>
+      <div class="row-menu-pop">
+        <button type="button" data-action="edit" data-resource-id="${item.id}">編輯</button>
         ${disableButton}
         <button type="button" class="danger" data-action="delete" data-resource-id="${item.id}">刪除</button>
-      </span>
-    </article>
+      </div>
+    </details>
   `;
+}
+
+// 狀態小徽章：核准/使用中=綠、停用=灰、待複核/審核=橘
+function statusChip(value) {
+  const s = String(value || "");
+  const tone = (s === "approved" || s === "active")
+    ? "ok"
+    : s === "disabled"
+      ? "neutral"
+      : (s === "pending_review" || s === "reviewing")
+        ? "warn"
+        : "";
+  return `<span class="badge ${tone}">${escapeHtml(labelStatus(value))}</span>`;
+}
+
+// 進度：預計 vs 實際，含一條迷你進度條
+function progressCell(planned, actual) {
+  const p = Number(planned || 0);
+  const a = Number(actual || 0);
+  const tone = a >= p ? "ok" : (p - a) >= 20 ? "danger" : "warn";
+  return `<span class="progress-cell">
+      <span class="progress-bar"><i class="progress-fill ${tone}" style="width:${Math.min(100, Math.max(0, a))}%"></i></span>
+      <span class="progress-num">預計 ${p}%／實際 ${a}%</span>
+    </span>`;
+}
+
+// 燈號：只認紅/黃/綠或 R/A/G；認不出來（空、數字、雜訊）一律顯示 — 不秀原始值
+function ragChip(value) {
+  const v = String(value || "").trim();
+  if (/紅|red|^r$/i.test(v)) return `<span class="badge danger">紅</span>`;
+  if (/黃|橘|amber|^a$/i.test(v)) return `<span class="badge warn">黃</span>`;
+  if (/綠|green|^g$/i.test(v)) return `<span class="badge ok">綠</span>`;
+  return `<span class="muted">—</span>`;
 }
 
 async function loadContracts() {
@@ -1640,6 +1704,12 @@ for (const [type, cfg] of Object.entries(resourceConfig)) {
 document.addEventListener("click", (event) => {
   const b = event.target.closest("[data-export]");
   if (b) window.location.href = b.dataset.export;
+  // 操作下拉：一次只開一個，點外面就收起
+  const openedSummary = event.target.closest(".row-menu > summary");
+  const current = openedSummary ? openedSummary.parentElement : null;
+  for (const menu of document.querySelectorAll("details.row-menu[open]")) {
+    if (menu !== current && !menu.contains(event.target)) menu.removeAttribute("open");
+  }
 });
 
 const globalSearch = document.querySelector("#global-search");

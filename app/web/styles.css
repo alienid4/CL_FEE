@@ -1252,3 +1252,59 @@ a, .link { color: var(--accent-2); }
   text-overflow: clip !important;
   line-height: 1.35;
 }
+
+/* ===== 模組清單改成 Excel 式表格 ===== */
+.grid-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.grid-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.grid-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--accent-weak); color: var(--ok);
+  text-align: left; font-weight: 700; white-space: nowrap;
+  padding: 9px 12px; border-bottom: 1px solid var(--line-2);
+}
+.grid-table tbody td {
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  vertical-align: middle; color: var(--ink-2);
+}
+.grid-table tbody tr:last-child td { border-bottom: 0; }
+.grid-table tbody tr:hover td { background: var(--accent-weak); }
+.grid-table td strong { color: var(--ink); font-weight: 700; }
+.grid-table th.num, .grid-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.grid-table th.col-actions, .grid-table td.col-actions { text-align: right; white-space: nowrap; width: 1%; }
+
+/* 進度：迷你長條 + 文字 */
+.progress-cell { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.progress-bar { width: 64px; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; flex: 0 0 auto; }
+.progress-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.progress-fill.ok { background: var(--accent); }
+.progress-fill.warn { background: var(--warn); }
+.progress-fill.danger { background: var(--danger); }
+.progress-num { white-space: nowrap; color: var(--ink-3); font-size: .74rem; }
+
+/* 操作下拉：編輯／停用／刪除收成一個選單 */
+details.row-menu { position: relative; display: inline-block; }
+details.row-menu > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2); background: var(--surface);
+  color: var(--ink-2); font-size: .78rem; font-weight: 600; white-space: nowrap;
+}
+details.row-menu > summary::-webkit-details-marker { display: none; }
+details.row-menu > summary:hover { border-color: var(--accent); color: var(--accent-2); }
+details.row-menu[open] > summary { border-color: var(--accent); color: var(--accent-2); background: var(--accent-weak); }
+.row-menu-pop {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20;
+  display: flex; flex-direction: column; min-width: 108px;
+  padding: 5px; gap: 2px;
+  background: var(--surface); border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow);
+}
+.row-menu-pop button {
+  width: 100%; text-align: left; min-height: auto;
+  padding: 7px 10px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--ink-2); font-size: .8rem; font-weight: 500;
+}
+.row-menu-pop button:hover { background: var(--accent-weak); color: var(--accent-2); }
+.row-menu-pop button.danger { background: transparent; color: var(--danger); }
+.row-menu-pop button.danger:hover { background: var(--danger-bg); color: var(--danger); }

@@ -8,6 +8,16 @@ from fastapi.testclient import TestClient
 REAL = Path(__file__).resolve().parents[1] / "docs" / "資訊架構部處級專案進度追蹤總表.xlsx"
 
 
+def _real_available() -> bool:
+    """檔案存在且能讀（Windows 下若被 Excel 開著會鎖住 → 視為不可用，跳過而非爆掉）。"""
+    try:
+        with REAL.open("rb") as fh:
+            fh.read(1)
+        return True
+    except (FileNotFoundError, PermissionError, OSError):
+        return False
+
+
 def _client(tmp_path, login="ap02"):
     os.environ["SQLITE_PATH"] = str(tmp_path / "xlsx.db")
     from app.main import create_app
@@ -18,7 +28,7 @@ def _client(tmp_path, login="ap02"):
     return client
 
 
-pytestmark = pytest.mark.skipif(not REAL.exists(), reason="缺真實專案 xlsx（docs/）")
+pytestmark = pytest.mark.skipif(not _real_available(), reason="真實專案 xlsx 不存在或被鎖住（docs/，可能正被 Excel 開啟）")
 
 
 def test_preview_then_commit_real_projects(tmp_path):
