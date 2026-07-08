@@ -1,3 +1,11 @@
+// 前端建置版本／日期（單一來源）。每次改動就 bump 這裡＋index.html 的 ?v=。
+// 右上角徽章直接顯示這個值：若你看到的日期不是最新，代表瀏覽器還在吃舊快取。
+const BUILD_TAG = "2026-07-08 · 進度總表";
+(() => {
+  const badge = document.querySelector("#build-badge");
+  if (badge) badge.textContent = "版本 " + BUILD_TAG;
+})();
+
 const metrics = document.querySelector("#metrics");
 const loginShell = document.querySelector("#login-shell");
 const appShell = document.querySelector("#app-shell");

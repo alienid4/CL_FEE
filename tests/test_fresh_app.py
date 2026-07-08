@@ -154,6 +154,7 @@ def test_health_openapi_and_web(tmp_path):
         assert "檢視角色" not in home.text
         assert "使用者：" not in home.text
         assert 'name="viewport" content="width=device-width' in home.text  # 改自適應佈局
+        assert 'id="build-badge"' in home.text  # 右上角版本徽章
         assert 'id="contract-form"' in home.text
         assert 'id="payment-form"' in home.text
         assert 'id="document-form"' in home.text
@@ -190,6 +191,7 @@ def test_health_openapi_and_web(tmp_path):
         assert 'button.getAttribute("data-resource-id") || row?.getAttribute(`data-${config.idAttr}`)' in script.text
         assert "await startResourceEdit(type, id)" in script.text
         assert "await loadResource(type)" in script.text
+        assert "BUILD_TAG" in script.text  # 版本徽章由前端建置字串驅動
         assert "案件 ${escapeHtml(valueOrDash(i.case_id))}／合約 ${escapeHtml(valueOrDash(i.contract_id))}" in script.text
         assert 'class="grid-table"' in script.text  # 模組清單已改為 Excel 式表格
         assert '<tr data-${config.idAttr}="${item.id}">' in script.text  # 一列一筆
