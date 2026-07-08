@@ -1,9 +1,24 @@
-// 前端建置版本／日期（單一來源）。每次改動就 bump 這裡＋index.html 的 ?v=。
-// 右上角徽章直接顯示這個值：若你看到的日期不是最新，代表瀏覽器還在吃舊快取。
-const BUILD_TAG = "2026-07-08 · 進度總表";
-(() => {
+// 前端建置版本／日期（單一來源）。每次改前端就 bump 這裡＋index.html 的 ?v=。
+// 徽章同時顯示前端(這裡)與後端(/health 的 build)日期；兩者對不上＝後端沒重啟，會亮警告。
+const BUILD_TAG = "2026-07-09 · 進度總表匯入";
+(async () => {
   const badge = document.querySelector("#build-badge");
-  if (badge) badge.textContent = "版本 " + BUILD_TAG;
+  if (!badge) return;
+  const shortDate = (s) => (String(s).match(/\d{4}-(\d{2}-\d{2})/) || [, "?"])[1];
+  const front = shortDate(BUILD_TAG);
+  badge.textContent = `前端 ${front} ｜ 後端 …`;
+  try {
+    const h = await fetch("/health", { credentials: "same-origin" }).then((r) => r.json());
+    const back = shortDate(h.build || "");
+    const mismatch = front !== back;
+    badge.textContent = `前端 ${front} ｜ 後端 ${back}`;
+    badge.classList.toggle("mismatch", mismatch);
+    badge.title = mismatch
+      ? `前後端版本不一致：前端 ${BUILD_TAG}、後端 ${h.build || "未知"}。請重啟 uvicorn 後端。`
+      : `版本一致（${BUILD_TAG}）`;
+  } catch (_e) {
+    badge.textContent = `前端 ${front} ｜ 後端 ?`;
+  }
 })();
 
 const metrics = document.querySelector("#metrics");

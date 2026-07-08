@@ -75,6 +75,7 @@ def test_health_openapi_and_web(tmp_path):
         health = client.get("/health")
         assert health.status_code == 200
         assert health.json()["version"] == "0.2.0-fresh"
+        assert health.json()["build"]  # 後端建置標記，供前端徽章比對前後端版本
 
         openapi = client.get("/openapi.json")
         assert openapi.status_code == 200

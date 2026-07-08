@@ -383,6 +383,10 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "purchases": [("purchase_code", "請購編號"), ("item_name", "品項"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
 }
 
+# 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
+# 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
+BACKEND_BUILD = "2026-07-09 · 進度總表匯入"
+
 AUTH_COOKIE_NAME = "ai_fee_user"
 HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台，含 demo-data）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
@@ -638,6 +642,7 @@ def create_app() -> FastAPI:
             "ok": True,
             "service": settings.app_name,
             "version": "0.2.0-fresh",
+            "build": BACKEND_BUILD,
             "database": {"type": "sqlite", "path": settings.database_path},
         }
 

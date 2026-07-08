@@ -1316,8 +1316,14 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
   padding: 5px 9px; border-radius: 999px;
   background: var(--accent-weak); color: var(--accent-2);
   border: 1px solid var(--accent); box-shadow: var(--shadow);
-  pointer-events: none; user-select: none; white-space: nowrap;
+  user-select: none; white-space: nowrap;
 }
+/* 前後端版本對不上 → 亮橘色警告，滑上去看原因 */
+.build-badge.mismatch {
+  background: var(--warn-bg); color: var(--warn); border-color: var(--warn);
+  cursor: help;
+}
+.build-badge.mismatch::before { content: "⚠ "; }
 
 /* ===== 專案進度總表（Portfolio）===== */
 .pf-groups { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: 4px 0 14px; }
