@@ -1222,21 +1222,25 @@ def search_records(query: str) -> list[dict[str, Any]]:
     scope = _owner_scope.get()
     results: list[dict[str, Any]] = []
     with connect() as conn:
+        # 每列：(表, 顯示代號欄, 顯示標題欄, 顯示明細欄, [額外可搜欄位…])
+        # 額外欄位讓「負責人/廠商/備註」也搜得到（先前專案漏了 owner，搜負責人找不到即此故）。
         for table, fields in {
-            "case": ("cases", "case_code", "title", "owner"),
-            "contract": ("contracts", "contract_code", "contract_name", "vendor_name"),
-            "document": ("documents", "file_name", "document_type", "source_note"),
-            "budget": ("budgets", "budget_code", "category", "unit_name"),
-            "project": ("projects", "project_code", "project_name", "source"),
-            "signoff": ("signoffs", "signoff_code", "subject", "applicant"),
-            "purchase": ("purchases", "purchase_code", "item_name", "vendor_name"),
+            "case": ("cases", "case_code", "title", "owner", ["note", "next_step"]),
+            "contract": ("contracts", "contract_code", "contract_name", "vendor_name", []),
+            "document": ("documents", "file_name", "document_type", "source_note", []),
+            "budget": ("budgets", "budget_code", "category", "unit_name", ["note"]),
+            "project": ("projects", "project_code", "project_name", "source", ["owner", "necessity", "note"]),
+            "signoff": ("signoffs", "signoff_code", "subject", "applicant", ["note"]),
+            "purchase": ("purchases", "purchase_code", "item_name", "vendor_name", ["note"]),
         }.items():
-            source, code_field, title_field, extra_field = fields
+            source, code_field, title_field, extra_field, more_fields = fields
+            search_fields = [code_field, title_field, extra_field, *more_fields]
+            where_or = " OR ".join(f"{f} LIKE ?" for f in search_fields)
             sql = (
                 f"SELECT id, {code_field} AS code, {title_field} AS title, {extra_field} AS detail "
-                f"FROM {source} WHERE ({code_field} LIKE ? OR {title_field} LIKE ? OR {extra_field} LIKE ?)"
+                f"FROM {source} WHERE ({where_or})"
             )
-            params: list[Any] = [pattern, pattern, pattern]
+            params: list[Any] = [pattern] * len(search_fields)
             if scope is not None:
                 sw, sp = _scope_where(source, scope)
                 if sw:

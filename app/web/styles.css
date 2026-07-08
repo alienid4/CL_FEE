@@ -1353,21 +1353,27 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .pf-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; cursor: pointer; }
 .pf-row:last-child { margin-bottom: 0; }
 /* 左邊名稱吃剩下的空間、完整換行顯示（不截字）；右邊進度條固定短一截 */
-.pf-row-name { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 7px; font-size: .86rem; line-height: 1.35; }
-.pf-row:hover .pf-row-name { color: var(--accent-2); }
-.pf-row-tag { flex: 0 0 78px; text-align: right; }
+.pf-row-name { flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-start; gap: 7px; font-size: .86rem; line-height: 1.35; }
+.pf-row-name .pf-dot { margin-top: 4px; }
+.pf-name-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pf-daterange { font-size: .72rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.pf-daterange.pf-nodate { font-style: italic; }
+.pf-row:hover .pf-name-txt { color: var(--accent-2); }
+.pf-row-tag { flex: 0 0 78px; text-align: right; margin-top: 2px; }
 
-/* 圖例：解釋填色與黑線 */
+/* 圖例：解釋填色與紅色今天線 */
 .pf-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; font-size: .74rem; color: var(--ink-3); }
 .pf-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .pf-lg-fill { width: 18px; height: 8px; border-radius: 999px; background: var(--accent); flex: 0 0 auto; }
-.pf-lg-mark { width: 2px; height: 14px; background: var(--ink); opacity: .6; flex: 0 0 auto; }
+.pf-lg-today { width: 2px; height: 14px; background: var(--danger); flex: 0 0 auto; }
 
 .pf-bar { position: relative; flex: 0 0 180px; height: 16px; border-radius: 8px; background: var(--surface-2, #f1efe8); border: 1px solid var(--line); display: block; overflow: visible; }
 .pf-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 8px; background: var(--accent); }
 .pf-fill.ok { background: #0ca30c; } .pf-fill.warn { background: #d9860b; } .pf-fill.danger { background: var(--danger); }
 .pf-fill.muted { background: var(--line-2); }
-.pf-mark { position: absolute; top: -4px; height: 24px; width: 2px; background: var(--ink); opacity: .55; }
+/* 今天：紅色直線＋頂端倒三角（時間軸上的今天位置） */
+.pf-today { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--danger); z-index: 2; }
+.pf-today::before { content: ""; position: absolute; top: -6px; left: -4px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--danger); }
 
 .pf-detail { padding: 20px 22px; }
 .pf-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }

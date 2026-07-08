@@ -1,6 +1,6 @@
 // 前端建置版本／日期（單一來源）。每次改前端就 bump 這裡＋index.html 的 ?v=。
 // 徽章同時顯示前端(這裡)與後端(/health 的 build)日期；兩者對不上＝後端沒重啟，會亮警告。
-const BUILD_TAG = "2026-07-09 · 總覽圖例調整";
+const BUILD_TAG = "2026-07-09 · 今天線與搜尋";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1048,12 +1048,17 @@ function pfStatus(p) {
   return { actual, planned, expected, gap, tone: st, label, hasDates, days, noBasis };
 }
 
-// 單條進度：填色＝實際%，黑記號＝今天該到的進度（無比對基準時不畫記號）
+// 單條＝專案的時間軸（左端=開始日、右端=結束日）：填色＝實際完成%，紅色▼=今天在時間軸上的位置
 function pfBar(p, c) {
-  const mark = (c.noBasis || Number(p.progress || 0) >= 100)
-    ? ""
-    : `<i class="pf-mark" style="left:${Math.min(100, Math.max(0, c.expected))}%"></i>`;
-  return `<span class="pf-bar"><i class="pf-fill ${c.tone}" style="width:${Math.min(100, Math.max(0, c.actual))}%"></i>${mark}</span>`;
+  const clamp = (v) => Math.min(100, Math.max(0, v));
+  const today = c.noBasis ? "" : `<i class="pf-today" style="left:${clamp(c.expected)}%"></i>`;
+  return `<span class="pf-bar"><i class="pf-fill ${c.tone}" style="width:${clamp(c.actual)}%"></i>${today}</span>`;
+}
+
+// 名稱下方的起訖日小字（沒日期就標「未設定起訖日」）
+function pfDateLine(p, c) {
+  if (c.hasDates) return `<span class="pf-daterange">${escapeHtml(p.start_date)} → ${escapeHtml(p.end_date)}</span>`;
+  return `<span class="pf-daterange pf-nodate">未設定起訖日</span>`;
 }
 
 function pfOverview(group) {
@@ -1061,14 +1066,15 @@ function pfOverview(group) {
     const c = pfStatus(p);
     return `
       <div class="pf-row" data-pf-proj="${p.id}" title="點此看單一專案">
-        <span class="pf-row-name"><span class="pf-dot ${c.tone}"></span>${escapeHtml(p.project_name)}</span>
+        <span class="pf-row-name"><span class="pf-dot ${c.tone}"></span><span class="pf-name-col"><span class="pf-name-txt">${escapeHtml(p.project_name)}</span>${pfDateLine(p, c)}</span></span>
         ${pfBar(p, c)}
         <span class="pf-row-tag"><span class="badge ${c.tone}">${escapeHtml(c.label)}</span></span>
       </div>`;
   }).join("");
   const legend = `<div class="pf-legend">
     <span><span class="pf-lg-fill"></span>填色＝實際完成度</span>
-    <span><span class="pf-lg-mark"></span>黑線＝今天照排程「應完成」的位置（填色在黑線左邊＝落後）</span>
+    <span><span class="pf-lg-today"></span>紅線▼＝今天在時間軸上的位置（填色在紅線左邊＝落後）</span>
+    <span>條的左端＝開始日、右端＝結束日（名稱下方標出）</span>
   </div>`;
   return `<div class="pf-card"><div class="muted pf-card-head">${escapeHtml(group.name)}　全部專案（共 ${group.projects.length} 個）</div>${legend}${rows}</div>`;
 }
