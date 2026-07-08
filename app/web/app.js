@@ -219,7 +219,7 @@ const resourceConfig = {
     plural: "projects", idAttr: "project-id", idField: "projectId", api: "/api/projects",
     navCount: "nav-count-projects", navLabel: "專案",
     fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
-             "level", "progress_planned", "rag_status"],
+             "level", "progress_planned", "rag_status", "start_date", "end_date"],
     numberFields: ["progress", "progress_planned", "case_id"], canDisable: true,
     columns: [
       { label: "編號", cell: (i) => `<strong>${escapeHtml(i.project_code)}</strong>` },
@@ -974,6 +974,123 @@ function ragChip(value) {
   return `<span class="muted">—</span>`;
 }
 
+// ===== 專案進度總表（Portfolio）：組別主 tab → 本組總覽＋各專案子 tab =====
+const portfolioState = { g: 0, s: "ov" };
+let portfolioGroups = [];
+
+// 依起訖日算「今天該到的進度」，與實際比出落後幅度；沒日期就退回用「預計%」
+function pfStatus(p) {
+  const actual = Number(p.progress || 0);
+  const planned = Number(p.progress_planned || 0);
+  let expected = planned, hasDates = false, days = null;
+  const s = p.start_date, e = p.end_date;
+  if (s && e) {
+    const ds = new Date(s), de = new Date(e), now = new Date();
+    if (!Number.isNaN(ds.getTime()) && !Number.isNaN(de.getTime()) && de > ds) {
+      hasDates = true;
+      const tf = Math.max(0, Math.min(1, (now - ds) / (de - ds)));
+      expected = Math.round(tf * 100);
+      days = Math.round((de - now) / 86400000);
+    }
+  }
+  const noBasis = !hasDates && planned <= 0;  // 既無起訖日、也無預計% → 沒有比對基準
+  const gap = expected - actual;
+  let st, label;
+  if (actual >= 100) { st = "ok"; label = "完成"; }
+  else if (noBasis) { st = "muted"; label = "未排程"; }
+  else if (gap <= 2) { st = "ok"; label = actual > expected + 8 ? "超前" : "準時"; }
+  else if (gap <= 18) { st = "warn"; label = "落後 " + Math.round(gap) + "%"; }
+  else { st = "danger"; label = "落後 " + Math.round(gap) + "%"; }
+  return { actual, planned, expected, gap, tone: st, label, hasDates, days, noBasis };
+}
+
+// 單條進度：填色＝實際%，黑記號＝今天該到的進度（無比對基準時不畫記號）
+function pfBar(p, c) {
+  const mark = (c.noBasis || Number(p.progress || 0) >= 100)
+    ? ""
+    : `<i class="pf-mark" style="left:${Math.min(100, Math.max(0, c.expected))}%"></i>`;
+  return `<span class="pf-bar"><i class="pf-fill ${c.tone}" style="width:${Math.min(100, Math.max(0, c.actual))}%"></i>${mark}</span>`;
+}
+
+function pfOverview(group) {
+  const rows = group.projects.map((p) => {
+    const c = pfStatus(p);
+    return `
+      <div class="pf-row" data-pf-proj="${p.id}" title="點此看單一專案">
+        <span class="pf-row-name"><span class="pf-dot ${c.tone}"></span>${escapeHtml(p.project_name)}</span>
+        ${pfBar(p, c)}
+        <span class="pf-row-tag"><span class="badge ${c.tone}">${escapeHtml(c.label)}</span></span>
+      </div>`;
+  }).join("");
+  return `<div class="pf-card"><div class="muted pf-card-head">${escapeHtml(group.name)}　全部專案（共 ${group.projects.length} 個）</div>${rows}</div>`;
+}
+
+function pfDetail(p) {
+  const c = pfStatus(p);
+  const metas = [
+    ["負責人", valueOrDash(p.owner)],
+    ["開始", valueOrDash(p.start_date)],
+    ["結束", valueOrDash(p.end_date)],
+    ["剩餘", c.hasDates ? (c.days >= 0 ? c.days + " 天" : "逾期 " + (-c.days) + " 天") : "—"],
+  ];
+  const metaHtml = metas.map(([k, v]) =>
+    `<div class="pf-meta"><span class="pf-meta-k">${k}</span><span class="pf-meta-v${k === "剩餘" && c.hasDates && c.days < 0 ? " pf-danger" : ""}">${escapeHtml(v)}</span></div>`).join("");
+  const hint = c.hasDates ? "" : `<span class="muted pf-hint">未設定起訖日，落後以「預計%」估算</span>`;
+  return `
+    <div class="pf-card pf-detail">
+      <div class="pf-detail-head">
+        <span class="pf-detail-title"><span class="pf-dot ${c.tone}"></span>${escapeHtml(p.project_name)}</span>
+        <span class="badge ${c.tone}">${escapeHtml(c.label)}</span>
+      </div>
+      <div class="pf-metas">${metaHtml}</div>
+      <div class="pf-prog-line"><span>預計 <b>${c.expected}%</b></span><span>實際 <b class="pf-${c.tone}">${c.actual}%</b></span>${hint}</div>
+      ${pfBar(p, c)}
+      <div class="pf-note">${escapeHtml(valueOrDash(p.note))}</div>
+    </div>`;
+}
+
+function pfSubPill(label, active, dot) {
+  const d = dot ? `<span class="pf-dot ${dot}"></span>` : "";
+  return `<span class="pf-pill${active ? " active" : ""}">${d}${escapeHtml(label)}</span>`;
+}
+
+function renderPortfolio() {
+  const groupsEl = document.querySelector("#pf-groups");
+  const subsEl = document.querySelector("#pf-subs");
+  const viewEl = document.querySelector("#pf-view");
+  if (!groupsEl || !subsEl || !viewEl) return;
+  if (!portfolioGroups.length) {
+    groupsEl.innerHTML = "";
+    subsEl.innerHTML = "";
+    viewEl.innerHTML = `<p class="muted">目前沒有專案資料。可到「專案」模組新增，或用 Excel 匯入。</p>`;
+    return;
+  }
+  if (portfolioState.g >= portfolioGroups.length) portfolioState.g = 0;
+  const group = portfolioGroups[portfolioState.g];
+  groupsEl.innerHTML = portfolioGroups.map((g, i) =>
+    `<button type="button" class="pf-gtab${i === portfolioState.g ? " active" : ""}" data-pf-g="${i}">${escapeHtml(g.name)} <span class="pf-gcount">${g.projects.length}</span></button>`).join("");
+  const subs = [`<span data-pf-s="ov">${pfSubPill("本組總覽", portfolioState.s === "ov")}</span>`];
+  group.projects.forEach((p, i) => {
+    const c = pfStatus(p);
+    subs.push(`<span data-pf-s="${i}">${pfSubPill(p.project_name, portfolioState.s === i, c.tone)}</span>`);
+  });
+  subsEl.innerHTML = subs.join("");
+  viewEl.innerHTML = portfolioState.s === "ov" ? pfOverview(group) : pfDetail(group.projects[portfolioState.s]);
+}
+
+async function loadPortfolio() {
+  if (!document.querySelector("#pf-view")) return;
+  const payload = await api("/api/projects");
+  const byGroup = new Map();
+  for (const p of payload.data || []) {
+    const key = (p.source && String(p.source).trim()) || "未分組";
+    if (!byGroup.has(key)) byGroup.set(key, []);
+    byGroup.get(key).push(p);
+  }
+  portfolioGroups = [...byGroup.entries()].map(([name, projects]) => ({ name, projects }));
+  renderPortfolio();
+}
+
 async function loadContracts() {
   await loadResource("contract");
 }
@@ -1407,8 +1524,32 @@ async function refresh() {
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
+    loadPortfolio(),
   ]);
 }
+
+// 進度總表：組別 tab / 子 tab / 由總覽點列進單一專案
+document.querySelector("#pf-groups")?.addEventListener("click", (event) => {
+  const t = event.target.closest("[data-pf-g]");
+  if (!t) return;
+  portfolioState.g = Number(t.getAttribute("data-pf-g"));
+  portfolioState.s = "ov";
+  renderPortfolio();
+});
+document.querySelector("#pf-subs")?.addEventListener("click", (event) => {
+  const t = event.target.closest("[data-pf-s]");
+  if (!t) return;
+  const v = t.getAttribute("data-pf-s");
+  portfolioState.s = v === "ov" ? "ov" : Number(v);
+  renderPortfolio();
+});
+document.querySelector("#pf-view")?.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-pf-proj]");
+  if (!row) return;
+  const group = portfolioGroups[portfolioState.g];
+  const idx = group.projects.findIndex((p) => String(p.id) === String(row.getAttribute("data-pf-proj")));
+  if (idx >= 0) { portfolioState.s = idx; renderPortfolio(); }
+});
 
 function resetForm() {
   form.reset();

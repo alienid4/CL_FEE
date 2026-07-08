@@ -226,6 +226,8 @@ class ProjectIn(BaseModel):
     level: str = ""
     progress_planned: float = 0
     rag_status: str = ""
+    start_date: str = ""
+    end_date: str = ""
 
 
 class ProjectPatch(BaseModel):
@@ -242,6 +244,8 @@ class ProjectPatch(BaseModel):
     level: str | None = None
     progress_planned: float | None = None
     rag_status: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 class SignoffIn(BaseModel):
@@ -374,7 +378,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "payments": [("item", "核銷項目"), ("settle_no", "核銷編號"), ("ref_no", "參照碼"), ("vendor", "廠商"), ("period", "期別"), ("billing_period", "計費期間"), ("payment_month", "核銷月份"), ("net_amount", "未稅金額"), ("tax_amount", "營業稅"), ("payment_amount", "含稅/核銷金額"), ("approval_level", "簽核層級"), ("settled_by", "核銷者"), ("owner", "窗口"), ("owner_email", "窗口Email"), ("invoice_status", "發票狀態"), ("status", "處理進度"), ("contract_id", "合約ID")],
     "documents": [("file_name", "檔案名稱"), ("document_type", "類型"), ("source_note", "來源說明"), ("status", "狀態"), ("case_id", "案件ID"), ("contract_id", "合約ID")],
     "budgets": [("budget_code", "預算編號"), ("category", "類別"), ("unit_name", "單位"), ("fiscal_year", "年度"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
-    "projects": [("project_code", "標號"), ("project_name", "專案名稱"), ("level", "專案分類"), ("necessity", "必要性"), ("progress_planned", "進度預計%"), ("progress", "進度實際%"), ("rag_status", "燈號"), ("owner", "負責人"), ("source", "來源"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
+    "projects": [("project_code", "標號"), ("project_name", "專案名稱"), ("level", "專案分類"), ("necessity", "必要性"), ("start_date", "開始日"), ("end_date", "結束日"), ("progress_planned", "進度預計%"), ("progress", "進度實際%"), ("rag_status", "燈號"), ("owner", "負責人"), ("source", "來源"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
     "signoffs": [("signoff_code", "簽呈編號"), ("subject", "主旨"), ("applicant", "申請人"), ("amount", "金額"), ("status", "狀態"), ("sign_date", "簽核日"), ("case_id", "案件ID")],
     "purchases": [("purchase_code", "請購編號"), ("item_name", "品項"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
 }
@@ -401,6 +405,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
         "allowed_modules": [
             "budget",
             "projects",
+            "portfolio",
             "signoff",
             "cases-module",
             "data-review",
@@ -416,7 +421,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
         "role_name": "承辦",
         "display_name": "承辦",
         "default_module": "cases-module",
-        "allowed_modules": ["projects", "cases-module", "purchases", "payments-module", "data-review"],
+        "allowed_modules": ["projects", "portfolio", "cases-module", "purchases", "payments-module", "data-review"],
         "allowed_actions": ["read", "edit"],
     },
     # 第二位助理：雙人複核需要「另一位」助理來核，助理自己建的案件不能自己核
@@ -429,6 +434,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
         "allowed_modules": [
             "budget",
             "projects",
+            "portfolio",
             "signoff",
             "cases-module",
             "data-review",

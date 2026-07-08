@@ -1308,3 +1308,58 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .row-menu-pop button:hover { background: var(--accent-weak); color: var(--accent-2); }
 .row-menu-pop button.danger { background: transparent; color: var(--danger); }
 .row-menu-pop button.danger:hover { background: var(--danger-bg); color: var(--danger); }
+
+/* ===== 專案進度總表（Portfolio）===== */
+.pf-groups { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: 4px 0 14px; }
+.pf-gtab {
+  background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0;
+  padding: 8px 14px; font-size: .9rem; font-weight: 600; color: var(--ink-2); cursor: pointer; min-height: auto;
+}
+.pf-gtab:hover { color: var(--accent-2); }
+.pf-gtab.active { color: var(--accent-2); border-bottom-color: var(--accent); }
+.pf-gcount { font-size: .72rem; color: var(--ink-3); font-weight: 500; }
+.pf-subs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.pf-pill {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 12px; font-size: .8rem; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+}
+.pf-pill:hover { border-color: var(--accent); }
+.pf-pill.active { border-color: var(--accent); background: var(--accent-weak); color: var(--accent-2); font-weight: 600; }
+
+.pf-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; background: var(--ink-3); }
+.pf-dot.ok { background: #0ca30c; } .pf-dot.warn { background: #d9860b; } .pf-dot.danger { background: var(--danger); }
+.pf-dot.muted { background: var(--line-2); }
+
+.pf-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+.pf-card-head { font-size: .82rem; margin-bottom: 14px; }
+
+.pf-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; cursor: pointer; }
+.pf-row:last-child { margin-bottom: 0; }
+.pf-row-name { flex: 0 0 160px; display: flex; align-items: center; gap: 7px; font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-row-name > :last-child { overflow: hidden; text-overflow: ellipsis; }
+.pf-row:hover .pf-row-name { color: var(--accent-2); }
+.pf-row-tag { flex: 0 0 84px; text-align: right; }
+
+.pf-bar { position: relative; flex: 1; height: 16px; border-radius: 8px; background: var(--surface-2, #f1efe8); border: 1px solid var(--line); display: block; overflow: visible; }
+.pf-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 8px; background: var(--accent); }
+.pf-fill.ok { background: #0ca30c; } .pf-fill.warn { background: #d9860b; } .pf-fill.danger { background: var(--danger); }
+.pf-fill.muted { background: var(--line-2); }
+.pf-mark { position: absolute; top: -4px; height: 24px; width: 2px; background: var(--ink); opacity: .55; }
+
+.pf-detail { padding: 20px 22px; }
+.pf-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+.pf-detail-title { display: flex; align-items: center; gap: 9px; font-size: 1.05rem; font-weight: 600; }
+.pf-metas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+.pf-meta { background: var(--surface-2, #f7f5ef); border-radius: var(--radius-sm); padding: 9px 12px; }
+.pf-meta-k { display: block; font-size: .72rem; color: var(--ink-3); margin-bottom: 3px; }
+.pf-meta-v { font-size: .92rem; font-weight: 600; color: var(--ink); }
+.pf-meta-v.pf-danger { color: var(--danger); }
+.pf-prog-line { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 8px; font-size: .84rem; color: var(--ink-2); }
+.pf-prog-line b { font-weight: 700; color: var(--ink); }
+.pf-prog-line .pf-ok { color: #0a7a0a; } .pf-prog-line .pf-warn { color: #b8660b; } .pf-prog-line .pf-danger { color: var(--danger); }
+.pf-hint { font-size: .74rem; }
+.pf-detail .pf-bar { height: 18px; }
+.pf-note { margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line); font-size: .84rem; color: var(--ink-2); }
+
+@media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }

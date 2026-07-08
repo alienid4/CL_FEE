@@ -268,6 +268,9 @@ def initialize_database() -> None:
         ensure_column(conn, "projects", "level", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "projects", "progress_planned", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "projects", "rag_status", "TEXT NOT NULL DEFAULT ''")
+        # 專案進度總表：起訖日（供甘特／落後天數計算）
+        ensure_column(conn, "projects", "start_date", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "projects", "end_date", "TEXT NOT NULL DEFAULT ''")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -330,7 +333,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
-                     "level", "progress_planned", "rag_status"},
+                     "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
     }

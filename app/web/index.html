@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=gridtable-20260708" />
+    <link rel="stylesheet" href="/static/styles.css?v=portfolio-20260708" />
   </head>
   <body>
     <section id="login-shell" class="login-shell" aria-label="登入">
@@ -47,6 +47,7 @@
           <a class="module-card" href="#admin-console" data-roles="admin"><span>⚙</span><strong>系統管理</strong><small>設定/稽核</small></a>
           <a class="module-card" href="#budget" data-roles="cio manager_assistant"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
           <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
+          <a class="module-card" href="#portfolio" data-roles="cio manager_assistant handler"><span>◷</span><strong>進度總表</strong><small>甘特/落後</small></a>
           <a class="module-card" href="#signoff" data-roles="cio manager_assistant"><span>▦</span><strong>簽呈</strong><small id="nav-count-signoffs">簽呈 …</small></a>
           <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
           <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
@@ -279,6 +280,18 @@
                 <p class="muted">專案清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="portfolio" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">專案進度總表</p>
+                <p class="muted">依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。</p>
+              </div>
+            </div>
+            <div id="pf-groups" class="pf-groups"></div>
+            <div id="pf-subs" class="pf-subs"></div>
+            <div id="pf-view"></div>
           </section>
 
           <section class="dashboard-panel module-panel" id="signoff" hidden>
@@ -579,6 +592,8 @@
             <input name="rag_status" placeholder="燈號（如期執行/延遲…）" list="opt-project-rag" />
             <datalist id="opt-project-rag"></datalist>
             <input name="owner" placeholder="負責人" />
+            <input name="start_date" placeholder="開始日 YYYY-MM-DD" />
+            <input name="end_date" placeholder="結束日 YYYY-MM-DD" />
             <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供催辦）" />
             <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
             <select name="status">
@@ -643,6 +658,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=gridtable-20260708"></script>
+    <script src="/static/app.js?v=portfolio-20260708"></script>
   </body>
 </html>

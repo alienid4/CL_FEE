@@ -112,10 +112,16 @@ def test_payment_project_real_fields_roundtrip(tmp_path):
         proj = client.post("/api/projects", json={
             "project_code": "P-F", "project_name": "資料庫EOS案", "necessity": "必要",
             "level": "處級", "progress_planned": 30, "progress": 29, "rag_status": "如期執行",
+            "start_date": "2026-03-01", "end_date": "2026-09-30",
         }).json()["data"]
         assert proj["level"] == "處級" and proj["progress_planned"] == 30 and proj["rag_status"] == "如期執行"
+        # 起訖日必須能存能讀（供進度總表算落後；曾因 Pydantic 未列欄位被吞掉）
+        assert proj["start_date"] == "2026-03-01" and proj["end_date"] == "2026-09-30"
+        patched = client.patch(f"/api/projects/{proj['id']}", json={"end_date": "2026-10-31"}).json()["data"]
+        assert patched["end_date"] == "2026-10-31" and patched["start_date"] == "2026-03-01"
         pcsv = client.get("/api/projects.csv").text
         assert "專案分類" in pcsv and "進度預計%" in pcsv and "燈號" in pcsv
+        assert "開始日" in pcsv and "結束日" in pcsv
 
 
 def test_options_include_project_level_and_rag(tmp_path):
