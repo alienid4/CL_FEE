@@ -264,6 +264,16 @@ def initialize_database() -> None:
         ensure_column(conn, "cases", "approved_at", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "contracts", "end_date", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "projects", "due_date", "TEXT NOT NULL DEFAULT ''")
+        # 專案：對齊真實 Excel 欄位
+        ensure_column(conn, "projects", "level", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "projects", "progress_planned", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "projects", "rag_status", "TEXT NOT NULL DEFAULT ''")
+        # 付款(核銷)：對齊真實費用整合表欄位
+        for col in ("item", "settle_no", "ref_no", "period", "billing_period",
+                    "settled_by", "vendor", "approval_level", "owner", "owner_email"):
+            ensure_column(conn, "payments", col, "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "payments", "net_amount", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "payments", "tax_amount", "REAL NOT NULL DEFAULT 0")
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -314,10 +324,13 @@ def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
-        "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status"},
+        "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
+                     "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
+                     "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"},
-        "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note"},
+        "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
+                     "level", "progress_planned", "rag_status"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
     }

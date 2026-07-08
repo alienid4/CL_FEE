@@ -92,6 +92,39 @@ def test_fk_existence_checked(tmp_path):
         assert client.post("/api/payments", json={"contract_id": ct["id"], "payment_month": "2026-09", "payment_amount": 100}).status_code == 201
 
 
+def test_payment_project_real_fields_roundtrip(tmp_path):
+    """對齊真實 Excel 欄位：付款/專案的新欄位能存、能讀、能匯出。"""
+    with _client(tmp_path) as client:
+        ct = client.post("/api/contracts", json={"contract_code": "K-F", "contract_name": "c"}).json()["data"]
+        pay = client.post("/api/payments", json={
+            "contract_id": ct["id"], "payment_month": "2026-06", "payment_amount": 479848,
+            "item": "APT防護系統 第1期", "settle_no": "CS460038", "ref_no": "WU82483858",
+            "vendor": "中菲電腦", "period": "第1期", "billing_period": "115/6/1-115/6/30",
+            "net_amount": 456998, "tax_amount": 22850, "approval_level": "處長",
+            "settled_by": "蔡維庭", "owner": "黃小姐", "owner_email": "yun@cathaysec.com.tw",
+        }).json()["data"]
+        assert pay["item"] == "APT防護系統 第1期" and pay["net_amount"] == 456998 and pay["tax_amount"] == 22850
+        assert pay["vendor"] == "中菲電腦" and pay["settle_no"] == "CS460038"
+        # CSV 匯出含新欄位（Excel out）
+        csv = client.get("/api/payments.csv").text
+        assert "核銷項目" in csv and "未稅金額" in csv and "營業稅" in csv and "中菲電腦" in csv
+
+        proj = client.post("/api/projects", json={
+            "project_code": "P-F", "project_name": "資料庫EOS案", "necessity": "必要",
+            "level": "處級", "progress_planned": 30, "progress": 29, "rag_status": "如期執行",
+        }).json()["data"]
+        assert proj["level"] == "處級" and proj["progress_planned"] == 30 and proj["rag_status"] == "如期執行"
+        pcsv = client.get("/api/projects.csv").text
+        assert "專案分類" in pcsv and "進度預計%" in pcsv and "燈號" in pcsv
+
+
+def test_options_include_project_level_and_rag(tmp_path):
+    with _client(tmp_path) as client:
+        o = client.get("/api/options").json()["data"]
+        assert "公司級" in o["project_level"] and "如期執行" in o["project_rag"]
+        assert "非必要" in o["project_necessity"]
+
+
 def test_search_covers_new_modules(tmp_path):
     with _client(tmp_path) as client:
         client.post("/api/budgets", json={"budget_code": "SRCH-BUD", "category": "找找"})

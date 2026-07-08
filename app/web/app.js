@@ -171,12 +171,14 @@ const resourceConfig = {
     idAttr: "payment-id",
     idField: "paymentId",
     api: "/api/payments",
-    fields: ["contract_id", "payment_month", "payment_amount", "invoice_status", "status"],
-    numberFields: ["contract_id", "payment_amount"],
+    fields: ["contract_id", "payment_month", "payment_amount", "invoice_status", "status",
+             "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
+             "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount"],
+    numberFields: ["contract_id", "payment_amount", "net_amount", "tax_amount"],
     canDisable: true,
     render: (item) => `
-      <strong>${escapeHtml(item.payment_month)}</strong>
-      <span>合約 #${escapeHtml(item.contract_id)}</span>
+      <strong>${escapeHtml(valueOrDash(item.item) === "—" ? item.payment_month : item.item)}</strong>
+      <span class="muted">${escapeHtml(valueOrDash(item.vendor))}｜${escapeHtml(item.payment_month)}${item.period ? "｜" + escapeHtml(item.period) : ""}</span>
       <span class="amount">${money(item.payment_amount)} 元</span>
       <span class="muted">${escapeHtml(labelStatus(item.invoice_status))}</span>
       <span>${escapeHtml(labelStatus(item.status))}</span>
@@ -214,14 +216,15 @@ const resourceConfig = {
   project: {
     plural: "projects", idAttr: "project-id", idField: "projectId", api: "/api/projects",
     navCount: "nav-count-projects", navLabel: "專案",
-    fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note"],
-    numberFields: ["progress", "case_id"], canDisable: true,
+    fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
+             "level", "progress_planned", "rag_status"],
+    numberFields: ["progress", "progress_planned", "case_id"], canDisable: true,
     render: (item) => `
       <strong>${escapeHtml(item.project_code)}</strong>
       <span>${escapeHtml(item.project_name)}</span>
-      <span class="muted">${escapeHtml(valueOrDash(item.owner))}｜${escapeHtml(valueOrDash(item.necessity))}</span>
-      <span>進度 ${Number(item.progress || 0)}%</span>
-      <span>${escapeHtml(labelStatus(item.status))}</span>
+      <span class="muted">${escapeHtml(valueOrDash(item.level))}｜${escapeHtml(valueOrDash(item.necessity))}｜${escapeHtml(valueOrDash(item.owner))}</span>
+      <span>預計 ${Number(item.progress_planned || 0)}% / 實際 ${Number(item.progress || 0)}%</span>
+      <span>${escapeHtml(valueOrDash(item.rag_status) === "—" ? labelStatus(item.status) : item.rag_status)}</span>
     `,
   },
   signoff: {
@@ -1308,6 +1311,8 @@ async function loadOptions() {
     };
     fill("#opt-budget-categories", o.budget_categories);
     fill("#opt-project-necessity", o.project_necessity);
+    fill("#opt-project-level", o.project_level);
+    fill("#opt-project-rag", o.project_rag);
   } catch (error) {
     /* 選項載入失敗不影響主流程 */
   }

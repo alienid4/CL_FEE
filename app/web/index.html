@@ -473,9 +473,21 @@
           <h2>付款</h2>
           <form id="payment-form" class="resource-form">
             <input name="id" type="hidden" />
+            <input name="item" placeholder="核銷項目" />
+            <input name="settle_no" placeholder="核銷編號" />
+            <input name="ref_no" placeholder="參照碼（如 CS460038）" />
+            <input name="vendor" placeholder="廠商" />
+            <input name="period" placeholder="期別（如 第1期）" />
+            <input name="billing_period" placeholder="計費期間（如 115/6/1-115/6/30）" />
             <input name="contract_id" placeholder="合約 ID" type="number" min="1" step="1" required />
-            <input name="payment_month" placeholder="付款年月，例如 2026-07" pattern="\d{4}-\d{2}" required />
-            <input name="payment_amount" placeholder="付款金額" type="number" min="0" step="1" required />
+            <input name="payment_month" placeholder="核銷月份，例如 2026-07" pattern="\d{4}-\d{2}" required />
+            <input name="net_amount" placeholder="未稅金額" type="number" min="0" step="1" />
+            <input name="tax_amount" placeholder="營業稅" type="number" min="0" step="1" />
+            <input name="payment_amount" placeholder="含稅/核銷金額" type="number" min="0" step="1" required />
+            <input name="approval_level" placeholder="簽核層級（如 處長）" />
+            <input name="settled_by" placeholder="核銷者" />
+            <input name="owner" placeholder="窗口" />
+            <input name="owner_email" placeholder="窗口 Email（催辦用）" />
             <select name="invoice_status">
               <option value="not_received">尚未收到發票</option>
               <option value="received">已收到發票</option>
@@ -546,12 +558,17 @@
           <h2>專案</h2>
           <form id="project-form" class="resource-form">
             <input name="id" type="hidden" />
-            <input name="project_code" placeholder="專案編號" required />
+            <input name="project_code" placeholder="標號" required />
             <input name="project_name" placeholder="專案名稱" required />
+            <input name="level" placeholder="專案分類（公司級/處級/部級）" list="opt-project-level" />
+            <datalist id="opt-project-level"></datalist>
             <input name="source" placeholder="來源／需求單位" />
-            <input name="necessity" placeholder="必要性（可在系統管理後台維護選項）" list="opt-project-necessity" />
+            <input name="necessity" placeholder="必要性（必要/非必要）" list="opt-project-necessity" />
             <datalist id="opt-project-necessity"></datalist>
-            <input name="progress" placeholder="進度 %" type="number" min="0" max="100" step="1" />
+            <input name="progress_planned" placeholder="進度預計 %" type="number" min="0" max="100" step="1" />
+            <input name="progress" placeholder="進度實際 %" type="number" min="0" max="100" step="1" />
+            <input name="rag_status" placeholder="燈號（如期執行/延遲…）" list="opt-project-rag" />
+            <datalist id="opt-project-rag"></datalist>
             <input name="owner" placeholder="負責人" />
             <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供催辦）" />
             <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
@@ -617,6 +634,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=formal-import-20260707"></script>
+    <script src="/static/app.js?v=fields-align-20260707"></script>
   </body>
 </html>

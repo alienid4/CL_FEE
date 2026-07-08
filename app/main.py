@@ -135,12 +135,37 @@ class PaymentIn(BaseModel):
     payment_amount: float
     invoice_status: str = "not_received"
     status: str = "pending"
+    # 對齊真實費用整合表
+    item: str = ""
+    settle_no: str = ""
+    ref_no: str = ""
+    period: str = ""
+    billing_period: str = ""
+    settled_by: str = ""
+    vendor: str = ""
+    approval_level: str = ""
+    owner: str = ""
+    owner_email: str = ""
+    net_amount: float = 0
+    tax_amount: float = 0
 
 
 class PaymentPatch(BaseModel):
     contract_id: int | None = None
     payment_month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
     payment_amount: float | None = None
+    item: str | None = None
+    settle_no: str | None = None
+    ref_no: str | None = None
+    period: str | None = None
+    billing_period: str | None = None
+    settled_by: str | None = None
+    vendor: str | None = None
+    approval_level: str | None = None
+    owner: str | None = None
+    owner_email: str | None = None
+    net_amount: float | None = None
+    tax_amount: float | None = None
     invoice_status: str | None = None
     status: str | None = None
 
@@ -196,6 +221,9 @@ class ProjectIn(BaseModel):
     case_id: int | None = None
     due_date: str = ""
     note: str = ""
+    level: str = ""
+    progress_planned: float = 0
+    rag_status: str = ""
 
 
 class ProjectPatch(BaseModel):
@@ -209,6 +237,9 @@ class ProjectPatch(BaseModel):
     case_id: int | None = None
     due_date: str | None = None
     note: str | None = None
+    level: str | None = None
+    progress_planned: float | None = None
+    rag_status: str | None = None
 
 
 class SignoffIn(BaseModel):
@@ -297,6 +328,8 @@ class SettingsPatch(BaseModel):
     notify_enabled: str | None = None
     opt_budget_categories: str | None = None
     opt_project_necessity: str | None = None
+    opt_project_level: str | None = None
+    opt_project_rag: str | None = None
 
 
 class UserCreateIn(BaseModel):
@@ -317,13 +350,15 @@ class UserPatch(BaseModel):
 
 SETTINGS_PUBLIC_KEYS = [
     "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
-    "opt_budget_categories", "opt_project_necessity",
+    "opt_budget_categories", "opt_project_necessity", "opt_project_level", "opt_project_rag",
 ]
 
 # 主檔選項預設（後台未設定時採用）
 OPTION_DEFAULTS = {
     "opt_budget_categories": "基礎建設,工具,資訊安全,電子交易平台,其他",
-    "opt_project_necessity": "必要,警示,一般",
+    "opt_project_necessity": "必要,非必要",
+    "opt_project_level": "公司級,處級,部級",
+    "opt_project_rag": "如期執行,已完成,未開始,有延遲但不影響,有延遲且可能影響",
 }
 
 
@@ -334,10 +369,10 @@ def _option_list(key: str) -> list[str]:
 
 CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "contracts": [("contract_code", "合約編號"), ("contract_name", "合約名稱"), ("vendor_name", "廠商"), ("amount", "金額"), ("status", "狀態"), ("end_date", "到期日"), ("case_id", "案件ID")],
-    "payments": [("payment_month", "付款月份"), ("payment_amount", "付款金額"), ("invoice_status", "發票狀態"), ("status", "狀態"), ("contract_id", "合約ID")],
+    "payments": [("item", "核銷項目"), ("settle_no", "核銷編號"), ("ref_no", "參照碼"), ("vendor", "廠商"), ("period", "期別"), ("billing_period", "計費期間"), ("payment_month", "核銷月份"), ("net_amount", "未稅金額"), ("tax_amount", "營業稅"), ("payment_amount", "含稅/核銷金額"), ("approval_level", "簽核層級"), ("settled_by", "核銷者"), ("owner", "窗口"), ("owner_email", "窗口Email"), ("invoice_status", "發票狀態"), ("status", "處理進度"), ("contract_id", "合約ID")],
     "documents": [("file_name", "檔案名稱"), ("document_type", "類型"), ("source_note", "來源說明"), ("status", "狀態"), ("case_id", "案件ID"), ("contract_id", "合約ID")],
     "budgets": [("budget_code", "預算編號"), ("category", "類別"), ("unit_name", "單位"), ("fiscal_year", "年度"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
-    "projects": [("project_code", "專案編號"), ("project_name", "專案名稱"), ("source", "來源"), ("necessity", "必要性"), ("progress", "進度"), ("owner", "負責人"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
+    "projects": [("project_code", "標號"), ("project_name", "專案名稱"), ("level", "專案分類"), ("necessity", "必要性"), ("progress_planned", "進度預計%"), ("progress", "進度實際%"), ("rag_status", "燈號"), ("owner", "負責人"), ("source", "來源"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
     "signoffs": [("signoff_code", "簽呈編號"), ("subject", "主旨"), ("applicant", "申請人"), ("amount", "金額"), ("status", "狀態"), ("sign_date", "簽核日"), ("case_id", "案件ID")],
     "purchases": [("purchase_code", "請購編號"), ("item_name", "品項"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
 }
@@ -629,6 +664,8 @@ def create_app() -> FastAPI:
         return ok({
             "budget_categories": _option_list("opt_budget_categories"),
             "project_necessity": _option_list("opt_project_necessity"),
+            "project_level": _option_list("opt_project_level"),
+            "project_rag": _option_list("opt_project_rag"),
         })
 
     @app.get("/api/dashboard")
