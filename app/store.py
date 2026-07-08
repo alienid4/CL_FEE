@@ -638,6 +638,80 @@ def confirm_import_batch_cases_write(
         }
 
 
+def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
+    """解析『處級專案進度追蹤總表』格式的 .xlsx → 專案清單。
+    規則：找含「專案名稱」的表頭列；其後每一列若『專案名稱』非空＝一個專案
+    （空的是工作子項，先略過）。多工作表全部合併，每張表當一個『組別』。
+    進度值 <=1 視為小數比例（0.294→29%）。標號僅每張表內序號，故 code 用 組別-標號。"""
+    import io
+    import openpyxl
+
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[dict[str, Any]] = []
+    try:
+        for sheet in wb.sheetnames:
+            ws = wb[sheet]
+            rows = list(ws.iter_rows(values_only=True))
+            header_idx = None
+            for i, r in enumerate(rows[:6]):
+                if r and any(str(c).replace("\n", "") == "專案名稱" for c in r if c is not None):
+                    header_idx = i
+                    break
+            if header_idx is None:
+                continue
+            seq = 0  # 每張表的流水序號，避免標號在同表重複造成 code 撞號
+            for r in rows[header_idx + 1:]:
+                if not r or len(r) < 2 or r[1] is None or not str(r[1]).strip():
+                    continue
+
+                def pct(v: Any) -> float:
+                    if v is None or v == "":
+                        return 0.0
+                    try:
+                        f = float(v)
+                    except (TypeError, ValueError):
+                        return 0.0
+                    return round(f * 100, 1) if f <= 1 else round(f, 1)
+
+                seq += 1
+                out.append({
+                    "project_code": f"{sheet}-{seq}",
+                    "project_name": str(r[1]).strip(),
+                    "source": sheet,
+                    "necessity": str(r[2]).strip() if len(r) > 2 and r[2] else "",
+                    "progress_planned": pct(r[3] if len(r) > 3 else None),
+                    "progress": pct(r[4] if len(r) > 4 else None),
+                    "rag_status": str(r[5]).strip() if len(r) > 5 and r[5] and str(r[5]).strip() else "",
+                })
+    finally:
+        wb.close()
+    return out
+
+
+def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """把解析出的專案寫入 projects：單一交易、冪等（project_code 已存在則跳過）、逐列稽核。"""
+    actor = _current_actor.get()
+    fields_allowed = allowed_fields()["projects"]
+    with connect() as conn:
+        existing = {r["project_code"] for r in conn.execute("SELECT project_code FROM projects").fetchall()}
+        created: list[str] = []
+        skipped: list[str] = []
+        for rec in records:
+            code = rec.get("project_code", "").strip()
+            if not code or code in existing:
+                skipped.append(code)
+                continue
+            fields = {k: v for k, v in rec.items() if k in fields_allowed}
+            columns = ", ".join(fields)
+            placeholders = ", ".join("?" for _ in fields)
+            cur = conn.execute(f"INSERT INTO projects ({columns}) VALUES ({placeholders})", list(fields.values()))
+            after = get_row(conn, "projects", cur.lastrowid)
+            write_audit_log(conn, "projects", cur.lastrowid, "import", None, {**after, "import_source": "xlsx"})
+            existing.add(code)
+            created.append(code)
+        return {"created_count": len(created), "skipped_count": len(skipped), "created": created}
+
+
 def preflight_import_batch_confirm(
     batch_id: int,
     confirmed_fields: list[dict[str, Any]],

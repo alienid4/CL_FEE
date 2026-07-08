@@ -1513,6 +1513,30 @@ document.querySelector("#goto-import")?.addEventListener("click", () => {
   if (card) activateModuleCard(card);  // 匯入工作區在「資料檢核」模組
 });
 
+async function projXlsx(commit) {
+  const file = document.querySelector("#proj-xlsx-file")?.files?.[0];
+  const el = document.querySelector("#proj-xlsx-status");
+  const commitBtn = document.querySelector("#proj-xlsx-commit");
+  if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
+  if (commit && !window.confirm("確定正式匯入？已存在的專案會跳過不覆蓋。")) return;
+  if (el) el.textContent = commit ? "匯入中…" : "解析中…";
+  try {
+    const res = (await api(`/api/projects/import-xlsx?commit=${commit}`, { method: "POST", body: file })).data || {};
+    if (commit) {
+      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 個、跳過 ${res.skipped_count} 個（已存在）。`;
+      await refresh();
+    } else {
+      const names = (res.sample || []).slice(0, 3).map((s) => s.project_name).join("、");
+      if (el) el.textContent = `預覽：共 ${res.count} 個專案${names ? "（例：" + names + "…）" : ""}`;
+      if (commitBtn) commitBtn.disabled = !res.count;
+    }
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+}
+document.querySelector("#proj-xlsx-preview")?.addEventListener("click", () => projXlsx(false));
+document.querySelector("#proj-xlsx-commit")?.addEventListener("click", () => projXlsx(true));
+
 cases.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;

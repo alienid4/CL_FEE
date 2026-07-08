@@ -555,7 +555,16 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
-          <h2>專案</h2>
+          <div class="section-heading compact">
+            <h2>專案</h2>
+          </div>
+          <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
+            <strong style="font-size:.9rem;">從 Excel 匯入專案</strong>
+            <input type="file" id="proj-xlsx-file" accept=".xlsx" />
+            <button type="button" id="proj-xlsx-preview" class="secondary">預覽</button>
+            <button type="button" id="proj-xlsx-commit" disabled>正式匯入</button>
+            <span class="muted" id="proj-xlsx-status" role="status" aria-live="polite"></span>
+          </div>
           <form id="project-form" class="resource-form">
             <input name="id" type="hidden" />
             <input name="project_code" placeholder="標號" required />
@@ -634,6 +643,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=fields-align-20260707"></script>
+    <script src="/static/app.js?v=xlsx-import-20260707"></script>
   </body>
 </html>

@@ -32,6 +32,8 @@ from app.store import (
     submit_case,
     confirm_import_batch_cases_dry_run,
     confirm_import_batch_cases_write,
+    parse_projects_xlsx,
+    commit_projects_import,
     expiring_contracts,
     create_import_batch,
     dashboard_summary,
@@ -1092,6 +1094,23 @@ def create_app() -> FastAPI:
     @app.delete("/api/projects/{project_id}", status_code=204)
     def delete_project(project_id: int) -> None:
         handle_delete("projects", project_id)
+
+    @app.post("/api/projects/import-xlsx")
+    async def import_projects_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:
+        # 上傳『處級專案進度追蹤總表』.xlsx；commit=false 只預覽、true 正式寫入（交易/冪等/稽核）。
+        who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        if who.get("role_code") not in ("manager_assistant", "admin"):
+            raise HTTPException(status_code=403, detail="只有主管/助理可匯入專案。")
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=400, detail="請選擇要上傳的 Excel 檔。")
+        try:
+            records = parse_projects_xlsx(data)
+        except Exception as exc:  # noqa: BLE001 — openpyxl 各種解析錯誤都回同一句
+            raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認是專案總表格式）：{exc}") from exc
+        if not commit:
+            return ok({"preview": True, "count": len(records), "sample": records[:10]})
+        return ok({"preview": False, **commit_projects_import(records)})
 
     # ---- 簽呈 signoffs ----
     @app.post("/api/signoffs", status_code=201)
