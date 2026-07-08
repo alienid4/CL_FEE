@@ -53,6 +53,16 @@ def _email_map() -> dict[str, str]:
     return out
 
 
+def _recipient_for(owner: str, email_map: dict[str, str]) -> str:
+    """決定某負責人的收件 email：個別對照 > 該帳號在系統的 email > catch-all(*)。"""
+    if owner in email_map:
+        return email_map[owner]
+    row = store.get_db_user(owner)
+    if row and row["email"]:
+        return row["email"]
+    return email_map.get("*", "")
+
+
 def _smtp_conn() -> smtplib.SMTP:
     host = _cfg("smtp_host", "SMTP_HOST")
     port = int(_cfg("smtp_port", "SMTP_PORT", "25") or "25")
@@ -69,14 +79,14 @@ def send_digests() -> dict[str, Any]:
     digests = compose_digests()
     host = _cfg("smtp_host", "SMTP_HOST")
     email_map = _email_map()
-    if not host or not email_map:
-        return {"sent": False, "reason": "尚未設定 SMTP 主機 / email 對照（請至系統管理後台），僅產生站內預覽。", "digests": digests}
+    if not host:
+        return {"sent": False, "reason": "尚未設定 SMTP 主機（請至系統管理後台），僅產生站內預覽。", "digests": digests}
 
     sent = 0
     sender = _cfg("smtp_from", "SMTP_FROM", "no-reply@cl-fee.local")
     with _smtp_conn() as smtp:
         for d in digests:
-            to = email_map.get(d["owner"]) or email_map.get("*")  # "*" = 全部寄到同一信箱（測試用）
+            to = _recipient_for(d["owner"], email_map)  # 個別對照 > 帳號 email > catch-all
             if not to:
                 continue
             msg = EmailMessage()

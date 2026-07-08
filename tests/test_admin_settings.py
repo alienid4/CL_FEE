@@ -59,6 +59,16 @@ def test_email_map_wildcard(tmp_path):
         assert notify._email_map() == {"*": "alien4job@gmail.com"}
 
 
+def test_recipient_resolution(tmp_path):
+    with _client(tmp_path) as client:  # admin
+        client.post("/api/admin/users", json={"username": "dave", "role_code": "handler", "email": "dave@co", "password": "Dave!123"})
+        from app import notify
+        assert notify._recipient_for("dave", {"dave": "x@co"}) == "x@co"   # 個別對照優先
+        assert notify._recipient_for("dave", {}) == "dave@co"              # 退回帳號 email
+        assert notify._recipient_for("ghost", {"*": "all@co"}) == "all@co"  # catch-all
+        assert notify._recipient_for("ghost", {}) == ""                    # 全無
+
+
 def test_backup_download(tmp_path):
     with _client(tmp_path) as client:
         r = client.get("/api/admin/backup")
