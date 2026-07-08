@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=nocache-20260709" />
+    <link rel="stylesheet" href="/static/styles.css?v=nopass-20260709" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -12,15 +12,15 @@
       <form id="login-form" class="login-card">
         <h2>登入 AI_FEE</h2>
         <label>
-          帳號
-          <input name="username" autocomplete="username" placeholder="ap01 / ap02 / ap03" required />
+          角色
+          <select name="username" id="login-role" required></select>
         </label>
-        <label>
+        <label id="login-pass-wrap" hidden>
           密碼
-          <input name="password" type="password" autocomplete="current-password" required />
+          <input name="password" type="password" autocomplete="current-password" />
         </label>
         <button type="submit">登入</button>
-        <p class="subtle">ap01：CIO　ap02：主管/助理　ap03：承辦</p>
+        <p class="subtle" id="login-hint">選好角色按登入即可。</p>
         <p id="login-error" class="error" hidden></p>
       </form>
     </section>
@@ -659,6 +659,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=nocache-20260709"></script>
+    <script src="/static/app.js?v=nopass-20260709"></script>
   </body>
 </html>

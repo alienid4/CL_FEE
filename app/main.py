@@ -321,7 +321,7 @@ class DevConsoleRunIn(BaseModel):
 
 class LoginIn(BaseModel):
     username: str = Field(min_length=1)
-    password: str = Field(min_length=1)
+    password: str = ""  # 試辦免密碼模式下可留空
 
 
 class SettingsPatch(BaseModel):
@@ -385,7 +385,12 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "2026-07-09 · 進度總表匯入"
+BACKEND_BUILD = "2026-07-09 · 免密碼登入"
+
+# 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
+# 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
+def pilot_passwordless() -> bool:
+    return os.getenv("PILOT_PASSWORDLESS", "0") == "1"
 
 AUTH_COOKIE_NAME = "ai_fee_user"
 HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台，含 demo-data）
@@ -651,10 +656,21 @@ def create_app() -> FastAPI:
             "database": {"type": "sqlite", "path": settings.database_path},
         }
 
+    @app.get("/api/auth/options")
+    def auth_options() -> dict[str, Any]:
+        # 公開端點：前端登入頁用來決定「下拉選角色 / 是否要密碼」，並取得可選帳號清單。
+        accounts = [
+            {"username": u, "label": a["role_name"]}
+            for u, a in LOCAL_AUTH_USERS.items()
+        ]
+        return ok({"passwordless": pilot_passwordless(), "accounts": accounts})
+
     @app.post("/api/auth/login")
     def login(payload: LoginIn, response: Response) -> dict[str, Any]:
         username = payload.username.strip().lower()
-        if not verify_login(username, payload.password):
+        # 試辦免密碼：內建帳號選了就登入（跳過密碼）；其餘一律走正常密碼驗證。
+        passwordless_ok = pilot_passwordless() and username in LOCAL_AUTH_USERS
+        if not passwordless_ok and not verify_login(username, payload.password):
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤。")
         response.set_cookie(
             AUTH_COOKIE_NAME,

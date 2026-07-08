@@ -1,6 +1,6 @@
 // 前端建置版本／日期（單一來源）。每次改前端就 bump 這裡＋index.html 的 ?v=。
 // 徽章同時顯示前端(這裡)與後端(/health 的 build)日期；兩者對不上＝後端沒重啟，會亮警告。
-const BUILD_TAG = "2026-07-09 · 進度總表匯入";
+const BUILD_TAG = "2026-07-09 · 免密碼登入";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -438,6 +438,26 @@ async function initializeSession() {
   }
 }
 
+// 登入頁：用下拉選角色。試辦免密碼時隱藏密碼欄；否則顯示。
+async function loadLoginOptions() {
+  const roleSel = document.querySelector("#login-role");
+  const passWrap = document.querySelector("#login-pass-wrap");
+  const hint = document.querySelector("#login-hint");
+  if (!roleSel) return;
+  try {
+    const opt = (await api("/api/auth/options")).data;
+    roleSel.innerHTML = (opt.accounts || [])
+      .map((a) => `<option value="${escapeHtml(a.username)}">${escapeHtml(a.label)}（${escapeHtml(a.username)}）</option>`)
+      .join("");
+    const passwordless = !!opt.passwordless;
+    if (passWrap) passWrap.hidden = passwordless;
+    if (hint) hint.textContent = passwordless ? "選好角色按登入即可（試辦模式免密碼）。" : "選好角色、輸入密碼後登入。";
+  } catch (_error) {
+    // 取不到選項就退回可自由輸入：把下拉換成文字框，避免完全卡死
+    roleSel.innerHTML = `<option value="ap02">主管/助理（ap02）</option>`;
+  }
+}
+
 async function submitLogin(event) {
   event.preventDefault();
   loginError.hidden = true;
@@ -448,7 +468,7 @@ async function submitLogin(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: formData.get("username"),
-        password: formData.get("password"),
+        password: formData.get("password") || "",
       }),
     });
     await showApp(payload.data);
@@ -1981,6 +2001,7 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   }
 });
 
+loadLoginOptions();
 initializeSession().catch((error) => {
   cases.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;
   contracts.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;

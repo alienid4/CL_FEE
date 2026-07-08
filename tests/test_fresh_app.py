@@ -103,9 +103,8 @@ def test_health_openapi_and_web(tmp_path):
         assert home.status_code == 200
         assert 'id="login-form"' in home.text
         assert 'id="app-shell" class="app-shell" hidden' in home.text
-        assert "ap01：CIO" in home.text
-        assert "ap02：主管/助理" in home.text
-        assert "ap03：承辦" in home.text
+        assert 'id="login-role"' in home.text  # 登入改用角色下拉（選項由 /api/auth/options 動態載入）
+        assert 'name="username"' in home.text and 'name="password"' in home.text
         assert "八項控管看板" not in home.text
         assert "主管角度" not in home.text
         assert "更新時間：" not in home.text
