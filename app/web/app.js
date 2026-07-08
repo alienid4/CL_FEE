@@ -1,6 +1,6 @@
 // 前端建置版本／日期（單一來源）。每次改前端就 bump 這裡＋index.html 的 ?v=。
 // 徽章同時顯示前端(這裡)與後端(/health 的 build)日期；兩者對不上＝後端沒重啟，會亮警告。
-const BUILD_TAG = "2026-07-09 · 免密碼登入";
+const BUILD_TAG = "2026-07-09 · 總覽圖例調整";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1066,7 +1066,11 @@ function pfOverview(group) {
         <span class="pf-row-tag"><span class="badge ${c.tone}">${escapeHtml(c.label)}</span></span>
       </div>`;
   }).join("");
-  return `<div class="pf-card"><div class="muted pf-card-head">${escapeHtml(group.name)}　全部專案（共 ${group.projects.length} 個）</div>${rows}</div>`;
+  const legend = `<div class="pf-legend">
+    <span><span class="pf-lg-fill"></span>填色＝實際完成度</span>
+    <span><span class="pf-lg-mark"></span>黑線＝今天照排程「應完成」的位置（填色在黑線左邊＝落後）</span>
+  </div>`;
+  return `<div class="pf-card"><div class="muted pf-card-head">${escapeHtml(group.name)}　全部專案（共 ${group.projects.length} 個）</div>${legend}${rows}</div>`;
 }
 
 function pfDetail(p) {

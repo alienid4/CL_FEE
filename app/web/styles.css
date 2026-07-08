@@ -1352,12 +1352,18 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 
 .pf-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; cursor: pointer; }
 .pf-row:last-child { margin-bottom: 0; }
-.pf-row-name { flex: 0 0 160px; display: flex; align-items: center; gap: 7px; font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pf-row-name > :last-child { overflow: hidden; text-overflow: ellipsis; }
+/* 左邊名稱吃剩下的空間、完整換行顯示（不截字）；右邊進度條固定短一截 */
+.pf-row-name { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 7px; font-size: .86rem; line-height: 1.35; }
 .pf-row:hover .pf-row-name { color: var(--accent-2); }
-.pf-row-tag { flex: 0 0 84px; text-align: right; }
+.pf-row-tag { flex: 0 0 78px; text-align: right; }
 
-.pf-bar { position: relative; flex: 1; height: 16px; border-radius: 8px; background: var(--surface-2, #f1efe8); border: 1px solid var(--line); display: block; overflow: visible; }
+/* 圖例：解釋填色與黑線 */
+.pf-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 14px; font-size: .74rem; color: var(--ink-3); }
+.pf-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.pf-lg-fill { width: 18px; height: 8px; border-radius: 999px; background: var(--accent); flex: 0 0 auto; }
+.pf-lg-mark { width: 2px; height: 14px; background: var(--ink); opacity: .6; flex: 0 0 auto; }
+
+.pf-bar { position: relative; flex: 0 0 180px; height: 16px; border-radius: 8px; background: var(--surface-2, #f1efe8); border: 1px solid var(--line); display: block; overflow: visible; }
 .pf-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 8px; background: var(--accent); }
 .pf-fill.ok { background: #0ca30c; } .pf-fill.warn { background: #d9860b; } .pf-fill.danger { background: var(--danger); }
 .pf-fill.muted { background: var(--line-2); }

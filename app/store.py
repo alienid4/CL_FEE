@@ -651,6 +651,14 @@ def _norm_date(v: Any) -> str:
     return s[:10]
 
 
+def _clean_owner(v: Any) -> str:
+    """負責人欄防呆：若被填成長句／備註（去識別化或誤填一整段），不當人名，回空字串。"""
+    s = " ".join(str(v).split()) if v is not None else ""
+    if len(s) > 16 or any(p in s for p in "。？！?!，,；;"):
+        return ""
+    return s
+
+
 def _xls_pct(v: Any) -> float:
     """比例欄：<=1 視為小數（0.294→29.4），>1 視為已是百分比。"""
     if v is None or v == "":
@@ -734,7 +742,7 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
                         "progress": _xls_pct(cell(r, act_i)),
                         "rag_status": txt(r, rag_i),
                         "level": txt(r, lvl_i),
-                        "owner": txt(r, owner_i),
+                        "owner": _clean_owner(cell(r, owner_i)),
                         "start_date": _norm_date(cell(r, start_i)),
                         "end_date": _norm_date(cell(r, end_i)),
                     }
@@ -745,7 +753,7 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
                     if ed and (not cur["end_date"] or ed > cur["end_date"]):
                         cur["end_date"] = ed
                     if not cur["owner"]:
-                        cur["owner"] = txt(r, owner_i)
+                        cur["owner"] = _clean_owner(cell(r, owner_i))
             if cur is not None:
                 out.append(cur)
     finally:
