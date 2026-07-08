@@ -153,7 +153,7 @@ def test_health_openapi_and_web(tmp_path):
         assert "EVID-2026-0001" in home.text
         assert "檢視角色" not in home.text
         assert "使用者：" not in home.text
-        assert 'name="viewport" content="width=1500' in home.text
+        assert 'name="viewport" content="width=device-width' in home.text  # 改自適應佈局
         assert 'id="contract-form"' in home.text
         assert 'id="payment-form"' in home.text
         assert 'id="document-form"' in home.text
