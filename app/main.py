@@ -630,7 +630,12 @@ def create_app() -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def home() -> FileResponse:
-        return FileResponse(web_dir / "index.html")
+        # index.html 不快取：瀏覽器每次都拿最新 HTML（連帶抓到最新的 ?v= 靜態檔），
+        # 徹底避免「後端已更新、使用者卻卡在舊頁面」。靜態檔本身另用 ?v= 破快取。
+        return FileResponse(
+            web_dir / "index.html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
 
     @app.get("/dev-console", include_in_schema=False)
     def dev_console_home() -> FileResponse:

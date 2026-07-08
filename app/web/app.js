@@ -8,7 +8,7 @@ const BUILD_TAG = "2026-07-09 · 進度總表匯入";
   const front = shortDate(BUILD_TAG);
   badge.textContent = `前端 ${front} ｜ 後端 …`;
   try {
-    const h = await fetch("/health", { credentials: "same-origin" }).then((r) => r.json());
+    const h = await fetch("/health", { credentials: "same-origin", cache: "no-store" }).then((r) => r.json());
     const back = shortDate(h.build || "");
     const mismatch = front !== back;
     badge.textContent = `前端 ${front} ｜ 後端 ${back}`;
@@ -286,7 +286,8 @@ const resourceConfig = {
 let caseCache = [];
 
 async function api(path, options) {
-  const response = await fetch(path, { credentials: "same-origin", ...(options || {}) });
+  // no-store：權限/資料 GET 永不吃瀏覽器快取，避免後端更新後前端還讀到舊的 allowed_modules
+  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...(options || {}) });
   if (!response.ok) {
     let message = `${response.status} ${response.statusText}`;
     try {
