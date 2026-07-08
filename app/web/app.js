@@ -1394,6 +1394,11 @@ document.querySelector("#export-cases")?.addEventListener("click", () => {
   window.location.href = "/api/cases.csv";
 });
 
+document.querySelector("#goto-import")?.addEventListener("click", () => {
+  const card = document.querySelector('a.module-card[href="#data-review"]');
+  if (card) activateModuleCard(card);  // 匯入工作區在「資料檢核」模組
+});
+
 cases.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
