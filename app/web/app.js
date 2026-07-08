@@ -1204,6 +1204,39 @@ async function loadOrphanPayments() {
     .join("");
 }
 
+async function loadAdminConsole() {
+  const form = document.querySelector("#admin-settings-form");
+  if (!form) return;
+  if (!currentUser || currentUser.role_code !== "admin") return;
+  const s = (await api("/api/admin/settings")).data || {};
+  for (const k of ["smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled"]) {
+    if (form.elements[k]) form.elements[k].value = s[k] ?? "";
+  }
+  if (form.elements.smtp_password) form.elements.smtp_password.placeholder = s.smtp_password_set ? "已設定（留空＝不變更）" : "SMTP 密碼（留空＝不變更）";
+
+  const dash = (await api("/api/dashboard")).data || {};
+  const health = await api("/health");
+  const statusEl = document.querySelector("#admin-status");
+  if (statusEl) {
+    statusEl.innerHTML = [
+      metric("版本", escapeHtml(String(health.version || "-"))),
+      metric("資料庫", escapeHtml((health.database || {}).type || "-")),
+      metric("案件數", (dash.counts || {}).cases ?? "-"),
+      metric("SMTP", s.smtp_host ? "已設定" : "未設定"),
+    ].join("");
+  }
+
+  const logs = (await api("/api/audit-logs?limit=20")).data || [];
+  const body = document.querySelector("#admin-audit-body");
+  if (body) {
+    body.innerHTML = logs.length
+      ? logs
+          .map((l) => `<tr><td>${escapeHtml(l.created_at || "")}</td><td>${escapeHtml(l.actor || "")}</td><td>${escapeHtml(l.table_name || "")}</td><td>${escapeHtml(l.action || "")}</td><td>${escapeHtml(String(l.row_id ?? ""))}</td></tr>`)
+          .join("")
+      : `<tr><td colspan="5" class="muted">尚無稽核紀錄</td></tr>`;
+  }
+}
+
 async function loadManagerCharts() {
   const el = document.querySelector("#manager-charts");
   if (!el) return;
@@ -1228,7 +1261,7 @@ async function refresh() {
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
-    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(),
+    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
   ]);
 }
 
@@ -1526,6 +1559,32 @@ globalSearch?.addEventListener("input", () => {
       searchResults.innerHTML = `<div class="muted" style="padding:.45rem .3rem;">搜尋失敗：${escapeHtml(error.message)}</div>`;
     }
   }, 250);
+});
+
+document.querySelector("#admin-settings-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const el = document.querySelector("#admin-settings-status");
+  try {
+    await api("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    if (el) el.textContent = "已儲存";
+    if (form.elements.smtp_password) form.elements.smtp_password.value = "";
+    await loadAdminConsole();
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+});
+
+document.querySelector("#admin-test-email")?.addEventListener("click", async () => {
+  const to = (document.querySelector("#admin-test-to")?.value || "").trim();
+  const el = document.querySelector("#admin-test-status");
+  try {
+    const res = (await api("/api/admin/settings/test-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to }) })).data || {};
+    if (el) el.textContent = res.sent ? `已寄到 ${res.to}` : `未寄出：${res.reason || ""}`;
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
 });
 
 document.querySelector("#notify-reminders")?.addEventListener("click", async () => {

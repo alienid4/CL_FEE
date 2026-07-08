@@ -31,6 +31,7 @@ def main() -> int:
         "AP02_PASSWORD": "e2e-pass",
         "AP03_PASSWORD": "e2e-pass",
         "AP04_PASSWORD": "e2e-pass",
+        "ADMIN_PASSWORD": "e2e-pass",
         "SESSION_SECRET": "e2e-secret-fixed",
     }
     proc = subprocess.Popen(
@@ -158,6 +159,23 @@ def main() -> int:
             page.wait_for_timeout(500)
             results.append(("CIO 決策總覽出現圖表(SVG)", page.locator("#cio-charts svg").count() >= 1))
             results.append(("CIO 看板有預算外卡片", "下月預算外" in page.inner_text("#cio-metrics")))
+
+            # 5) 系統管理後台：admin 登入 → 見系統管理 → 存 SMTP 設定 → 持久
+            page.click("#logout" if page.query_selector("#logout") else "text=登出")
+            page.wait_for_selector("#login-form", state="visible", timeout=10000)
+            page.fill('#login-form input[name="username"]', "admin")
+            page.fill('#login-form input[name="password"]', "e2e-pass")
+            page.click('#login-form button[type="submit"]')
+            page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+            page.wait_for_timeout(500)
+            results.append(("admin 看得到系統管理", page.is_visible('a.module-card[href="#admin-console"]')))
+            results.append(("admin 落在系統管理面板", page.is_visible("#admin-console")))
+            results.append(("admin 看不到案件管理", not page.is_visible('a.module-card[href="#cases-module"]')))
+            page.fill('#admin-settings-form input[name="smtp_host"]', "mail.e2e.local")
+            page.click('#admin-settings-form button[type="submit"]')
+            page.wait_for_timeout(600)
+            results.append(("儲存 SMTP 設定成功", "已儲存" in page.inner_text("#admin-settings-status")))
+            results.append(("系統狀態顯示 SMTP 已設定", "已設定" in page.inner_text("#admin-status")))
 
             browser.close()
 

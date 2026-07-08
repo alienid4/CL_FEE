@@ -44,6 +44,7 @@
 
         <nav class="module-list">
           <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
+          <a class="module-card" href="#admin-console" data-roles="admin"><span>⚙</span><strong>系統管理</strong><small>設定/稽核</small></a>
           <a class="module-card" href="#budget" data-roles="cio manager_assistant"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
           <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
           <a class="module-card" href="#signoff" data-roles="cio manager_assistant"><span>▦</span><strong>簽呈</strong><small id="nav-count-signoffs">簽呈 …</small></a>
@@ -165,6 +166,50 @@
         </section>
 
         <section class="module-workspace" aria-label="next module checkpoints">
+          <section class="dashboard-panel module-panel" id="admin-console" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">系統管理</p>
+                <p class="muted">通知設定、系統狀態、稽核紀錄。僅系統管理員可見。</p>
+              </div>
+            </div>
+            <section class="watch-list">
+              <div class="section-heading compact"><h2>通知設定（SMTP）</h2></div>
+              <form id="admin-settings-form" class="resource-form">
+                <input name="smtp_host" placeholder="SMTP 主機，例如 mail.company.com" />
+                <input name="smtp_port" placeholder="埠（如 25 或 587）" />
+                <input name="smtp_user" placeholder="SMTP 帳號（需登入寄信才填）" autocomplete="off" />
+                <input name="smtp_password" type="password" placeholder="SMTP 密碼（留空＝不變更）" autocomplete="new-password" />
+                <input name="smtp_from" placeholder="寄件者 email" />
+                <input name="email_map" placeholder="帳號→email：ap02=a@co,ap03=b@co" />
+                <select name="notify_enabled">
+                  <option value="1">啟用催辦通知</option>
+                  <option value="0">停用催辦通知</option>
+                </select>
+                <button type="submit">儲存設定</button>
+                <span class="muted" id="admin-settings-status" role="status" aria-live="polite"></span>
+              </form>
+              <div class="demo-actions">
+                <input id="admin-test-to" placeholder="測試收件 email" autocomplete="off" />
+                <button type="button" id="admin-test-email" class="secondary">測試寄信</button>
+                <span class="muted" id="admin-test-status" role="status" aria-live="polite"></span>
+              </div>
+            </section>
+            <section class="watch-list">
+              <div class="section-heading compact"><h2>系統狀態</h2></div>
+              <section class="metrics" id="admin-status"></section>
+            </section>
+            <section class="watch-list">
+              <div class="section-heading compact"><h2>近期稽核紀錄</h2></div>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>時間</th><th>操作者</th><th>表</th><th>動作</th><th>ID</th></tr></thead>
+                  <tbody id="admin-audit-body"></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
           <section class="dashboard-panel module-panel" id="cio-overview" hidden>
             <div class="dashboard-head">
               <div>
@@ -535,6 +580,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=import-shortcut-20260707"></script>
+    <script src="/static/app.js?v=admin-console-20260707"></script>
   </body>
 </html>
