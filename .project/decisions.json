@@ -28,6 +28,27 @@
       "status": "confirmed",
       "contradicts": [],
       "note": "2026-07-06 拍板：本機帳號 + per-user 密碼雜湊 + 簽章 session，取代共用寫死密碼與未簽章 cookie。AD/SSO 為未來重大事項。"
+    },
+    {
+      "id": "SETTINGS_STORE",
+      "choice": "db-backed-admin-console",
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-07 拍板：使用者不喜歡改檔設定，系統設定（含 SMTP/通知）改由 DB 儲存、透過後台管理介面維護，好維護給後人。.env 仍為後備。"
+    },
+    {
+      "id": "ADMIN_ROLE",
+      "choice": "new-local-admin-then-AD",
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-07 拍板：新增 admin 角色與本機管理員帳號；未來改為指定 AD 帳號當 admin。admin 專用『系統管理』後台。"
+    },
+    {
+      "id": "SMTP_SECRET",
+      "choice": "db-write-only",
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-07 拍板：SMTP 密碼存 DB settings、write-only（GET 只回『已設定/未設定』，永不回傳明碼）。pilot 以保護 .db 檔為邊界；加密儲存為未來強化，已記 KNOWN_LIMITS。"
     }
   ]
 }

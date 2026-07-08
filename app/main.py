@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from app.dev_console import console_status, run_console_command
-from app.notify import send_digests
+from app.notify import send_digests, send_test
 from app.seed_data import clear_demo_data, demo_counts, load_demo_data
 from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
@@ -35,6 +35,8 @@ from app.store import (
     dashboard_summary,
     delete_row,
     disable_row,
+    read_settings as store_get_settings,
+    write_settings as store_set_settings,
     get_import_batch,
     initialize_database,
     insert_row,
@@ -278,6 +280,19 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=1)
 
 
+class SettingsPatch(BaseModel):
+    smtp_host: str | None = None
+    smtp_port: str | None = None
+    smtp_user: str | None = None
+    smtp_from: str | None = None
+    smtp_password: str | None = None  # write-only；GET 永不回傳
+    email_map: str | None = None
+    notify_enabled: str | None = None
+
+
+SETTINGS_PUBLIC_KEYS = ["smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled"]
+
+
 CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "contracts": [("contract_code", "合約編號"), ("contract_name", "合約名稱"), ("vendor_name", "廠商"), ("amount", "金額"), ("status", "狀態"), ("end_date", "到期日"), ("case_id", "案件ID")],
     "payments": [("payment_month", "付款月份"), ("payment_amount", "付款金額"), ("invoice_status", "發票狀態"), ("status", "狀態"), ("contract_id", "合約ID")],
@@ -346,6 +361,16 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "payments-module",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
+    },
+    # 系統管理員：只進「系統管理」後台（設定/稽核/狀態）。未來改為指定 AD 帳號當 admin。
+    "admin": {
+        "username": "admin",
+        "role_code": "admin",
+        "role_name": "系統管理員",
+        "display_name": "系統管理員",
+        "default_module": "admin-console",
+        "allowed_modules": ["admin-console"],
+        "allowed_actions": ["read", "edit", "admin"],
     },
 }
 
@@ -456,6 +481,8 @@ def create_app() -> FastAPI:
             user = LOCAL_AUTH_USERS[username]
             if user["role_code"] == "handler" and any(path.startswith(p) for p in HANDLER_FORBIDDEN_PREFIXES):
                 return JSONResponse({"detail": "權限不足：承辦無權使用此功能。"}, status_code=403)
+            if path.startswith("/api/admin/") and user["role_code"] != "admin":
+                return JSONResponse({"detail": "權限不足：僅系統管理員可用。"}, status_code=403)
             if request.method in ("POST", "PATCH", "PUT", "DELETE"):
                 if "edit" not in user["allowed_actions"]:
                     return JSONResponse({"detail": "權限不足：此帳號僅供檢視。"}, status_code=403)
@@ -539,6 +566,31 @@ def create_app() -> FastAPI:
     @app.post("/api/reports/reminders/notify")
     def reminders_notify() -> dict[str, Any]:
         return ok(send_digests())
+
+    # ---- 系統管理後台（僅 admin，中介層已擋非 admin）----
+    def _settings_view() -> dict[str, Any]:
+        vals = store_get_settings(SETTINGS_PUBLIC_KEYS)
+        vals["smtp_password_set"] = bool(store_get_settings(["smtp_password"])["smtp_password"])
+        return vals
+
+    @app.get("/api/admin/settings")
+    def admin_get_settings() -> dict[str, Any]:
+        return ok(_settings_view())
+
+    @app.patch("/api/admin/settings")
+    def admin_patch_settings(payload: SettingsPatch) -> dict[str, Any]:
+        data = payload.model_dump(exclude_unset=True)
+        if data.get("smtp_password") == "":
+            data.pop("smtp_password")  # 空＝不動密碼（避免誤清）
+        store_set_settings(data)
+        return ok(_settings_view())
+
+    @app.post("/api/admin/settings/test-email")
+    def admin_test_email(payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return ok(send_test(str(payload.get("to", "")).strip()))
+        except OSError as exc:
+            raise HTTPException(status_code=502, detail=f"寄信失敗：{exc}") from exc
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:

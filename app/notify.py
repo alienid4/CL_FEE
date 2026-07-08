@@ -36,9 +36,15 @@ def compose_digests() -> list[dict[str, Any]]:
     return digests
 
 
+def _cfg(setting_key: str, env_key: str, default: str = "") -> str:
+    """設定優先讀 DB（後台管理），DB 空才退回環境變數。"""
+    val = store.read_setting(setting_key)
+    return val if val else os.getenv(env_key, default)
+
+
 def _email_map() -> dict[str, str]:
-    """帳號→email 對照，格式：EMAIL_MAP="ap02=a@x.com,ap03=b@x.com"。未設定則空。"""
-    raw = os.getenv("EMAIL_MAP", "")
+    """帳號→email 對照，格式：ap02=a@x.com,ap03=b@x.com。DB 優先、.env 後備。"""
+    raw = _cfg("email_map", "EMAIL_MAP")
     out: dict[str, str] = {}
     for pair in raw.split(","):
         if "=" in pair:
@@ -47,21 +53,28 @@ def _email_map() -> dict[str, str]:
     return out
 
 
+def _smtp_conn() -> smtplib.SMTP:
+    host = _cfg("smtp_host", "SMTP_HOST")
+    port = int(_cfg("smtp_port", "SMTP_PORT", "25") or "25")
+    smtp = smtplib.SMTP(host, port, timeout=10)
+    user = _cfg("smtp_user", "SMTP_USER")
+    if user:
+        smtp.starttls()
+        smtp.login(user, _cfg("smtp_password", "SMTP_PASSWORD"))
+    return smtp
+
+
 def send_digests() -> dict[str, Any]:
-    """有 SMTP_HOST + EMAIL_MAP 才真的寄；否則只回預覽（不寄）。"""
+    """有 SMTP 主機 + email 對照才真的寄；否則只回站內預覽（不寄）。"""
     digests = compose_digests()
-    host = os.getenv("SMTP_HOST")
+    host = _cfg("smtp_host", "SMTP_HOST")
     email_map = _email_map()
     if not host or not email_map:
-        return {"sent": False, "reason": "未設定 SMTP_HOST / EMAIL_MAP，僅產生站內預覽。", "digests": digests}
+        return {"sent": False, "reason": "尚未設定 SMTP 主機 / email 對照（請至系統管理後台），僅產生站內預覽。", "digests": digests}
 
     sent = 0
-    port = int(os.getenv("SMTP_PORT", "25"))
-    sender = os.getenv("SMTP_FROM", "no-reply@cl-fee.local")
-    with smtplib.SMTP(host, port, timeout=10) as smtp:
-        if os.getenv("SMTP_USER"):
-            smtp.starttls()
-            smtp.login(os.getenv("SMTP_USER", ""), os.getenv("SMTP_PASSWORD", ""))
+    sender = _cfg("smtp_from", "SMTP_FROM", "no-reply@cl-fee.local")
+    with _smtp_conn() as smtp:
         for d in digests:
             to = email_map.get(d["owner"])
             if not to:
@@ -74,3 +87,21 @@ def send_digests() -> dict[str, Any]:
             smtp.send_message(msg)
             sent += 1
     return {"sent": True, "count": sent, "digests": digests}
+
+
+def send_test(to: str) -> dict[str, Any]:
+    """後台『測試寄信』：寄一封測試信到指定 email，驗證 SMTP 設定。"""
+    host = _cfg("smtp_host", "SMTP_HOST")
+    if not host:
+        return {"sent": False, "reason": "尚未設定 SMTP 主機。"}
+    if not to:
+        return {"sent": False, "reason": "請提供收件 email。"}
+    sender = _cfg("smtp_from", "SMTP_FROM", "no-reply@cl-fee.local")
+    msg = EmailMessage()
+    msg["Subject"] = "[CL_FEE] SMTP 測試信"
+    msg["From"] = sender
+    msg["To"] = to
+    msg.set_content("這是一封測試信，代表 CL_FEE 的 SMTP 設定可以正常寄出。")
+    with _smtp_conn() as smtp:
+        smtp.send_message(msg)
+    return {"sent": True, "to": to}

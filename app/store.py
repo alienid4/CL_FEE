@@ -158,6 +158,12 @@ CREATE TABLE IF NOT EXISTS purchases (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     table_name TEXT NOT NULL,
@@ -890,6 +896,30 @@ def cio_overview() -> dict[str, Any]:
         "forecast": forecast,                     # 未來 6 個月現金流
         "upcoming_next_month": upcoming,
     }
+
+
+def read_setting(key: str, default: str = "") -> str:
+    with connect() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+
+def read_settings(keys: list[str]) -> dict[str, str]:
+    with connect() as conn:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+    have = {r["key"]: r["value"] for r in rows}
+    return {k: have.get(k, "") for k in keys}
+
+
+def write_settings(values: dict[str, str]) -> None:
+    """upsert 一批設定。空字串代表清空該鍵；未出現的鍵不動。"""
+    with connect() as conn:
+        for key, value in values.items():
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES(?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP",
+                (key, "" if value is None else str(value)),
+            )
 
 
 def search_records(query: str) -> list[dict[str, Any]]:
