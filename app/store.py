@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 import sqlite3
@@ -641,11 +641,34 @@ def confirm_import_batch_cases_write(
         }
 
 
+def _norm_date(v: Any) -> str:
+    """Excel 日期（datetime 或字串）→ 'YYYY-MM-DD'；空值回空字串。"""
+    if v is None or v == "":
+        return ""
+    if isinstance(v, (datetime, date)):
+        return v.strftime("%Y-%m-%d")
+    s = str(v).strip().replace("/", "-")
+    return s[:10]
+
+
+def _xls_pct(v: Any) -> float:
+    """比例欄：<=1 視為小數（0.294→29.4），>1 視為已是百分比。"""
+    if v is None or v == "":
+        return 0.0
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return 0.0
+    return round(f * 100, 1) if f <= 1 else round(f, 1)
+
+
 def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
-    """解析『處級專案進度追蹤總表』格式的 .xlsx → 專案清單。
-    規則：找含「專案名稱」的表頭列；其後每一列若『專案名稱』非空＝一個專案
-    （空的是工作子項，先略過）。多工作表全部合併，每張表當一個『組別』。
-    進度值 <=1 視為小數比例（0.294→29%）。標號僅每張表內序號，故 code 用 組別-標號。"""
+    """解析『處級專案進度追蹤總表』.xlsx → 專案清單（依欄名對應，不靠欄位位置）。
+
+    版面：每張工作表＝一個組別；表頭含「專案名稱」。專案為多列一組——
+    第一列帶專案層級欄（名稱/必要性/總進度預計%/實際%/總進度燈號，AI 表多一欄「分類」）；
+    其後每列是「工作主項目」，各自帶開始日期/結束日期。專案起訖＝各工作項的 min(開始)→max(結束)。
+    因 AI 表欄位右移一格，一律用欄名比對，避免位置錯位（先前燈號抓成小數即此故）。"""
     import io
     import openpyxl
 
@@ -656,63 +679,117 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
             ws = wb[sheet]
             rows = list(ws.iter_rows(values_only=True))
             header_idx = None
-            for i, r in enumerate(rows[:6]):
+            for i, r in enumerate(rows[:8]):
                 if r and any(str(c).replace("\n", "") == "專案名稱" for c in r if c is not None):
                     header_idx = i
                     break
             if header_idx is None:
                 continue
-            seq = 0  # 每張表的流水序號，避免標號在同表重複造成 code 撞號
+            headers = [str(c).replace("\n", "").strip() if c is not None else "" for c in rows[header_idx]]
+
+            def find(pred, lo=0, hi=None):
+                hi = len(headers) if hi is None else hi
+                for j in range(lo, hi):
+                    if headers[j] and pred(headers[j]):
+                        return j
+                return None
+
+            work_i = find(lambda h: h == "工作主項目")
+            split = work_i if work_i is not None else len(headers)
+            name_i = find(lambda h: h == "專案名稱", 0, split)
+            if name_i is None:
+                continue
+            nec_i = find(lambda h: "必要性" in h, 0, split)
+            plan_i = find(lambda h: "預計" in h, 0, split)
+            act_i = find(lambda h: "實際" in h, 0, split)
+            rag_i = find(lambda h: "燈號" in h, 0, split)          # 總進度燈號（專案層級那個）
+            lvl_i = find(lambda h: h == "分類", 0, split)          # 只有 AI 表有
+            start_i = find(lambda h: "開始" in h, split)
+            end_i = find(lambda h: "結束" in h, split)
+            owner_i = find(lambda h: "負責人" in h, split)
+
+            def cell(r, i):
+                return r[i] if (i is not None and i < len(r)) else None
+
+            def txt(r, i):
+                v = cell(r, i)
+                return str(v).strip() if v is not None else ""
+
+            seq = 0
+            cur: dict[str, Any] | None = None
             for r in rows[header_idx + 1:]:
-                if not r or len(r) < 2 or r[1] is None or not str(r[1]).strip():
+                if not r:
                     continue
-
-                def pct(v: Any) -> float:
-                    if v is None or v == "":
-                        return 0.0
-                    try:
-                        f = float(v)
-                    except (TypeError, ValueError):
-                        return 0.0
-                    return round(f * 100, 1) if f <= 1 else round(f, 1)
-
-                seq += 1
-                out.append({
-                    "project_code": f"{sheet}-{seq}",
-                    "project_name": str(r[1]).strip(),
-                    "source": sheet,
-                    "necessity": str(r[2]).strip() if len(r) > 2 and r[2] else "",
-                    "progress_planned": pct(r[3] if len(r) > 3 else None),
-                    "progress": pct(r[4] if len(r) > 4 else None),
-                    "rag_status": str(r[5]).strip() if len(r) > 5 and r[5] and str(r[5]).strip() else "",
-                })
+                nm = " ".join(txt(r, name_i).split())  # 收斂內部換行/多空白，避免分頁標籤爆版
+                if nm:  # 新專案起始列
+                    if cur is not None:
+                        out.append(cur)
+                    seq += 1
+                    cur = {
+                        "project_code": f"{sheet}-{seq}",
+                        "project_name": nm,
+                        "source": sheet,
+                        "necessity": txt(r, nec_i),
+                        "progress_planned": _xls_pct(cell(r, plan_i)),
+                        "progress": _xls_pct(cell(r, act_i)),
+                        "rag_status": txt(r, rag_i),
+                        "level": txt(r, lvl_i),
+                        "owner": txt(r, owner_i),
+                        "start_date": _norm_date(cell(r, start_i)),
+                        "end_date": _norm_date(cell(r, end_i)),
+                    }
+                elif cur is not None:  # 工作項續列：擴張起訖、補負責人
+                    sd, ed = _norm_date(cell(r, start_i)), _norm_date(cell(r, end_i))
+                    if sd and (not cur["start_date"] or sd < cur["start_date"]):
+                        cur["start_date"] = sd
+                    if ed and (not cur["end_date"] or ed > cur["end_date"]):
+                        cur["end_date"] = ed
+                    if not cur["owner"]:
+                        cur["owner"] = txt(r, owner_i)
+            if cur is not None:
+                out.append(cur)
     finally:
         wb.close()
     return out
 
 
 def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """把解析出的專案寫入 projects：單一交易、冪等（project_code 已存在則跳過）、逐列稽核。"""
-    actor = _current_actor.get()
+    """寫入 projects：單一交易、逐列稽核。以（組別＋專案名稱）為識別鍵——
+    同名專案改『更新』（讓更新版總表的起訖日/進度灌進既有資料），沒見過的才『新增』。"""
+    _identity = {"project_code", "source", "project_name"}
     fields_allowed = allowed_fields()["projects"]
     with connect() as conn:
-        existing = {r["project_code"] for r in conn.execute("SELECT project_code FROM projects").fetchall()}
+        existing: dict[tuple[str, str], int] = {}
+        for row in conn.execute("SELECT id, source, project_name FROM projects").fetchall():
+            existing[(row["source"] or "", row["project_name"] or "")] = row["id"]
         created: list[str] = []
-        skipped: list[str] = []
+        updated: list[str] = []
         for rec in records:
-            code = rec.get("project_code", "").strip()
-            if not code or code in existing:
-                skipped.append(code)
+            name = str(rec.get("project_name", "")).strip()
+            if not name:
                 continue
+            key = (rec.get("source", "") or "", name)
             fields = {k: v for k, v in rec.items() if k in fields_allowed}
-            columns = ", ".join(fields)
-            placeholders = ", ".join("?" for _ in fields)
-            cur = conn.execute(f"INSERT INTO projects ({columns}) VALUES ({placeholders})", list(fields.values()))
-            after = get_row(conn, "projects", cur.lastrowid)
-            write_audit_log(conn, "projects", cur.lastrowid, "import", None, {**after, "import_source": "xlsx"})
-            existing.add(code)
-            created.append(code)
-        return {"created_count": len(created), "skipped_count": len(skipped), "created": created}
+            if key in existing:
+                rid = existing[key]
+                before = get_row(conn, "projects", rid)
+                upd = {k: v for k, v in fields.items() if k not in _identity}
+                if upd:
+                    sets = ", ".join(f"{k} = ?" for k in upd)
+                    conn.execute(f"UPDATE projects SET {sets} WHERE id = ?", [*upd.values(), rid])
+                after = get_row(conn, "projects", rid)
+                write_audit_log(conn, "projects", rid, "import-update", before, after)
+                updated.append(name)
+            else:
+                columns = ", ".join(fields)
+                placeholders = ", ".join("?" for _ in fields)
+                cur = conn.execute(f"INSERT INTO projects ({columns}) VALUES ({placeholders})", list(fields.values()))
+                after = get_row(conn, "projects", cur.lastrowid)
+                write_audit_log(conn, "projects", cur.lastrowid, "import", None, {**after, "import_source": "xlsx"})
+                existing[key] = cur.lastrowid
+                created.append(name)
+        return {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
+                "created": created, "updated": updated}
 
 
 def preflight_import_batch_confirm(

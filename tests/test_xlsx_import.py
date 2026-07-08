@@ -46,10 +46,16 @@ def test_preview_then_commit_real_projects(tmp_path):
         assert len(rows) == prev["count"]
         assert any(r["source"] for r in rows)  # 記了組別
         assert any(r["progress"] > 0 for r in rows)  # 進度換算成百分比
+        # 依欄名對應：起訖日抓進來、每個專案都有（供進度總表算落後）
+        assert all(r["start_date"] and r["end_date"] for r in rows)
+        # 燈號不再誤抓成小數（AI 表欄位右移曾造成此問題）
+        import re
+        assert not any(re.match(r"^0?\.\d+$", r.get("rag_status") or "") for r in rows)
 
-        # 冪等：再匯一次全部跳過
+        # 再匯一次：同名專案改『更新』而非新增（不會長出重複、既有資料被刷新）
         res2 = client.post("/api/projects/import-xlsx?commit=true", content=data).json()["data"]
-        assert res2["created_count"] == 0 and res2["skipped_count"] == prev["count"]
+        assert res2["created_count"] == 0 and res2["updated_count"] == prev["count"]
+        assert len(client.get("/api/projects").json()["data"]) == prev["count"]  # 筆數不變
 
 
 def test_import_blocked_for_handler(tmp_path):
