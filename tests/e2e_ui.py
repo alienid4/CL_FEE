@@ -112,6 +112,11 @@ def main() -> int:
             page.wait_for_timeout(1000)
             results.append(("催辦清單出現逾期項目", "已逾期" in page.inner_text("#reminders-list")))
             results.append(("主管儀表板出現圖表(SVG)", page.locator("#manager-charts svg").count() >= 1))
+            # 側欄全文搜尋（接了 /api/search）：搜 DEMO 有結果
+            page.fill("#global-search", "DEMO")
+            page.wait_for_timeout(600)
+            results.append(("全文搜尋有結果", "DEMO-" in page.inner_text("#search-results")))
+            page.fill("#global-search", "")
             page.click('button[data-case-tab="list"]')
             page.wait_for_timeout(600)
             results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=1500, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=charts-20260707" />
+    <link rel="stylesheet" href="/static/styles.css?v=search-20260707" />
   </head>
   <body>
     <section id="login-shell" class="login-shell" aria-label="登入">
@@ -37,8 +37,9 @@
             <option>案件、合約、預算、廠商</option>
             <option>簽呈、請購、付款、文件</option>
           </select>
-          <input aria-label="search keyword" placeholder="案件、合約、預算、廠商" />
-          <small>輸入關鍵字，可搭配功能範圍</small>
+          <input id="global-search" aria-label="search keyword" placeholder="案件、合約、預算、廠商" autocomplete="off" />
+          <small>輸入關鍵字（≥2 字）即時搜尋八大模組</small>
+          <div id="search-results" class="search-results" hidden></div>
         </section>
 
         <nav class="module-list">
@@ -534,6 +535,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=review-fixes-20260707"></script>
+    <script src="/static/app.js?v=search-20260707"></script>
   </body>
 </html>

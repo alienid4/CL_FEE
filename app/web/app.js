@@ -1498,6 +1498,31 @@ document.addEventListener("click", (event) => {
   if (b) window.location.href = b.dataset.export;
 });
 
+const globalSearch = document.querySelector("#global-search");
+const searchResults = document.querySelector("#search-results");
+let searchTimer = null;
+globalSearch?.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const q = globalSearch.value.trim();
+  if (!searchResults) return;
+  if (q.length < 2) { searchResults.hidden = true; searchResults.innerHTML = ""; return; }
+  searchTimer = setTimeout(async () => {
+    const label = { case: "案件", contract: "合約", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購" };
+    try {
+      const rows = (await api(`/api/search?q=${encodeURIComponent(q)}`)).data || [];
+      searchResults.hidden = false;
+      searchResults.innerHTML = rows.length
+        ? rows
+            .map((r) => `<div class="search-hit"><span class="badge">${escapeHtml(label[r.type] || r.type)}</span> <strong>${escapeHtml(valueOrDash(r.code))}</strong> ${escapeHtml(r.title || "")}<small class="muted"> ${escapeHtml(valueOrDash(r.detail))}</small></div>`)
+            .join("")
+        : `<div class="muted" style="padding:.45rem .3rem;">找不到「${escapeHtml(q)}」</div>`;
+    } catch (error) {
+      searchResults.hidden = false;
+      searchResults.innerHTML = `<div class="muted" style="padding:.45rem .3rem;">搜尋失敗：${escapeHtml(error.message)}</div>`;
+    }
+  }, 250);
+});
+
 document.querySelector("#notify-reminders")?.addEventListener("click", async () => {
   const el = document.querySelector("#notify-preview");
   try {

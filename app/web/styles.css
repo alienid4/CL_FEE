@@ -991,3 +991,19 @@ form,
 .chart-card h3 {
   color: inherit;
 }
+
+/* 側欄全文搜尋結果 */
+.search-results {
+  margin-top: .5rem;
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--line, #dce3ee);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+.search-hit {
+  padding: .4rem .55rem;
+  border-bottom: 1px solid var(--line, #eef1f6);
+  font-size: .86rem;
+}
+.search-hit:last-child { border-bottom: 0; }
