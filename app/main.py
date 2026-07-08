@@ -22,6 +22,7 @@ from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
     approve_case,
+    backup_database,
     case_360,
     cases_needing_attention,
     cio_overview,
@@ -37,6 +38,11 @@ from app.store import (
     disable_row,
     read_settings as store_get_settings,
     write_settings as store_set_settings,
+    get_db_user as store_get_db_user,
+    list_db_users as store_list_db_users,
+    create_db_user as store_create_db_user,
+    update_db_user as store_update_db_user,
+    delete_db_user as store_delete_db_user,
     get_import_batch,
     initialize_database,
     insert_row,
@@ -288,9 +294,41 @@ class SettingsPatch(BaseModel):
     smtp_password: str | None = None  # write-only；GET 永不回傳
     email_map: str | None = None
     notify_enabled: str | None = None
+    opt_budget_categories: str | None = None
+    opt_project_necessity: str | None = None
 
 
-SETTINGS_PUBLIC_KEYS = ["smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled"]
+class UserCreateIn(BaseModel):
+    username: str = Field(min_length=1)
+    role_code: str = Field(min_length=1)
+    display_name: str = ""
+    email: str = ""
+    password: str = Field(min_length=1)
+
+
+class UserPatch(BaseModel):
+    role_code: str | None = None
+    display_name: str | None = None
+    email: str | None = None
+    disabled: bool | None = None
+    password: str | None = None
+
+
+SETTINGS_PUBLIC_KEYS = [
+    "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
+    "opt_budget_categories", "opt_project_necessity",
+]
+
+# 主檔選項預設（後台未設定時採用）
+OPTION_DEFAULTS = {
+    "opt_budget_categories": "基礎建設,工具,資訊安全,電子交易平台,其他",
+    "opt_project_necessity": "必要,警示,一般",
+}
+
+
+def _option_list(key: str) -> list[str]:
+    raw = store_get_settings([key])[key] or OPTION_DEFAULTS.get(key, "")
+    return [x.strip() for x in raw.split(",") if x.strip()]
 
 
 CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
@@ -433,15 +471,67 @@ def _load_user_password_hashes() -> dict[str, str]:
 USER_PASSWORD_HASHES = _load_user_password_hashes()
 
 
+# 角色範本：由內建帳號自動萃取，供 DB 建立的帳號套用同一套模組/動作權限。
+ROLE_TEMPLATES: dict[str, dict[str, Any]] = {}
+for _acct in LOCAL_AUTH_USERS.values():
+    ROLE_TEMPLATES.setdefault(_acct["role_code"], {
+        "role_name": _acct["role_name"],
+        "default_module": _acct["default_module"],
+        "allowed_modules": list(_acct["allowed_modules"]),
+        "allowed_actions": list(_acct["allowed_actions"]),
+    })
+
+
+def get_account(username: str) -> dict[str, Any] | None:
+    """解析帳號（內建 or DB 建立）→ 完整權限視圖；找不到回 None。內建帳號永不停用。"""
+    if not username:
+        return None
+    if username in LOCAL_AUTH_USERS:
+        return {**LOCAL_AUTH_USERS[username], "disabled": False, "email": "", "builtin": True}
+    row = store_get_db_user(username)
+    if not row:
+        return None
+    tmpl = ROLE_TEMPLATES.get(row["role_code"])
+    if not tmpl:
+        return None
+    return {
+        "username": row["username"],
+        "role_code": row["role_code"],
+        "role_name": tmpl["role_name"],
+        "display_name": row["display_name"] or row["username"],
+        "default_module": tmpl["default_module"],
+        "allowed_modules": list(tmpl["allowed_modules"]),
+        "allowed_actions": list(tmpl["allowed_actions"]),
+        "disabled": bool(row["disabled"]),
+        "email": row["email"],
+        "builtin": False,
+    }
+
+
+def verify_login(username: str, password: str) -> dict[str, Any] | None:
+    """驗證登入。內建帳號用環境變數密碼；DB 帳號用其 password_hash（停用者拒絕）。回帳號視圖或 None。"""
+    acct = get_account(username)
+    if not acct or acct.get("disabled"):
+        return None
+    if username in USER_PASSWORD_HASHES:
+        return acct if _verify_password(password, USER_PASSWORD_HASHES[username]) else None
+    row = store_get_db_user(username)
+    if not row or not row["password_hash"] or not _verify_password(password, row["password_hash"]):
+        return None
+    return acct
+
+
 def ok(data: Any) -> dict[str, Any]:
     return {"ok": True, "data": data}
 
 
 def auth_user_payload(username: str) -> dict[str, Any]:
-    user = LOCAL_AUTH_USERS.get(username)
-    if not user:
+    user = get_account(username)
+    if not user or user.get("disabled"):
         raise HTTPException(status_code=401, detail="登入狀態已失效，請重新登入。")
-    return dict(user)
+    payload = dict(user)
+    payload.pop("builtin", None)
+    return payload
 
 
 @asynccontextmanager
@@ -454,8 +544,8 @@ async def bind_actor(request: Request) -> None:
     """把已驗證的登入者綁到本請求（async 依賴，確保 contextvar 傳到同步端點）。"""
     username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
     set_current_actor(username or "anonymous")
-    role = LOCAL_AUTH_USERS.get(username or "", {}).get("role_code")
-    set_owner_scope(username if role == "handler" else None)
+    acct = get_account(username or "") or {}
+    set_owner_scope(username if acct.get("role_code") == "handler" else None)
 
 
 def create_app() -> FastAPI:
@@ -478,7 +568,9 @@ def create_app() -> FastAPI:
             username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
             if not username:
                 return JSONResponse({"detail": "請先登入。"}, status_code=401)
-            user = LOCAL_AUTH_USERS[username]
+            user = get_account(username)
+            if not user or user.get("disabled"):
+                return JSONResponse({"detail": "帳號已停用或不存在，請重新登入。"}, status_code=401)
             if user["role_code"] == "handler" and any(path.startswith(p) for p in HANDLER_FORBIDDEN_PREFIXES):
                 return JSONResponse({"detail": "權限不足：承辦無權使用此功能。"}, status_code=403)
             if path.startswith("/api/admin/") and user["role_code"] != "admin":
@@ -508,8 +600,7 @@ def create_app() -> FastAPI:
     @app.post("/api/auth/login")
     def login(payload: LoginIn, response: Response) -> dict[str, Any]:
         username = payload.username.strip().lower()
-        stored = USER_PASSWORD_HASHES.get(username)
-        if not stored or not _verify_password(payload.password, stored):
+        if not verify_login(username, payload.password):
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤。")
         response.set_cookie(
             AUTH_COOKIE_NAME,
@@ -530,6 +621,14 @@ def create_app() -> FastAPI:
     def logout(response: Response) -> dict[str, Any]:
         response.delete_cookie(AUTH_COOKIE_NAME)
         return ok({"logged_out": True})
+
+    @app.get("/api/options")
+    def options() -> dict[str, Any]:
+        # 給各模組表單的下拉選項（任何登入者可讀），內容由 admin 在後台維護。
+        return ok({
+            "budget_categories": _option_list("opt_budget_categories"),
+            "project_necessity": _option_list("opt_project_necessity"),
+        })
 
     @app.get("/api/dashboard")
     def dashboard() -> dict[str, Any]:
@@ -591,6 +690,73 @@ def create_app() -> FastAPI:
             return ok(send_test(str(payload.get("to", "")).strip()))
         except OSError as exc:
             raise HTTPException(status_code=502, detail=f"寄信失敗：{exc}") from exc
+
+    @app.get("/api/admin/backup", include_in_schema=False)
+    def admin_backup() -> FileResponse:
+        import tempfile
+
+        dest = str(Path(tempfile.gettempdir()) / "cl_fee_backup.db")
+        backup_database(dest)
+        return FileResponse(dest, filename="cl_fee_backup.db", media_type="application/octet-stream")
+
+    # ---- 帳號與權限管理（內建帳號唯讀，DB 帳號可增/改/停用/刪）----
+    @app.get("/api/admin/users")
+    def admin_list_users() -> dict[str, Any]:
+        builtin = [
+            {"username": u, "role_code": a["role_code"], "role_name": a["role_name"],
+             "display_name": a["display_name"], "email": "", "disabled": False, "builtin": True}
+            for u, a in LOCAL_AUTH_USERS.items()
+        ]
+        db = [
+            {"username": r["username"], "role_code": r["role_code"],
+             "role_name": ROLE_TEMPLATES.get(r["role_code"], {}).get("role_name", r["role_code"]),
+             "display_name": r["display_name"], "email": r["email"],
+             "disabled": bool(r["disabled"]), "builtin": False}
+            for r in store_list_db_users()
+        ]
+        roles = [{"code": k, "name": v["role_name"]} for k, v in ROLE_TEMPLATES.items()]
+        return ok({"users": builtin + db, "roles": roles})
+
+    @app.post("/api/admin/users", status_code=201)
+    def admin_create_user(payload: UserCreateIn) -> dict[str, Any]:
+        username = payload.username.strip().lower()
+        if username in LOCAL_AUTH_USERS:
+            raise HTTPException(status_code=409, detail="帳號與內建帳號名稱衝突。")
+        if payload.role_code not in ROLE_TEMPLATES:
+            raise HTTPException(status_code=422, detail="角色不存在。")
+        try:
+            store_create_db_user(username, payload.role_code, payload.display_name, payload.email, _hash_password(payload.password))
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return ok({"username": username})
+
+    @app.patch("/api/admin/users/{username}")
+    def admin_update_user(username: str, payload: UserPatch) -> dict[str, Any]:
+        if username in LOCAL_AUTH_USERS:
+            raise HTTPException(status_code=403, detail="內建帳號不可修改。")
+        data = payload.model_dump(exclude_unset=True)
+        if "role_code" in data and data["role_code"] not in ROLE_TEMPLATES:
+            raise HTTPException(status_code=422, detail="角色不存在。")
+        if "password" in data:
+            pw = data.pop("password")
+            if pw:
+                data["password_hash"] = _hash_password(pw)
+        if "disabled" in data:
+            data["disabled"] = 1 if data["disabled"] else 0
+        try:
+            store_update_db_user(username, data)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return ok({"username": username})
+
+    @app.delete("/api/admin/users/{username}", status_code=204)
+    def admin_delete_user(username: str) -> None:
+        if username in LOCAL_AUTH_USERS:
+            raise HTTPException(status_code=403, detail="內建帳號不可刪除。")
+        try:
+            store_delete_db_user(username)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/api/dev-console/status")
     def dev_console_status() -> dict[str, Any]:
@@ -764,7 +930,7 @@ def create_app() -> FastAPI:
     @app.post("/api/cases/{case_id}/approve")
     def approve_case_endpoint(case_id: int, request: Request) -> dict[str, Any]:
         approver = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
-        if LOCAL_AUTH_USERS.get(approver, {}).get("role_code") != "manager_assistant":
+        if (get_account(approver) or {}).get("role_code") != "manager_assistant":
             raise HTTPException(status_code=403, detail="只有助理/主管能複核核准案件。")
         try:
             return ok(approve_case(case_id, approver))

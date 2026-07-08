@@ -52,6 +52,32 @@ def test_test_email_without_smtp(tmp_path):
         assert res["sent"] is False and "SMTP" in res["reason"]
 
 
+def test_backup_download(tmp_path):
+    with _client(tmp_path) as client:
+        r = client.get("/api/admin/backup")
+        assert r.status_code == 200
+        assert r.content[:16] == b"SQLite format 3\x00"  # 是真的 SQLite 檔
+
+
+def test_backup_blocked_for_non_admin(tmp_path):
+    with _client(tmp_path, login="ap02") as client:
+        assert client.get("/api/admin/backup").status_code == 403
+
+
+def test_options_defaults_and_admin_override(tmp_path):
+    with _client(tmp_path) as client:  # admin
+        o = client.get("/api/options").json()["data"]
+        assert "基礎建設" in o["budget_categories"] and "必要" in o["project_necessity"]
+        client.patch("/api/admin/settings", json={"opt_budget_categories": "甲,乙,丙"})
+        o2 = client.get("/api/options").json()["data"]
+        assert o2["budget_categories"] == ["甲", "乙", "丙"]
+
+
+def test_options_readable_by_manager(tmp_path):
+    with _client(tmp_path, login="ap02") as client:
+        assert client.get("/api/options").status_code == 200  # 任何登入者可讀選項
+
+
 def test_admin_sees_only_admin_console(tmp_path):
     with _client(tmp_path) as client:
         me = client.get("/api/auth/me").json()["data"]

@@ -164,6 +164,16 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY,
+    role_code TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL DEFAULT '',
+    disabled INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     table_name TEXT NOT NULL,
@@ -896,6 +906,56 @@ def cio_overview() -> dict[str, Any]:
         "forecast": forecast,                     # 未來 6 個月現金流
         "upcoming_next_month": upcoming,
     }
+
+
+def get_db_user(username: str) -> dict[str, Any] | None:
+    with connect() as conn:
+        return conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+
+
+def list_db_users() -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute("SELECT username, role_code, display_name, email, disabled FROM users ORDER BY username").fetchall()
+    return rows
+
+
+def create_db_user(username: str, role_code: str, display_name: str, email: str, password_hash: str) -> None:
+    with connect() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+            raise ValueError(f"帳號 {username} 已存在。")
+        conn.execute(
+            "INSERT INTO users(username, role_code, display_name, email, password_hash) VALUES(?,?,?,?,?)",
+            (username, role_code, display_name, email, password_hash),
+        )
+
+
+def update_db_user(username: str, fields: dict[str, Any]) -> None:
+    allowed = {"role_code", "display_name", "email", "disabled", "password_hash"}
+    sets = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    if not sets:
+        return
+    assignments = ", ".join(f"{k} = ?" for k in sets)
+    with connect() as conn:
+        cur = conn.execute(f"UPDATE users SET {assignments} WHERE username = ?", [*sets.values(), username])
+        if cur.rowcount == 0:
+            raise LookupError(f"帳號 {username} 不存在。")
+
+
+def delete_db_user(username: str) -> None:
+    with connect() as conn:
+        cur = conn.execute("DELETE FROM users WHERE username = ?", (username,))
+        if cur.rowcount == 0:
+            raise LookupError(f"帳號 {username} 不存在。")
+
+
+def backup_database(dest_path: str) -> None:
+    """用 SQLite 線上備份 API 把整個資料庫複製到 dest_path（即使有連線也一致）。"""
+    with connect() as src:
+        dst = sqlite3.connect(dest_path)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
 
 
 def read_setting(key: str, default: str = "") -> str:

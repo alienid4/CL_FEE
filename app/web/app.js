@@ -1213,6 +1213,9 @@ async function loadAdminConsole() {
     if (form.elements[k]) form.elements[k].value = s[k] ?? "";
   }
   if (form.elements.smtp_password) form.elements.smtp_password.placeholder = s.smtp_password_set ? "已設定（留空＝不變更）" : "SMTP 密碼（留空＝不變更）";
+  const opt = (await api("/api/options")).data || {};
+  if (form.elements.opt_budget_categories) form.elements.opt_budget_categories.value = (opt.budget_categories || []).join(",");
+  if (form.elements.opt_project_necessity) form.elements.opt_project_necessity.value = (opt.project_necessity || []).join(",");
 
   const dash = (await api("/api/dashboard")).data || {};
   const health = await api("/health");
@@ -1226,6 +1229,8 @@ async function loadAdminConsole() {
     ].join("");
   }
 
+  await loadAdminUsers();
+
   const logs = (await api("/api/audit-logs?limit=20")).data || [];
   const body = document.querySelector("#admin-audit-body");
   if (body) {
@@ -1234,6 +1239,46 @@ async function loadAdminConsole() {
           .map((l) => `<tr><td>${escapeHtml(l.created_at || "")}</td><td>${escapeHtml(l.actor || "")}</td><td>${escapeHtml(l.table_name || "")}</td><td>${escapeHtml(l.action || "")}</td><td>${escapeHtml(String(l.row_id ?? ""))}</td></tr>`)
           .join("")
       : `<tr><td colspan="5" class="muted">尚無稽核紀錄</td></tr>`;
+  }
+}
+
+async function loadAdminUsers() {
+  const body = document.querySelector("#admin-users-body");
+  if (!body) return;
+  const d = (await api("/api/admin/users")).data || {};
+  const roleSel = document.querySelector("#admin-user-role");
+  if (roleSel && !roleSel.dataset.filled) {
+    roleSel.innerHTML = (d.roles || []).map((r) => `<option value="${escapeHtml(r.code)}">${escapeHtml(r.name)}</option>`).join("");
+    roleSel.dataset.filled = "1";
+  }
+  body.innerHTML = (d.users || [])
+    .map((u) => {
+      const state = u.builtin
+        ? '<span class="badge">內建</span>'
+        : u.disabled
+        ? '<span class="badge danger">已停用</span>'
+        : '<span class="badge ok">啟用</span>';
+      const actions = u.builtin
+        ? '<span class="muted">—</span>'
+        : `<button type="button" class="secondary" data-uaction="${u.disabled ? "enable" : "disable"}" data-username="${escapeHtml(u.username)}">${u.disabled ? "啟用" : "停用"}</button>
+           <button type="button" class="secondary" data-uaction="reset" data-username="${escapeHtml(u.username)}">改密碼</button>
+           <button type="button" class="danger" data-uaction="delete" data-username="${escapeHtml(u.username)}">刪除</button>`;
+      return `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.role_name)}</td><td>${escapeHtml(valueOrDash(u.display_name))}</td><td>${escapeHtml(valueOrDash(u.email))}</td><td>${state}</td><td>${actions}</td></tr>`;
+    })
+    .join("");
+}
+
+async function loadOptions() {
+  try {
+    const o = (await api("/api/options")).data || {};
+    const fill = (sel, arr) => {
+      const dl = document.querySelector(sel);
+      if (dl) dl.innerHTML = (arr || []).map((v) => `<option value="${escapeHtml(v)}"></option>`).join("");
+    };
+    fill("#opt-budget-categories", o.budget_categories);
+    fill("#opt-project-necessity", o.project_necessity);
+  } catch (error) {
+    /* 選項載入失敗不影響主流程 */
   }
 }
 
@@ -1261,7 +1306,7 @@ async function refresh() {
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
-    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
+    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
   ]);
 }
 
@@ -1573,6 +1618,46 @@ document.querySelector("#admin-settings-form")?.addEventListener("submit", async
     await loadAdminConsole();
   } catch (error) {
     if (el) el.textContent = `失敗：${error.message}`;
+  }
+});
+
+document.querySelector("#admin-backup")?.addEventListener("click", () => {
+  window.location.href = "/api/admin/backup";
+});
+
+document.querySelector("#admin-user-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  const el = document.querySelector("#admin-user-status");
+  try {
+    await api("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    if (el) el.textContent = "已新增";
+    event.target.reset();
+    await loadAdminUsers();
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+});
+
+document.querySelector("#admin-users-body")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-uaction]");
+  if (!btn) return;
+  const username = btn.dataset.username;
+  const act = btn.dataset.uaction;
+  try {
+    if (act === "disable" || act === "enable") {
+      await api(`/api/admin/users/${username}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ disabled: act === "disable" }) });
+    } else if (act === "reset") {
+      const pw = window.prompt(`為 ${username} 設定新密碼：`);
+      if (!pw) return;
+      await api(`/api/admin/users/${username}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
+    } else if (act === "delete") {
+      if (!window.confirm(`確定刪除帳號 ${username}？`)) return;
+      await api(`/api/admin/users/${username}`, { method: "DELETE" });
+    }
+    await loadAdminUsers();
+  } catch (error) {
+    window.alert(error.message);
   }
 });
 

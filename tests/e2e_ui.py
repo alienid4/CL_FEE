@@ -176,6 +176,14 @@ def main() -> int:
             page.wait_for_timeout(600)
             results.append(("儲存 SMTP 設定成功", "已儲存" in page.inner_text("#admin-settings-status")))
             results.append(("系統狀態顯示 SMTP 已設定", "已設定" in page.inner_text("#admin-status")))
+            # 帳號管理：新增一個承辦帳號
+            page.fill('#admin-user-form input[name="username"]', "e2euser")
+            page.select_option('#admin-user-role', "handler")
+            page.fill('#admin-user-form input[name="password"]', "E2e!pass1")
+            page.click('#admin-user-form button[type="submit"]')
+            page.wait_for_timeout(600)
+            results.append(("新增帳號出現在清單", "e2euser" in page.inner_text("#admin-users-body")))
+            results.append(("備份按鈕存在", page.is_visible("#admin-backup")))
 
             browser.close()
 

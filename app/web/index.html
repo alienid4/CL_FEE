@@ -186,6 +186,8 @@
                   <option value="1">啟用催辦通知</option>
                   <option value="0">停用催辦通知</option>
                 </select>
+                <input name="opt_budget_categories" placeholder="預算類別選項（逗號分隔）" />
+                <input name="opt_project_necessity" placeholder="專案必要性選項（逗號分隔）" />
                 <button type="submit">儲存設定</button>
                 <span class="muted" id="admin-settings-status" role="status" aria-live="polite"></span>
               </form>
@@ -198,6 +200,31 @@
             <section class="watch-list">
               <div class="section-heading compact"><h2>系統狀態</h2></div>
               <section class="metrics" id="admin-status"></section>
+            </section>
+            <section class="watch-list">
+              <div class="section-heading compact"><h2>資料維護</h2></div>
+              <div class="demo-actions">
+                <button type="button" id="admin-backup" class="secondary">下載資料庫備份</button>
+                <span class="muted">下載目前整個資料庫（.db 檔）；還原＝把檔案放回並重啟。</span>
+              </div>
+            </section>
+            <section class="watch-list">
+              <div class="section-heading compact"><h2>帳號與權限</h2></div>
+              <form id="admin-user-form" class="resource-form">
+                <input name="username" placeholder="帳號（英數）" required autocomplete="off" />
+                <select name="role_code" id="admin-user-role"></select>
+                <input name="display_name" placeholder="顯示名稱" />
+                <input name="email" placeholder="email（催辦通知用）" />
+                <input name="password" type="password" placeholder="初始密碼" autocomplete="new-password" required />
+                <button type="submit">新增帳號</button>
+                <span class="muted" id="admin-user-status" role="status" aria-live="polite"></span>
+              </form>
+              <div class="table-shell">
+                <table>
+                  <thead><tr><th>帳號</th><th>角色</th><th>名稱</th><th>email</th><th>狀態</th><th>操作</th></tr></thead>
+                  <tbody id="admin-users-body"></tbody>
+                </table>
+              </div>
             </section>
             <section class="watch-list">
               <div class="section-heading compact"><h2>近期稽核紀錄</h2></div>
@@ -489,7 +516,8 @@
           <form id="budget-form" class="resource-form">
             <input name="id" type="hidden" />
             <input name="budget_code" placeholder="預算編號" required />
-            <input name="category" placeholder="類別（基礎建設/工具/資安/交易平台/其他）" />
+            <input name="category" placeholder="類別（可在系統管理後台維護選項）" list="opt-budget-categories" />
+            <datalist id="opt-budget-categories"></datalist>
             <input name="unit_name" placeholder="單位名稱" />
             <input name="fiscal_year" placeholder="年度，例如 2026" />
             <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
@@ -513,7 +541,8 @@
             <input name="project_code" placeholder="專案編號" required />
             <input name="project_name" placeholder="專案名稱" required />
             <input name="source" placeholder="來源／需求單位" />
-            <input name="necessity" placeholder="必要性（必要/警示/一般）" />
+            <input name="necessity" placeholder="必要性（可在系統管理後台維護選項）" list="opt-project-necessity" />
+            <datalist id="opt-project-necessity"></datalist>
             <input name="progress" placeholder="進度 %" type="number" min="0" max="100" step="1" />
             <input name="owner" placeholder="負責人" />
             <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供催辦）" />
@@ -580,6 +609,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=admin-console-20260707"></script>
+    <script src="/static/app.js?v=admin-phase2-20260707"></script>
   </body>
 </html>
