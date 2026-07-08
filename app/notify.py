@@ -76,7 +76,7 @@ def send_digests() -> dict[str, Any]:
     sender = _cfg("smtp_from", "SMTP_FROM", "no-reply@cl-fee.local")
     with _smtp_conn() as smtp:
         for d in digests:
-            to = email_map.get(d["owner"])
+            to = email_map.get(d["owner"]) or email_map.get("*")  # "*" = 全部寄到同一信箱（測試用）
             if not to:
                 continue
             msg = EmailMessage()

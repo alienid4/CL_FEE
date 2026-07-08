@@ -52,6 +52,13 @@ def test_test_email_without_smtp(tmp_path):
         assert res["sent"] is False and "SMTP" in res["reason"]
 
 
+def test_email_map_wildcard(tmp_path):
+    with _client(tmp_path) as client:  # admin
+        client.patch("/api/admin/settings", json={"email_map": "*=alien4job@gmail.com"})
+        from app import notify
+        assert notify._email_map() == {"*": "alien4job@gmail.com"}
+
+
 def test_backup_download(tmp_path):
     with _client(tmp_path) as client:
         r = client.get("/api/admin/backup")

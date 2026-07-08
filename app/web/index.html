@@ -181,7 +181,7 @@
                 <input name="smtp_user" placeholder="SMTP 帳號（需登入寄信才填）" autocomplete="off" />
                 <input name="smtp_password" type="password" placeholder="SMTP 密碼（留空＝不變更）" autocomplete="new-password" />
                 <input name="smtp_from" placeholder="寄件者 email" />
-                <input name="email_map" placeholder="帳號→email：ap02=a@co,ap03=b@co" />
+                <input name="email_map" placeholder="帳號→email：ap02=a@co,ap03=b@co（或 *=all@co 全部寄同一信箱）" />
                 <select name="notify_enabled">
                   <option value="1">啟用催辦通知</option>
                   <option value="0">停用催辦通知</option>
@@ -609,6 +609,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=admin-phase2-20260707"></script>
+    <script src="/static/app.js?v=email-wildcard-20260707"></script>
   </body>
 </html>
