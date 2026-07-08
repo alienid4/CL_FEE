@@ -53,6 +53,7 @@ def main() -> int:
         with sync_playwright() as p:
             browser = p.chromium.launch()
             page = browser.new_page()
+            page.on("dialog", lambda d: d.accept())  # 自動接受 confirm（正式匯入）
 
             # 1) 登入 ap02（主管）
             page.goto(BASE + "/")
@@ -98,6 +99,20 @@ def main() -> int:
             page.click('#budget-form button[type="submit"]')
             page.wait_for_timeout(700)
             results.append(("新增預算出現在真清單", "E2E-BUD-1" in page.inner_text("#budgets")))
+
+            # 3.65) Excel 正式匯入：資料檢核 → 預覽 → 試算 → 正式匯入 → 案件寫入
+            page.click('a.module-card[href="#data-review"]')
+            page.wait_for_timeout(400)
+            page.click('#import-preview-form button[type="submit"]')
+            page.wait_for_timeout(700)
+            page.click("#dry-run-cases")
+            page.wait_for_timeout(700)
+            page.click("#formal-import-cases")
+            page.wait_for_timeout(900)
+            results.append(("正式匯入完成回饋", "正式匯入完成" in page.inner_text("#formal-import-result")))
+            page.click('a.module-card[href="#cases-module"]')
+            page.wait_for_timeout(500)
+            results.append(("匯入的案件進入清單(CASE-SAMPLE-001)", "CASE-SAMPLE-001" in page.inner_text("#cio-cases-body")))
 
             # 3.7) 示範資料：主管在主管儀表板可一鍵載入（DEMO- 標示）
             page.click('a.module-card[href="#cases-module"]')

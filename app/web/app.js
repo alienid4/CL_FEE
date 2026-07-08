@@ -36,6 +36,8 @@ const refreshMappingCatalog = document.querySelector("#refresh-mapping-catalog")
 const dryRunCases = document.querySelector("#dry-run-cases");
 const dryRunResult = document.querySelector("#dry-run-result");
 const preflightCases = document.querySelector("#preflight-cases");
+const formalImportCases = document.querySelector("#formal-import-cases");
+const formalImportResult = document.querySelector("#formal-import-result");
 const preflightResult = document.querySelector("#preflight-result");
 const caseTabs = [...document.querySelectorAll("[data-case-tab]")];
 const casePanels = [...document.querySelectorAll("[data-case-panel]")];
@@ -539,6 +541,34 @@ function renderImportPreview(preview) {
   preflightCases.disabled = false;
 }
 
+async function submitFormalImport() {
+  if (!lastImportBatchId || !lastImportPreview) {
+    if (formalImportResult) formalImportResult.innerHTML = `<p class="error">請先執行匯入預覽與案件試算。</p>`;
+    return;
+  }
+  if (!window.confirm("確定正式匯入？將寫入資料庫（已存在的案件編號會跳過不覆蓋）。")) return;
+  formalImportCases.disabled = true;
+  formalImportResult.innerHTML = `<p class="muted">正在正式寫入...</p>`;
+  try {
+    const payload = await api(`/api/import-batches/${lastImportBatchId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dry_run: false,
+        target_tables: ["cases"],
+        confirmed_fields: confirmedCaseFields(lastImportPreview),
+      }),
+    });
+    const d = payload.data || {};
+    formalImportResult.innerHTML = `<p class="ok">正式匯入完成：新增 ${d.created_count} 筆、跳過 ${d.skipped_count} 筆（已存在）。</p>`;
+    await refresh();
+  } catch (error) {
+    formalImportResult.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  } finally {
+    formalImportCases.disabled = false;
+  }
+}
+
 function confirmedCaseFields(preview) {
   return preview.rows.flatMap((row) =>
     row.candidates
@@ -584,6 +614,7 @@ function renderDryRunPlan(data) {
         : `<p class="muted">本次試算沒有案件資料列。</p>`
     }
   `;
+  if (formalImportCases) formalImportCases.disabled = false;  // 試算完成才開放正式匯入
 }
 
 async function submitDryRunCases() {
@@ -1539,6 +1570,7 @@ cancelEdit.addEventListener("click", resetForm);
 importPreviewForm.addEventListener("submit", submitImportPreview);
 dryRunCases.addEventListener("click", submitDryRunCases);
 preflightCases.addEventListener("click", submitPreflightCases);
+formalImportCases?.addEventListener("click", submitFormalImport);
 refreshMappingCatalog.addEventListener("click", loadMappingCatalog);
 
 async function runDemo(action) {

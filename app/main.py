@@ -31,6 +31,7 @@ from app.store import (
     pending_approvals,
     submit_case,
     confirm_import_batch_cases_dry_run,
+    confirm_import_batch_cases_write,
     expiring_contracts,
     create_import_batch,
     dashboard_summary,
@@ -863,17 +864,14 @@ def create_app() -> FastAPI:
 
     @app.post("/api/import-batches/{batch_id}/confirm")
     def confirm_import_batch(batch_id: int, payload: ImportConfirmIn) -> dict[str, Any]:
-        if payload.dry_run is not True:
-            raise HTTPException(status_code=400, detail="Only dry_run=true is supported.")
+        # dry_run=true → 試算計畫；dry_run=false → 正式寫入（帶交易/冪等/來源舉證/稽核閘門）。
         if payload.target_tables != ["cases"]:
             raise HTTPException(status_code=400, detail='Only target_tables=["cases"] is supported.')
+        fields = [field.model_dump() for field in payload.confirmed_fields]
         try:
-            return ok(
-                confirm_import_batch_cases_dry_run(
-                    batch_id,
-                    [field.model_dump() for field in payload.confirmed_fields],
-                )
-            )
+            if payload.dry_run:
+                return ok(confirm_import_batch_cases_dry_run(batch_id, fields))
+            return ok(confirm_import_batch_cases_write(batch_id, fields))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except RuntimeError as exc:

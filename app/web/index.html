@@ -408,6 +408,14 @@
             </div>
             <div id="preflight-result" class="preflight-result"></div>
           </div>
+          <div class="formal-import-panel">
+            <div class="section-heading compact">
+              <h3>案件正式匯入（寫入資料庫）</h3>
+              <button id="formal-import-cases" type="button" disabled>正式匯入</button>
+            </div>
+            <span class="muted">試算無誤後才開放；帶交易/冪等（已存在編號跳過）/來源舉證/稽核。承辦不可用。</span>
+            <div id="formal-import-result" class="dry-run-result"></div>
+          </div>
           <div class="mapping-catalog">
             <div class="section-heading compact">
               <h3>欄位對應草稿</h3>
@@ -609,6 +617,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=email-wildcard-20260707"></script>
+    <script src="/static/app.js?v=formal-import-20260707"></script>
   </body>
 </html>

@@ -49,6 +49,13 @@
       "status": "confirmed",
       "contradicts": [],
       "note": "2026-07-07 拍板：SMTP 密碼存 DB settings、write-only（GET 只回『已設定/未設定』，永不回傳明碼）。pilot 以保護 .db 檔為邊界；加密儲存為未來強化，已記 KNOWN_LIMITS。"
+    },
+    {
+      "id": "IMPORT_FORMAL_WRITE",
+      "choice": "unlock-cases-with-safeguards",
+      "status": "confirmed",
+      "contradicts": [],
+      "note": "2026-07-07 拍板：使用者要做 Excel 匯入。解鎖『案件』正式寫入，但須帶安全閘門：單一交易、案件編號冪等(已存在則跳過不覆蓋)、批次來源舉證(import_batch 連結)、逐列寫稽核、預覽/檢核零錯誤才可寫。僅 manager_assistant/admin 可執行；承辦被既有 import 前綴擋。合約/付款等其他表的正式寫入仍暫緩。"
     }
   ]
 }

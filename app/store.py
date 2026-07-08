@@ -565,6 +565,66 @@ def confirm_import_batch_cases_dry_run(
         return confirm_cases_dry_run_plan(preview, confirmed_fields, existing_case_codes)
 
 
+def confirm_import_batch_cases_write(
+    batch_id: int,
+    confirmed_fields: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """正式寫入案件。安全閘門：
+    - 先跑與 dry-run 相同的驗證（零錯誤、確認齊、批內無重複）→ 任一不過即 raise，完全不寫。
+    - 單一交易：全部成功才 commit，中途出錯整批回滾。
+    - 冪等：案件編號已存在則跳過（不覆蓋），可安全重跑。
+    - 來源舉證：逐列寫稽核，記 batch_id / row_number / source_row_id / actor。
+    """
+    actor = _current_actor.get()
+    with connect() as conn:
+        batch = get_row(conn, "import_batches", batch_id)
+        rows = conn.execute(
+            "SELECT * FROM import_rows WHERE batch_id = ? ORDER BY row_number ASC, id ASC",
+            (batch_id,),
+        ).fetchall()
+        preview = mapping_preview(batch, rows)
+        # 用空的 existing 驗證：批內錯誤/確認/重複要擋，但既有編號改為逐列冪等跳過而非整批拒絕。
+        plan = confirm_cases_dry_run_plan(preview, confirmed_fields, set())
+        existing = {
+            str(r["case_code"]).strip() for r in conn.execute("SELECT case_code FROM cases").fetchall()
+        }
+        created: list[str] = []
+        skipped: list[str] = []
+        for item in plan["plan"]["cases"]:
+            record = item["record"]
+            code = str(record.get("case_code", "")).strip()
+            if not code or code in existing:
+                skipped.append(code)
+                continue
+            fields = {k: record[k] for k in ("case_code", "title", "owner", "amount") if k in record}
+            fields["created_by"] = actor
+            columns = ", ".join(fields)
+            placeholders = ", ".join("?" for _ in fields)
+            cursor = conn.execute(
+                f"INSERT INTO cases ({columns}) VALUES ({placeholders})", list(fields.values())
+            )
+            row_id = cursor.lastrowid
+            after = get_row(conn, "cases", row_id)
+            write_audit_log(conn, "cases", row_id, "import", None, {
+                **after,
+                "import_batch_id": batch_id,
+                "import_row_number": item["row_number"],
+                "import_source_row_id": item["source_row_id"],
+            })
+            existing.add(code)
+            created.append(code)
+        conn.execute("UPDATE import_batches SET status = 'committed' WHERE id = ?", (batch_id,))
+        return {
+            "dry_run": False,
+            "committed": True,
+            "batch_id": batch_id,
+            "created": created,
+            "skipped": skipped,
+            "created_count": len(created),
+            "skipped_count": len(skipped),
+        }
+
+
 def preflight_import_batch_confirm(
     batch_id: int,
     confirmed_fields: list[dict[str, Any]],

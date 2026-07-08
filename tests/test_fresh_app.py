@@ -954,10 +954,9 @@ def test_import_confirm_cases_dry_run_duplicate_confirmations_do_not_change_plan
         assert audit_count(client, table_name="cases", action="create") == 0
 
 
-def test_import_confirm_formal_write_stays_blocked_for_clean_case_batch(tmp_path):
+def test_import_confirm_formal_write_creates_clean_case_batch(tmp_path):
     with client_for(tmp_path) as client:
-        before_dashboard = client.get("/api/dashboard").json()["data"]
-        batch = client.post("/api/import-batches", json={"source_name": "cases-formal-blocked.csv"}).json()["data"]
+        batch = client.post("/api/import-batches", json={"source_name": "cases-formal.csv"}).json()["data"]
         client.post(
             f"/api/import-batches/{batch['id']}/rows",
             json={
@@ -971,8 +970,6 @@ def test_import_confirm_formal_write_stays_blocked_for_clean_case_batch(tmp_path
                 ]
             },
         )
-        before_confirm_audit_count = audit_count(client)
-
         response = client.post(
             f"/api/import-batches/{batch['id']}/confirm",
             json={
@@ -984,18 +981,17 @@ def test_import_confirm_formal_write_stays_blocked_for_clean_case_batch(tmp_path
             },
         )
 
-        assert response.status_code == 400
-        assert "dry_run=true" in response.json()["detail"]
-        assert client.get("/api/dashboard").json()["data"] == before_dashboard
-        assert client.get("/api/cases").json()["data"] == []
-        assert audit_count(client) == before_confirm_audit_count
-        assert audit_count(client, table_name="cases", action="create") == 0
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["committed"] is True and data["created_count"] == 1
+        codes = {c["case_code"] for c in client.get("/api/cases").json()["data"]}
+        assert "CASE-FORMAL-BLOCKED-001" in codes
+        assert audit_count(client, table_name="cases", action="import") == 1
 
 
-def test_import_confirm_formal_write_stays_blocked_for_multi_row_case_batch(tmp_path):
+def test_import_confirm_formal_write_creates_multi_row_case_batch(tmp_path):
     with client_for(tmp_path) as client:
-        before_dashboard = client.get("/api/dashboard").json()["data"]
-        batch = client.post("/api/import-batches", json={"source_name": "cases-formal-multi-blocked.csv"}).json()["data"]
+        batch = client.post("/api/import-batches", json={"source_name": "cases-formal-multi.csv"}).json()["data"]
         staged = client.post(
             f"/api/import-batches/{batch['id']}/rows",
             json={
@@ -1016,8 +1012,6 @@ def test_import_confirm_formal_write_stays_blocked_for_multi_row_case_batch(tmp_
             },
         )
         assert staged.status_code == 201
-        before_rows = client.get(f"/api/import-batches/{batch['id']}/rows").json()["data"]
-        before_confirm_audit_count = audit_count(client)
 
         response = client.post(
             f"/api/import-batches/{batch['id']}/confirm",
@@ -1031,13 +1025,11 @@ def test_import_confirm_formal_write_stays_blocked_for_multi_row_case_batch(tmp_
             },
         )
 
-        assert response.status_code == 400
-        assert "dry_run=true" in response.json()["detail"]
-        assert client.get(f"/api/import-batches/{batch['id']}/rows").json()["data"] == before_rows
-        assert client.get("/api/dashboard").json()["data"] == before_dashboard
-        assert client.get("/api/cases").json()["data"] == []
-        assert audit_count(client) == before_confirm_audit_count
-        assert audit_count(client, table_name="cases", action="create") == 0
+        assert response.status_code == 200
+        assert response.json()["data"]["created_count"] == 2
+        codes = {c["case_code"] for c in client.get("/api/cases").json()["data"]}
+        assert {"CASE-FORMAL-MULTI-BLOCKED-001", "CASE-FORMAL-MULTI-BLOCKED-002"} <= codes
+        assert audit_count(client, table_name="cases", action="import") == 2
 
 
 def test_import_confirm_preflight_is_read_only_and_reports_blocking_gates(tmp_path):
@@ -1914,29 +1906,26 @@ def test_import_confirm_cases_dry_run_blocks_existing_case_code_replay(tmp_path)
             json={"dry_run": False, "target_tables": ["cases"], "confirmed_fields": []},
         )
 
-        assert first_response.status_code == 409
+        assert first_response.status_code == 409  # dry_run 仍擋既有編號重放
         assert "case_code already exists" in first_response.json()["detail"]
-        assert second_response.status_code == 400
-        assert "dry_run=true" in second_response.json()["detail"]
+        # 正式寫入：冪等跳過已存在編號，不覆蓋、不新增
+        assert second_response.status_code == 200
+        assert second_response.json()["data"]["created_count"] == 0
+        assert second_response.json()["data"]["skipped_count"] == 1
         assert client.get("/api/dashboard").json()["data"] == before_dashboard
         assert len(client.get("/api/cases").json()["data"]) == 1
         assert client.get(f"/api/import-batches/{batch['id']}/rows").json()["data"] == before_rows
-        assert audit_count(client) == after_stage_audit_count
-        assert audit_count(client) == before_confirm_audit_count + 2
-        assert audit_count(client, table_name="cases", action="create") == 1
+        assert audit_count(client, table_name="cases", action="import") == 0  # 沒有實際寫入
 
 
-def test_import_confirm_rejects_unsupported_modes_and_target_tables(tmp_path):
+def test_import_confirm_rejects_unsupported_target_tables(tmp_path):
     with client_for(tmp_path) as client:
         batch = client.post("/api/import-batches", json={"source_name": "unsupported-confirm.csv"}).json()["data"]
         client.post(
             f"/api/import-batches/{batch['id']}/rows",
             json={"rows": [{"case_code": "CASE-UNSUPPORTED", "title": "Unsupported target"}]},
         )
-        before_dashboard = client.get("/api/dashboard").json()["data"]
-        before_rows = client.get(f"/api/import-batches/{batch['id']}/rows").json()["data"]
-        before_error_audit_count = audit_count(client)
-
+        # 非 cases 的正式寫入仍不支援（只有案件解鎖了）
         unsupported_table = client.post(
             f"/api/import-batches/{batch['id']}/confirm",
             json={"dry_run": True, "target_tables": ["contracts"], "confirmed_fields": []},
@@ -1950,18 +1939,6 @@ def test_import_confirm_rejects_unsupported_modes_and_target_tables(tmp_path):
         )
         assert unsupported_preflight_table.status_code == 400
         assert 'target_tables=["cases"]' in unsupported_preflight_table.json()["detail"]
-
-        formal_confirm = client.post(
-            f"/api/import-batches/{batch['id']}/confirm",
-            json={"dry_run": False, "target_tables": ["cases"], "confirmed_fields": []},
-        )
-        assert formal_confirm.status_code == 400
-        assert "dry_run=true" in formal_confirm.json()["detail"]
-        assert client.get("/api/dashboard").json()["data"] == before_dashboard
-        assert client.get("/api/cases").json()["data"] == []
-        assert client.get(f"/api/import-batches/{batch['id']}/rows").json()["data"] == before_rows
-        assert audit_count(client) == before_error_audit_count
-        assert audit_count(client, table_name="cases", action="create") == 0
 
 
 @pytest.mark.parametrize(
