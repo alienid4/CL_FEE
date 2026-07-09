@@ -1147,6 +1147,73 @@ def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
         return result
 
 
+def unit_conflicts() -> dict[str, Any]:
+    """單位主檔 Step 1：偵測跨資料的『撞名』——同一代號對到多個名稱、或同一名稱對到多個代號。
+    掃描目前有引用單位的資料表（budget_allocations、unit_headcounts），只偵測、不合併。
+    回傳給前端做唯讀『待確認對照』清單，讓使用者眼見為憑；實際合併留待 Step 2。"""
+    sources = [
+        ("budget_allocations", "預算分攤"),
+        ("unit_headcounts", "人數基準"),
+    ]
+    # 收集所有 (代號, 名稱, 來源) 出現次數
+    pairs: dict[tuple[str, str], dict[str, Any]] = {}
+    with connect() as conn:
+        for table, label in sources:
+            rows = conn.execute(
+                f"SELECT COALESCE(unit_code,'') AS c, COALESCE(unit_name,'') AS n, COUNT(*) AS cnt "
+                f"FROM {table} GROUP BY c, n"
+            ).fetchall()
+            for r in rows:
+                code = str(r["c"]).strip()
+                name = str(r["n"]).strip()
+                if not name and not code:
+                    continue
+                key = (code, name)
+                slot = pairs.setdefault(key, {"unit_code": code, "unit_name": name, "count": 0, "sources": set()})
+                slot["count"] += int(r["cnt"])
+                slot["sources"].add(label)
+
+    by_code: dict[str, list[dict[str, Any]]] = {}
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for (code, name), slot in pairs.items():
+        entry = {"unit_code": code, "unit_name": name, "count": slot["count"], "sources": sorted(slot["sources"])}
+        if code:
+            by_code.setdefault(code, []).append(entry)
+        if name:
+            by_name.setdefault(name, []).append(entry)
+
+    # 一碼多名：同一代號底下出現超過一個名稱
+    code_conflicts = []
+    for code, entries in by_code.items():
+        names = {e["unit_name"] for e in entries if e["unit_name"]}
+        if len(names) > 1:
+            code_conflicts.append({
+                "unit_code": code,
+                "variants": sorted(entries, key=lambda e: -e["count"]),
+            })
+    # 一名多碼：同一名稱底下出現超過一個代號（含「有代號 vs 空代號」）
+    name_conflicts = []
+    for name, entries in by_name.items():
+        codes = {e["unit_code"] for e in entries}
+        if len(codes) > 1:
+            name_conflicts.append({
+                "unit_name": name,
+                "variants": sorted(entries, key=lambda e: -e["count"]),
+            })
+
+    code_conflicts.sort(key=lambda x: x["unit_code"])
+    name_conflicts.sort(key=lambda x: x["unit_name"])
+    return {
+        "code_conflicts": code_conflicts,
+        "name_conflicts": name_conflicts,
+        "summary": {
+            "code_conflicts": len(code_conflicts),
+            "name_conflicts": len(name_conflicts),
+            "distinct_pairs": len(pairs),
+        },
+    }
+
+
 def parse_headcount_xlsx(data: bytes) -> list[dict[str, Any]]:
     """解析『費用分攤表（人數）』.xlsx → 人數基準。認表頭『人數』欄那一列，讀 代號/部門/人數。"""
     import io

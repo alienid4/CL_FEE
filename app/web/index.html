@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-11" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-12" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -56,6 +56,7 @@
           <a class="module-card" href="#data-review" data-roles="cio manager_assistant handler"><span>▦</span><strong>資料檢核</strong><small id="nav-count-todo">待辦 …</small></a>
           <a class="module-card" href="#portfolio" data-roles="cio manager_assistant handler"><span>◷</span><strong>進度總表</strong><small>甘特/落後</small></a>
           <a class="module-card" href="#io-center" data-roles="manager_assistant"><span>⇅</span><strong>匯入/匯出</strong><small>資料進出</small></a>
+          <a class="module-card" href="#unit-admin" data-roles="manager_assistant"><span>⌗</span><strong>單位管理</strong><small id="nav-count-unitconf">待確認 …</small></a>
         </nav>
       </aside>
 
@@ -372,6 +373,18 @@
               </div>
             </div>
             <div id="io-result"></div>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="unit-admin" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">單位管理 / 待確認對照</p>
+                <p class="muted">第一步：系統只「揪出」同一代號對到多個名稱、或同一名稱對到多個代號的資料，交給你判斷。合併與「以誰為準」會在第二步加上。</p>
+              </div>
+              <button type="button" id="unitconf-rescan" class="secondary">重新掃描</button>
+            </div>
+            <div class="unit-admin-summary" id="unitconf-summary"></div>
+            <div id="unitconf-result"></div>
           </section>
 
           <section class="dashboard-panel module-panel" id="signoff" hidden>
@@ -742,6 +755,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-11"></script>
+    <script src="/static/app.js?v=v0-9-12"></script>
   </body>
 </html>

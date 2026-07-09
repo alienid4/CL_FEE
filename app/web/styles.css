@@ -1426,6 +1426,15 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 #io-result:empty { display: none; }
 #io-result { margin-top: 12px; }
 
+/* 單位管理：撞名待確認清單 */
+.unit-admin-summary { margin: 6px 0 14px; }
+.unit-admin-summary .warn-line { background: var(--warn-bg, #fff6e5); border: 1px solid var(--warn, #e0a020); color: var(--ink-1); padding: 10px 12px; border-radius: 8px; }
+.unit-admin-summary .ok-line { color: var(--accent-2); }
+#unitconf-result h4 { margin: 18px 0 8px; font-size: .92rem; }
+.unit-conflict-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.unit-conflict-key { font-size: .84rem; margin-bottom: 6px; }
+.unit-conflict-key strong { color: var(--accent-2); }
+
 /* 全文搜尋結果（中間大框、可點進去） */
 .search-hit-row { cursor: pointer; }
 .search-hit-row:hover td { background: var(--accent-weak); }

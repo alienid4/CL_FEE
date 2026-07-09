@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.11 · 2026-07-09 · 匯入標明檔名";
+const BUILD_TAG = "v0.9.12 · 2026-07-09 · 單位管理:撞名偵測";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1721,7 +1721,7 @@ async function refresh() {
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
-    loadPortfolio(),
+    loadPortfolio(), loadUnitConflicts(),
   ]);
 }
 
@@ -2084,6 +2084,60 @@ document.querySelector("#budget-alloc")?.addEventListener("click", async (event)
   const u = event.target.closest("[data-unit-code]");
   if (u) loadBudgetUnitRollup(u.getAttribute("data-unit-code"));
 });
+
+// 單位管理 Step 1：撞名偵測（唯讀清單，不合併）
+function unitVariantRows(variants, keyKind) {
+  // keyKind: "byCode" → 顯示各名稱；"byName" → 顯示各代號
+  return variants.map((v) => `<tr>
+    <td>${escapeHtml(valueOrDash(keyKind === "byCode" ? v.unit_name : v.unit_code))}</td>
+    <td>${escapeHtml((v.sources || []).join("、") || "-")}</td>
+    <td class="num">${Number(v.count || 0)}</td></tr>`).join("");
+}
+
+async function loadUnitConflicts() {
+  const box = document.querySelector("#unitconf-result");
+  const sum = document.querySelector("#unitconf-summary");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">掃描中…</p>`;
+  try {
+    const data = (await api("/api/unit-conflicts")).data || {};
+    const codeC = data.code_conflicts || [];
+    const nameC = data.name_conflicts || [];
+    const total = codeC.length + nameC.length;
+    setText("#nav-count-unitconf", `待確認 ${total}`);
+    if (sum) {
+      sum.innerHTML = total
+        ? `<p class="warn-line">⚠ 找到 <strong>${total}</strong> 組要你確認：同代號多名 ${codeC.length} 組、同名多代號 ${nameC.length} 組。目前系統<strong>不會自動合併</strong>，等你在第二步裁決。</p>`
+        : `<p class="ok-line">✓ 目前沒有撞名的單位資料，乾淨。</p>`;
+    }
+
+    const codeBlock = codeC.length ? `
+      <h4>同一代號、對到多個名稱（最可能是不同檔案代號撞在一起）</h4>
+      ${codeC.map((c) => `<div class="unit-conflict-card">
+        <div class="unit-conflict-key">代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱</div>
+        <div class="grid-scroll"><table class="grid-table">
+          <thead><tr><th>名稱</th><th>出現在</th><th>筆數</th></tr></thead>
+          <tbody>${unitVariantRows(c.variants, "byCode")}</tbody>
+        </table></div></div>`).join("")}` : "";
+
+    const nameBlock = nameC.length ? `
+      <h4>同一名稱、對到多個代號（可能是代號改過或缺代號）</h4>
+      ${nameC.map((c) => `<div class="unit-conflict-card">
+        <div class="unit-conflict-key">名稱 <strong>${escapeHtml(c.unit_name)}</strong> ＝ ${c.variants.length} 個代號</div>
+        <div class="grid-scroll"><table class="grid-table">
+          <thead><tr><th>代號</th><th>出現在</th><th>筆數</th></tr></thead>
+          <tbody>${unitVariantRows(c.variants, "byName")}</tbody>
+        </table></div></div>`).join("")}` : "";
+
+    box.innerHTML = (codeBlock + nameBlock) || `<p class="muted">沒有需要確認的項目。匯入更多資料後可再按「重新掃描」。</p>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">掃描失敗：${escapeHtml(error.message)}</p>`;
+    if (sum) sum.innerHTML = "";
+  }
+}
+
+document.querySelector("#unitconf-rescan")?.addEventListener("click", () => loadUnitConflicts());
+document.querySelector('a.module-card[href="#unit-admin"]')?.addEventListener("click", () => loadUnitConflicts());
 
 // 人數基準表：匯入 + 檢視
 async function hcXlsx(commit) {

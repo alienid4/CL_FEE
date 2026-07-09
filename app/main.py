@@ -39,6 +39,7 @@ from app.store import (
     list_project_items,
     list_budget_allocations,
     budget_unit_rollup,
+    unit_conflicts,
     parse_headcount_xlsx,
     commit_headcounts_import,
     list_headcounts,
@@ -436,7 +437,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.11 · 2026-07-09 · 匯入標明檔名"
+BACKEND_BUILD = "v0.9.12 · 2026-07-09 · 單位管理:撞名偵測"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -473,6 +474,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "purchases",
             "payments-module",
             "io-center",
+            "unit-admin",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },
@@ -503,6 +505,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "purchases",
             "payments-module",
             "io-center",
+            "unit-admin",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },
@@ -1169,6 +1172,12 @@ def create_app() -> FastAPI:
     def budget_units(unit_code: str | None = Query(None)) -> dict[str, Any]:
         # 以單位看：各單位在所有項目的分攤合計；帶 unit_code 則回該單位的每筆明細
         return ok(budget_unit_rollup(unit_code))
+
+    # ---- 單位管理 Step 1：撞名偵測（唯讀待確認清單，不合併）----
+    @app.get("/api/unit-conflicts")
+    def get_unit_conflicts() -> dict[str, Any]:
+        # 掃描目前資料，挑出「同代號多名 / 同名多代號」給使用者裁決；合併操作留待 Step 2
+        return ok(unit_conflicts())
 
     # ---- 按人數分攤：人數基準表 + 重算 ----
     @app.get("/api/budget-headcounts")
