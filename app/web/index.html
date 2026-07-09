@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-23" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-24" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -93,6 +93,11 @@
               <span class="admin-tile-ico">▤</span>
               <strong>資料檢核</strong>
               <small id="tile-count-todo">匯入預檢・待辦 …</small>
+            </button>
+            <button type="button" class="admin-tile" data-open-panel="fee-alloc" data-panel-gate="fee-alloc">
+              <span class="admin-tile-ico">％</span>
+              <strong>費用分攤</strong>
+              <small>共同費用怎麼攤給各單位</small>
             </button>
           </div>
         </section>
@@ -436,6 +441,20 @@
             </div>
           </section>
 
+          <section class="dashboard-panel module-panel" id="fee-alloc" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">資料管理 / 費用分攤<span class="help" data-tip="設定每筆共同費用怎麼分攤給各單位（固定金額／按人數／按類別），並看部門負擔表。設定完就很少再動，所以收在資料管理。" role="button" tabindex="0" aria-label="說明">?</span></p>
+              </div>
+              <div class="head-actions">
+                <button type="button" id="budget-units-btn" class="secondary">部門負擔表（單位分攤彙總）</button>
+                <button type="button" class="secondary back-to-admin">← 資料管理</button>
+              </div>
+            </div>
+            <div id="fee-alloc-list"></div>
+            <div id="budget-alloc"></div>
+          </section>
+
           <section class="dashboard-panel module-panel" id="signoff" hidden>
             <div class="dashboard-head">
               <div>
@@ -702,7 +721,7 @@
             <select name="alloc_method" title="分攤方法">
               <option value="fixed">分攤：固定金額</option>
               <option value="headcount">分攤：按人數</option>
-              <option value="category">分攤：按類別（開發中）</option>
+              <option value="category">分攤：按類別</option>
             </select>
             <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
             <select name="status">
@@ -715,12 +734,6 @@
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
           <div id="budgets" class="list compact-list"></div>
-          <div class="budget-alloc-bar">
-            <strong>共同費用分攤</strong>
-            <button type="button" id="budget-units-btn" class="secondary">單位分攤彙總（部門負擔表）</button>
-            <span class="muted">或按每筆預算的「看分攤」，看它攤給哪些單位。</span>
-          </div>
-          <div id="budget-alloc"></div>
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
@@ -807,6 +820,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-23"></script>
+    <script src="/static/app.js?v=v0-9-24"></script>
   </body>
 </html>

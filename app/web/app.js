@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.23 · 2026-07-09 · 一鍵套用合併建議";
+const BUILD_TAG = "v0.9.24 · 2026-07-09 · 費用分攤收進資料管理";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -234,7 +234,6 @@ const resourceConfig = {
              "alloc_method", "alloc_category_kind", "alloc_category"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
-      { label: "分攤／方法", cell: (i) => `<button type="button" class="btn-sm" data-budget-alloc="${i.id}">看分攤 ▸</button>` },
       { label: "預算編號", cell: (i) => `<strong>${escapeHtml(i.budget_code)}</strong>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
       { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
@@ -369,7 +368,7 @@ function activateCaseTab(tabName) {
 }
 
 // 後台「資料管理」底下的工具面板（沒有各自的側欄卡片，改由資料管理頁的磚塊開啟）
-const BACKOFFICE_PANELS = new Set(["io-center", "unit-admin", "data-review"]);
+const BACKOFFICE_PANELS = new Set(["io-center", "unit-admin", "data-review", "fee-alloc"]);
 
 // 只切換面板顯示（不動側欄 active）——給有卡片、無卡片兩種入口共用
 function showModulePanel(targetId) {
@@ -400,6 +399,7 @@ function openBackofficeTool(panelId) {
   for (const moduleCard of moduleCards) moduleCard.classList.toggle("active", moduleCard === daCard);
   showModulePanel(panelId);
   if (panelId === "unit-admin") loadUnitConflicts();
+  if (panelId === "fee-alloc") loadFeeAllocPicker();
 }
 
 // 統一導覽：後台工具走 openBackofficeTool，其餘走各自卡片
@@ -2109,7 +2109,31 @@ async function loadBudgetUnitRollup(unitCode) {
 }
 
 document.querySelector("#budget-units-btn")?.addEventListener("click", () => loadBudgetUnitRollup());
-document.querySelector("#budgets")?.addEventListener("click", (event) => {
+
+// 費用分攤（資料管理磚）：列出預算供選一筆看/設分攤
+async function loadFeeAllocPicker() {
+  const box = document.querySelector("#fee-alloc-list");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">載入預算清單…</p>`;
+  try {
+    const budgets = (await api("/api/budgets")).data || [];
+    resourceCaches.budget = budgets;  // 供 loadBudgetAllocations 讀方法/類別
+    const methodLabel = { fixed: "固定金額", headcount: "按人數", category: "按類別" };
+    const rows = budgets.length
+      ? budgets.map((b) => `<tr>
+          <td><button type="button" class="btn-sm" data-budget-alloc="${b.id}">看分攤 ▸</button></td>
+          <td><strong>${escapeHtml(b.budget_code)}</strong></td>
+          <td class="num">${money(b.amount)} 元</td>
+          <td>${escapeHtml(methodLabel[b.alloc_method || "fixed"] || b.alloc_method)}${b.alloc_category ? "／" + escapeHtml(b.alloc_category) : ""}</td></tr>`).join("")
+      : `<tr><td colspan="4" class="muted">尚無預算。請先到「預算」新增或匯入。</td></tr>`;
+    box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>分攤</th><th>預算編號</th><th>金額</th><th>目前方法</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">預算清單載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+document.querySelector("#fee-alloc-list")?.addEventListener("click", (event) => {
   const b = event.target.closest("[data-budget-alloc]");
   if (b) loadBudgetAllocations(b.getAttribute("data-budget-alloc"));
 });
