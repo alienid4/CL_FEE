@@ -1454,6 +1454,12 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .alias-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--chip-bg, #eef1f4); border-radius: 999px; padding: 2px 8px; margin: 2px 2px; font-size: .76rem; }
 .alias-unlink { border: 0; background: transparent; cursor: pointer; color: var(--ink-3); font-size: .8rem; line-height: 1; padding: 0 2px; }
 .alias-unlink:hover { color: var(--danger, #c0392b); }
+.conflict-reason { flex: 1 1 220px; min-width: 180px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: .8rem; }
+.dup-warn { font-size: .74rem; color: var(--warn, #e0a020); font-weight: 600; }
+.safeguard-note { font-size: .78rem; color: var(--ink-3); background: var(--surface-2, #f4f7f5); border-left: 3px solid var(--accent-2); padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 4px 0 12px; }
+.danger-outline { border: 1px solid var(--danger, #c0392b); color: var(--danger, #c0392b); background: transparent; }
+.danger-outline:hover { background: var(--danger, #c0392b); color: #fff; }
+.decision-undone { opacity: .5; }
 
 /* 全文搜尋結果（中間大框、可點進去） */
 .search-hit-row { cursor: pointer; }

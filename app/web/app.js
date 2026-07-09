@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.15 · 2026-07-09 · 單位合併Step2";
+const BUILD_TAG = "v0.9.16 · 2026-07-09 · 單位裁決防呆+後悔藥";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2124,16 +2124,19 @@ function unitVariantRows(variants, keyKind) {
     <td class="num">${Number(v.count || 0)}</td></tr>`).join("");
 }
 
-// 一組撞名的裁決區：以誰為準下拉 + 合併/分開
+// 一組撞名的裁決區：以誰為準下拉 + 理由（必填）+ 合併/分開；曾裁決過會亮警告
 function conflictActions(kind, index, variants) {
   const opts = variants.map((v, i) =>
     `<option value="${i}">${escapeHtml(v.unit_name || "(無名稱)")}${v.unit_code ? "（" + escapeHtml(v.unit_code) + "）" : ""}</option>`).join("");
+  const dup = variants.some((v) => v.master) ? `<span class="dup-warn" title="這組先前已裁決過，再動會覆蓋，請確認">⚠ 已裁決過</span>` : "";
   return `<div class="conflict-actions" data-conflict-kind="${kind}" data-conflict-index="${index}">
     <label class="conflict-canon">以誰為準
       <select class="conflict-canonical">${opts}</select>
     </label>
+    <input type="text" class="conflict-reason" maxlength="120" placeholder="理由（必填）：為什麼這樣判斷？" />
     <button type="button" class="btn-sm" data-merge>合併：這些是同一單位</button>
     <button type="button" class="secondary btn-sm" data-split>分開保留：不同單位</button>
+    ${dup}
   </div>`;
 }
 
@@ -2181,9 +2184,39 @@ async function loadUnitConflicts() {
 
     box.innerHTML = (codeBlock + nameBlock) || `<p class="muted">沒有待裁決的撞名。匯入更多資料後可再按「重新掃描」。</p>`;
     loadUnitMaster();
+    loadUnitDecisions();
   } catch (error) {
     box.innerHTML = `<p class="muted">掃描失敗：${escapeHtml(error.message)}</p>`;
     if (sum) sum.innerHTML = "";
+  }
+}
+
+const UNIT_ACTION_LABEL = { merge: "合併", split: "分開", reassign: "改派" };
+async function loadUnitDecisions() {
+  const box = document.querySelector("#unitdecisions-result");
+  if (!box) return;
+  try {
+    const data = (await api("/api/unit-decisions")).data || {};
+    const list = data.decisions || [];
+    if (!list.length) { box.innerHTML = `<p class="muted">還沒有裁決紀錄。</p>`; return; }
+    box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>時間</th><th>動作</th><th>內容</th><th>理由</th><th>操作者</th><th class="col-actions">復原</th></tr></thead>
+      <tbody>${list.map((d) => {
+        const names = (d.variants || []).map((v) => v.unit_name || v.unit_code).join("、");
+        const content = d.action === "merge"
+          ? `${escapeHtml(names)} → 以「${escapeHtml(d.canonical_name || d.canonical_code)}」為準`
+          : `${escapeHtml(names)}（分開）`;
+        return `<tr class="${d.undone ? "decision-undone" : ""}">
+          <td class="muted">${escapeHtml((d.created_at || "").replace("T", " ").slice(0, 16))}</td>
+          <td><span class="badge">${escapeHtml(UNIT_ACTION_LABEL[d.action] || d.action)}</span></td>
+          <td>${content}</td>
+          <td>${escapeHtml(d.reason || "-")}</td>
+          <td class="muted">${escapeHtml(d.actor || "-")}</td>
+          <td class="col-actions">${d.undone ? `<span class="muted">已復原</span>` : `<button type="button" class="secondary btn-sm" data-undo="${d.id}">復原</button>`}</td>
+        </tr>`;
+      }).join("")}</tbody></table></div>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">決策紀錄載入失敗：${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -2207,29 +2240,45 @@ async function loadUnitMaster() {
   }
 }
 
-// 裁決：合併 / 分開 / 解除
+// 影響預覽：這些變體現在佔幾筆分攤、金額多少
+async function unitImpactLine(variants) {
+  try {
+    const imp = (await api("/api/unit-impact", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ variants }) })).data || {};
+    return `影響：${imp.rows} 筆分攤、合計 ${money(imp.amount)} 元會受這次裁決影響。`;
+  } catch (_e) { return ""; }
+}
+
+// 裁決：合併 / 分開（含理由必填、影響預覽、重複裁決提醒）
 document.querySelector("#unitconf-result")?.addEventListener("click", async (event) => {
   const wrap = event.target.closest(".conflict-actions");
   if (!wrap) return;
+  const isMerge = !!event.target.closest("[data-merge]");
+  const isSplit = !!event.target.closest("[data-split]");
+  if (!isMerge && !isSplit) return;
   const kind = wrap.getAttribute("data-conflict-kind");
   const index = Number(wrap.getAttribute("data-conflict-index"));
   const group = (unitConflictCache[kind] || [])[index];
   if (!group) return;
   const variants = group.variants.map((v) => ({ unit_code: v.unit_code, unit_name: v.unit_name }));
+  const reason = (wrap.querySelector(".conflict-reason")?.value || "").trim();
+  if (!reason) { window.alert("請先填『理由』：為什麼這樣判斷？（留個依據，之後查得到）"); wrap.querySelector(".conflict-reason")?.focus(); return; }
+  const dupNote = group.variants.some((v) => v.master) ? "\n\n⚠ 這組先前已裁決過，這次會覆蓋。" : "";
+  const impact = await unitImpactLine(variants);
   try {
-    if (event.target.closest("[data-merge]")) {
+    if (isMerge) {
       const sel = wrap.querySelector(".conflict-canonical");
       const canon = group.variants[Number(sel.value)] || group.variants[0];
-      if (!window.confirm(`確定把這 ${variants.length} 筆視為同一單位，以「${canon.unit_name}（${canon.unit_code || "無碼"}）」為準？\n（帳不會不見，只是認到同一單位，可還原）`)) return;
+      if (!window.confirm(`把這 ${variants.length} 筆視為同一單位，以「${canon.unit_name}（${canon.unit_code || "無碼"}）」為準？\n${impact}\n（帳不會不見，只是認到同一單位，可復原）${dupNote}`)) return;
       await api("/api/unit-merge", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variants, canonical_code: canon.unit_code || "", canonical_name: canon.unit_name || "" }) });
-    } else if (event.target.closest("[data-split]")) {
-      if (!window.confirm(`確定把這 ${variants.length} 筆當成不同單位、分開保留？`)) return;
+        body: JSON.stringify({ variants, canonical_code: canon.unit_code || "", canonical_name: canon.unit_name || "", reason }) });
+    } else {
+      if (!window.confirm(`把這 ${variants.length} 筆當成不同單位、分開保留？\n${impact}${dupNote}`)) return;
       await api("/api/unit-split", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variants }) });
-    } else { return; }
+        body: JSON.stringify({ variants, reason }) });
+    }
     await loadUnitConflicts();
-    loadBudgetUnitRollup && document.querySelector("#budget-alloc")?.innerHTML && loadBudgetUnitRollup();
+    if (document.querySelector("#budget-alloc")?.innerHTML) loadBudgetUnitRollup();
   } catch (error) {
     window.alert(`裁決失敗：${error.message}`);
   }
@@ -2244,6 +2293,33 @@ document.querySelector("#unitmaster-result")?.addEventListener("click", async (e
     await loadUnitConflicts();
   } catch (error) {
     window.alert(`解除失敗：${error.message}`);
+  }
+});
+
+// 決策紀錄：逐筆復原
+document.querySelector("#unitdecisions-result")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-undo]");
+  if (!btn) return;
+  if (!window.confirm("復原這筆裁決？系統會把相關單位還原到裁決前的狀態。")) return;
+  try {
+    await api(`/api/unit-decisions/${btn.getAttribute("data-undo")}/undo`, { method: "POST" });
+    await loadUnitConflicts();
+    if (document.querySelector("#budget-alloc")?.innerHTML) loadBudgetUnitRollup();
+  } catch (error) {
+    window.alert(`復原失敗：${error.message}`);
+  }
+});
+
+// 一鍵還原到原始匯入（終極後悔藥）
+document.querySelector("#unit-reset")?.addEventListener("click", async () => {
+  if (!window.confirm("一鍵還原：清掉所有合併/分開裁決，回到剛匯入的原始狀態。\n（原始 Excel 資料本就沒被改過，這只是把裁決層清空。確定？）")) return;
+  try {
+    const r = (await api("/api/unit-reset", { method: "POST" })).data || {};
+    window.alert(`已還原：清掉 ${r.removed_masters} 個主單位、${r.removed_aliases} 筆別名。`);
+    await loadUnitConflicts();
+    if (document.querySelector("#budget-alloc")?.innerHTML) loadBudgetUnitRollup();
+  } catch (error) {
+    window.alert(`還原失敗：${error.message}`);
   }
 });
 

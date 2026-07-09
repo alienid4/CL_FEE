@@ -44,6 +44,10 @@ from app.store import (
     merge_units,
     split_units,
     unlink_alias,
+    unit_merge_impact,
+    list_unit_decisions,
+    undo_decision,
+    reset_unit_decisions,
     parse_headcount_xlsx,
     commit_headcounts_import,
     list_headcounts,
@@ -242,10 +246,15 @@ class UnitMergeIn(BaseModel):
     variants: list[UnitVariant]
     canonical_code: str = ""
     canonical_name: str = ""
-    note: str = ""
+    reason: str = ""
 
 
 class UnitSplitIn(BaseModel):
+    variants: list[UnitVariant]
+    reason: str = ""
+
+
+class UnitImpactIn(BaseModel):
     variants: list[UnitVariant]
 
 
@@ -457,7 +466,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.15 · 2026-07-09 · 單位合併Step2"
+BACKEND_BUILD = "v0.9.16 · 2026-07-09 · 單位裁決防呆+後悔藥"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1212,12 +1221,17 @@ def create_app() -> FastAPI:
     def get_unit_master() -> dict[str, Any]:
         return ok(list_unit_master())
 
+    @app.post("/api/unit-impact")
+    def post_unit_impact(payload: UnitImpactIn) -> dict[str, Any]:
+        # 影響預覽：這些變體現在佔幾筆分攤、金額多少（裁決前先看清後果）
+        return ok(unit_merge_impact([v.model_dump() for v in payload.variants]))
+
     @app.post("/api/unit-merge")
     def post_unit_merge(payload: UnitMergeIn, request: Request) -> dict[str, Any]:
         _require_unit_editor(request)
         variants = [v.model_dump() for v in payload.variants]
         try:
-            return ok(merge_units(variants, payload.canonical_code, payload.canonical_name, payload.note))
+            return ok(merge_units(variants, payload.canonical_code, payload.canonical_name, payload.reason))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1226,7 +1240,7 @@ def create_app() -> FastAPI:
         _require_unit_editor(request)
         variants = [v.model_dump() for v in payload.variants]
         try:
-            return ok(split_units(variants))
+            return ok(split_units(variants, payload.reason))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1237,6 +1251,25 @@ def create_app() -> FastAPI:
             return ok(unlink_alias(alias_id))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/unit-decisions")
+    def get_unit_decisions() -> dict[str, Any]:
+        # 決策紀錄：誰、何時、把什麼合併/分開、為什麼
+        return ok(list_unit_decisions())
+
+    @app.post("/api/unit-decisions/{decision_id}/undo")
+    def post_unit_decision_undo(decision_id: int, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(undo_decision(decision_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/unit-reset")
+    def post_unit_reset(request: Request) -> dict[str, Any]:
+        # 一鍵還原：清掉所有裁決，回到剛匯入的原始狀態（原始資料本就沒動過）
+        _require_unit_editor(request)
+        return ok(reset_unit_decisions())
 
     # ---- 按人數分攤：人數基準表 + 重算 ----
     @app.get("/api/budget-headcounts")

@@ -261,6 +261,19 @@ CREATE TABLE IF NOT EXISTS unit_aliases (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(alias_code, alias_name)
 );
+
+-- 單位裁決紀錄（防呆＋後悔藥）：每次合併/分開都留誰、何時、為什麼，
+-- 並記 undo_ops（每個別名的前一個歸屬）以便逐筆復原。原始資料本就不動，這裡是決策層的可逆帳。
+CREATE TABLE IF NOT EXISTS unit_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT '',
+    detail_json TEXT NOT NULL DEFAULT '',
+    undo_ops_json TEXT NOT NULL DEFAULT '',
+    undone INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -1324,52 +1337,164 @@ def _find_or_create_master(conn, canonical_code: str, canonical_name: str, note:
     return cur.lastrowid
 
 
-def _attach_alias(conn, master_id: int, alias_code: str, alias_name: str) -> None:
-    """把 (代號, 名稱) 掛到某主檔；若別名已存在則改指到此主檔（重新裁決可覆蓋）。"""
+def _attach_alias(conn, master_id: int, alias_code: str, alias_name: str) -> int | None:
+    """把 (代號, 名稱) 掛到某主檔；若別名已存在則改指到此主檔（重新裁決可覆蓋）。
+    回傳『前一個 master_id』（原本沒別名則 None），供決策紀錄記 undo。"""
     code = (alias_code or "").strip()
     name = (alias_name or "").strip()
     existing = conn.execute(
-        "SELECT id FROM unit_aliases WHERE alias_code = ? AND alias_name = ?", (code, name)).fetchone()
+        "SELECT id, master_id FROM unit_aliases WHERE alias_code = ? AND alias_name = ?", (code, name)).fetchone()
     if existing:
+        prev = existing["master_id"]
         conn.execute("UPDATE unit_aliases SET master_id = ? WHERE id = ?", (master_id, existing["id"]))
-    else:
-        conn.execute(
-            "INSERT INTO unit_aliases (master_id, alias_code, alias_name) VALUES (?, ?, ?)", (master_id, code, name))
+        return prev
+    conn.execute(
+        "INSERT INTO unit_aliases (master_id, alias_code, alias_name) VALUES (?, ?, ?)", (master_id, code, name))
+    return None
 
 
-def merge_units(variants: list[dict[str, Any]], canonical_code: str, canonical_name: str, note: str = "") -> dict[str, Any]:
+def _record_decision(conn, action: str, reason: str, detail: dict[str, Any], undo_ops: list[dict[str, Any]]) -> int:
+    cur = conn.execute(
+        "INSERT INTO unit_decisions (action, reason, actor, detail_json, undo_ops_json) VALUES (?, ?, ?, ?, ?)",
+        (action, (reason or "").strip(), _current_actor.get(),
+         json.dumps(detail, ensure_ascii=False), json.dumps(undo_ops, ensure_ascii=False)))
+    return cur.lastrowid
+
+
+def _cleanup_empty_masters(conn) -> int:
+    rows = conn.execute(
+        "SELECT id FROM unit_master WHERE id NOT IN (SELECT DISTINCT master_id FROM unit_aliases)").fetchall()
+    for r in rows:
+        conn.execute("DELETE FROM unit_master WHERE id = ?", (r["id"],))
+    return len(rows)
+
+
+def unit_merge_impact(variants: list[dict[str, Any]]) -> dict[str, Any]:
+    """影響預覽：這些變體目前在『預算分攤』佔幾筆、金額多少（讓使用者按下前看清後果）。"""
+    rows = 0
+    amount = 0.0
+    per: list[dict[str, Any]] = []
+    with connect() as conn:
+        for v in variants:
+            code = str(v.get("unit_code", "")).strip()
+            name = str(v.get("unit_name", "")).strip()
+            r = conn.execute(
+                "SELECT COUNT(*) AS n, COALESCE(SUM(amount),0) AS amt FROM budget_allocations "
+                "WHERE COALESCE(unit_code,'')=? AND COALESCE(unit_name,'')=?", (code, name)).fetchone()
+            rows += int(r["n"])
+            amount += float(r["amt"])
+            per.append({"unit_code": code, "unit_name": name, "rows": int(r["n"]), "amount": round(float(r["amt"]))})
+    return {"rows": rows, "amount": round(amount), "per_variant": per}
+
+
+def merge_units(variants: list[dict[str, Any]], canonical_code: str, canonical_name: str, reason: str = "") -> dict[str, Any]:
     """合併：這些變體是同一單位，以 (canonical_code, canonical_name) 為準。
-    建/取主檔，把每個變體掛成別名。非破壞式：原始資料不動，讀取時經別名認到同一主檔。"""
+    建/取主檔，把每個變體掛成別名。非破壞式：原始資料不動，讀取時經別名認到同一主檔。
+    reason 必填（防呆＋留依據）；記入 unit_decisions，可逐筆復原。"""
     if not variants:
         raise ValueError("沒有要合併的單位變體。")
+    if not (reason or "").strip():
+        raise ValueError("請填『為什麼這樣判斷』的理由，才能裁決。")
     cname = (canonical_name or "").strip()
     if not cname and not (canonical_code or "").strip():
         raise ValueError("請指定要以哪個為準（代號或名稱至少一個）。")
     with connect() as conn:
-        master_id = _find_or_create_master(conn, canonical_code, canonical_name, note)
+        master_id = _find_or_create_master(conn, canonical_code, canonical_name)
+        undo_ops = []
         for v in variants:
-            _attach_alias(conn, master_id, str(v.get("unit_code", "")), str(v.get("unit_name", "")))
-        after = get_row(conn, "unit_master", master_id)
-        write_audit_log(conn, "unit_master", master_id, "merge", None,
-                        {**after, "variants": variants, "canonical": [canonical_code, canonical_name]})
-    return {"master_id": master_id, "merged": len(variants),
+            code = str(v.get("unit_code", ""))
+            name = str(v.get("unit_name", ""))
+            prev = _attach_alias(conn, master_id, code, name)
+            undo_ops.append({"alias_code": code.strip(), "alias_name": name.strip(), "prev_master_id": prev})
+        _cleanup_empty_masters(conn)
+        detail = {"canonical_code": (canonical_code or "").strip(), "canonical_name": cname, "variants": variants}
+        did = _record_decision(conn, "merge", reason, detail, undo_ops)
+    return {"master_id": master_id, "merged": len(variants), "decision_id": did,
             "canonical_code": (canonical_code or "").strip(), "canonical_name": cname}
 
 
-def split_units(variants: list[dict[str, Any]]) -> dict[str, Any]:
+def split_units(variants: list[dict[str, Any]], reason: str = "") -> dict[str, Any]:
     """分開保留：這些變體是不同單位，各自成為一個主檔（別名＝自己）。裁決後不再列為待確認。"""
     if not variants:
         raise ValueError("沒有要分開的單位變體。")
+    if not (reason or "").strip():
+        raise ValueError("請填『為什麼這樣判斷』的理由，才能裁決。")
     made = 0
     with connect() as conn:
+        undo_ops = []
         for v in variants:
             code = str(v.get("unit_code", ""))
             name = str(v.get("unit_name", ""))
             mid = _find_or_create_master(conn, code, name)
-            _attach_alias(conn, mid, code, name)
+            prev = _attach_alias(conn, mid, code, name)
+            undo_ops.append({"alias_code": code.strip(), "alias_name": name.strip(), "prev_master_id": prev})
             made += 1
-        write_audit_log(conn, "unit_master", 0, "split", None, {"variants": variants})
-    return {"split": made}
+        _cleanup_empty_masters(conn)
+        did = _record_decision(conn, "split", reason, {"variants": variants}, undo_ops)
+    return {"split": made, "decision_id": did}
+
+
+def list_unit_decisions(limit: int = 100) -> dict[str, Any]:
+    """決策紀錄：誰、何時、把什麼合併/分開、為什麼，供檢視與逐筆復原。"""
+    with connect() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, action, reason, actor, detail_json, undone, created_at "
+            "FROM unit_decisions ORDER BY id DESC LIMIT ?", (limit,)).fetchall()]
+    out = []
+    for r in rows:
+        try:
+            detail = json.loads(r.get("detail_json") or "{}")
+        except (ValueError, TypeError):
+            detail = {}
+        variants = detail.get("variants", [])
+        out.append({
+            "id": r["id"], "action": r["action"], "reason": r["reason"], "actor": r["actor"],
+            "undone": bool(r["undone"]), "created_at": r["created_at"],
+            "canonical_code": detail.get("canonical_code", ""), "canonical_name": detail.get("canonical_name", ""),
+            "variants": [{"unit_code": v.get("unit_code", ""), "unit_name": v.get("unit_name", "")} for v in variants],
+        })
+    return {"decisions": out, "count": len(out)}
+
+
+def undo_decision(decision_id: int) -> dict[str, Any]:
+    """復原某次裁決：依 undo_ops 把每個別名還原到前一個歸屬（原本沒有就刪掉），並清掉空主檔。"""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT undo_ops_json, undone FROM unit_decisions WHERE id = ?", (decision_id,)).fetchone()
+        if not row:
+            raise ValueError("找不到該筆裁決紀錄。")
+        if row["undone"]:
+            raise ValueError("這筆裁決已經復原過了。")
+        try:
+            ops = json.loads(row["undo_ops_json"] or "[]")
+        except (ValueError, TypeError):
+            ops = []
+        for op in ops:
+            code = str(op.get("alias_code", "")).strip()
+            name = str(op.get("alias_name", "")).strip()
+            prev = op.get("prev_master_id")
+            if prev is None:
+                conn.execute("DELETE FROM unit_aliases WHERE alias_code = ? AND alias_name = ?", (code, name))
+            else:
+                conn.execute("UPDATE unit_aliases SET master_id = ? WHERE alias_code = ? AND alias_name = ?",
+                             (prev, code, name))
+        removed = _cleanup_empty_masters(conn)
+        conn.execute("UPDATE unit_decisions SET undone = 1 WHERE id = ?", (decision_id,))
+    return {"undone": decision_id, "removed_masters": removed}
+
+
+def reset_unit_decisions() -> dict[str, Any]:
+    """一鍵還原：清掉所有單位裁決（別名＋主檔），回到剛匯入的原始狀態。
+    原始 budget_allocations / unit_headcounts 本就沒被動過，所以這是保證級的後悔藥。"""
+    with connect() as conn:
+        n_alias = conn.execute("SELECT COUNT(*) AS n FROM unit_aliases").fetchone()["n"]
+        n_master = conn.execute("SELECT COUNT(*) AS n FROM unit_master").fetchone()["n"]
+        conn.execute("DELETE FROM unit_aliases")
+        conn.execute("DELETE FROM unit_master")
+        conn.execute("UPDATE unit_decisions SET undone = 1 WHERE undone = 0")
+        write_audit_log(conn, "unit_master", 0, "reset-all",
+                        {"aliases": n_alias, "masters": n_master}, {"aliases": 0, "masters": 0})
+    return {"removed_aliases": n_alias, "removed_masters": n_master}
 
 
 def unlink_alias(alias_id: int) -> dict[str, Any]:

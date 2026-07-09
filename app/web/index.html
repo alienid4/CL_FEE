@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-15" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-16" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -409,9 +409,11 @@
               </div>
               <div class="head-actions">
                 <button type="button" id="unitconf-rescan" class="secondary">重新掃描</button>
+                <button type="button" id="unit-reset" class="danger-outline" title="清掉所有合併/分開裁決，回到剛匯入的原始狀態">一鍵還原原始</button>
                 <button type="button" class="secondary back-to-admin">← 資料管理</button>
               </div>
             </div>
+            <p class="safeguard-note">🛡 原始匯入資料永遠不動，這裡的裁決只是另一層對照。改錯了可以「復原」單筆，或「一鍵還原原始」全部回到匯入狀態——帳不會不見。</p>
             <div class="unit-admin-summary" id="unitconf-summary"></div>
             <div id="unitconf-result"></div>
             <div class="unit-master-block">
@@ -420,6 +422,13 @@
                 <span class="muted">每個真實單位一個永久編號；代號/名稱都是它的別名。按「解除」可還原某筆裁決。</span>
               </div>
               <div id="unitmaster-result"></div>
+            </div>
+            <div class="unit-master-block">
+              <div class="section-heading compact">
+                <h3>決策紀錄</h3>
+                <span class="muted">誰、何時、把什麼合併/分開、為什麼。每筆可「復原」。</span>
+              </div>
+              <div id="unitdecisions-result"></div>
             </div>
           </section>
 
@@ -794,6 +803,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-15"></script>
+    <script src="/static/app.js?v=v0-9-16"></script>
   </body>
 </html>

@@ -38,7 +38,7 @@ def test_merge_clears_conflict_and_sums_rollup(tmp_path):
         # 合併 1152：以「法人業務二處」為準
         r = client.post("/api/unit-merge", json={
             "variants": [{"unit_code": "1152", "unit_name": "法二處"}, {"unit_code": "1152", "unit_name": "法人業務二處"}],
-            "canonical_code": "1152", "canonical_name": "法人業務二處"})
+            "canonical_code": "1152", "canonical_name": "法人業務二處", "reason": "簡寫，同一單位"})
         assert r.status_code == 200 and r.json()["data"]["merged"] == 2
 
         after = client.get("/api/unit-conflicts").json()["data"]["summary"]
@@ -54,7 +54,8 @@ def test_split_keeps_units_separate_and_resolves(tmp_path):
     with _client(tmp_path) as client:
         _seed(tmp_path)
         client.post("/api/unit-split", json={
-            "variants": [{"unit_code": "1014", "unit_name": "永和分公司"}, {"unit_code": "1014", "unit_name": "信義分公司"}]})
+            "variants": [{"unit_code": "1014", "unit_name": "永和分公司"}, {"unit_code": "1014", "unit_name": "信義分公司"}],
+            "reason": "板橋/信義是不同分公司"})
         # 1014 不再是待確認（已裁決），且兩者分開加總
         conf = client.get("/api/unit-conflicts").json()["data"]
         assert all(c["unit_code"] != "1014" for c in conf["code_conflicts"])
@@ -68,7 +69,7 @@ def test_unlink_restores_conflict(tmp_path):
         _seed(tmp_path)
         client.post("/api/unit-merge", json={
             "variants": [{"unit_code": "1152", "unit_name": "法二處"}, {"unit_code": "1152", "unit_name": "法人業務二處"}],
-            "canonical_code": "1152", "canonical_name": "法人業務二處"})
+            "canonical_code": "1152", "canonical_name": "法人業務二處", "reason": "簡寫，同一單位"})
         master = client.get("/api/unit-master").json()["data"]["masters"]
         alias_id = master[0]["aliases"][0]["id"]
         client.post(f"/api/unit-alias/{alias_id}/unlink")
@@ -80,5 +81,55 @@ def test_unlink_restores_conflict(tmp_path):
 def test_merge_blocked_for_handler(tmp_path):
     with _client(tmp_path, login="ap03") as client:
         r = client.post("/api/unit-merge", json={
-            "variants": [{"unit_code": "1", "unit_name": "A"}], "canonical_code": "1", "canonical_name": "A"})
+            "variants": [{"unit_code": "1", "unit_name": "A"}], "canonical_code": "1", "canonical_name": "A", "reason": "x"})
         assert r.status_code == 403
+
+
+def test_merge_requires_reason(tmp_path):
+    with _client(tmp_path) as client:
+        _seed(tmp_path)
+        r = client.post("/api/unit-merge", json={
+            "variants": [{"unit_code": "1152", "unit_name": "法二處"}, {"unit_code": "1152", "unit_name": "法人業務二處"}],
+            "canonical_code": "1152", "canonical_name": "法人業務二處", "reason": "  "})
+        assert r.status_code == 400  # 空白理由被擋
+
+
+def test_impact_preview(tmp_path):
+    with _client(tmp_path) as client:
+        _seed(tmp_path)
+        imp = client.post("/api/unit-impact", json={
+            "variants": [{"unit_code": "1152", "unit_name": "法二處"}, {"unit_code": "1152", "unit_name": "法人業務二處"}]}).json()["data"]
+        assert imp["rows"] == 1 and imp["amount"] == 600  # 法二處在分攤有 1 筆 600（法人業務二處只在人數表）
+
+
+def test_decision_log_and_undo(tmp_path):
+    with _client(tmp_path) as client:
+        _seed(tmp_path)
+        client.post("/api/unit-merge", json={
+            "variants": [{"unit_code": "1152", "unit_name": "法二處"}, {"unit_code": "1152", "unit_name": "法人業務二處"}],
+            "canonical_code": "1152", "canonical_name": "法人業務二處", "reason": "簡寫同一單位"})
+        log = client.get("/api/unit-decisions").json()["data"]["decisions"]
+        assert log and log[0]["action"] == "merge" and log[0]["reason"] == "簡寫同一單位"
+        assert client.get("/api/unit-conflicts").json()["data"]["summary"]["code_conflicts"] == 1
+
+        did = log[0]["id"]
+        client.post(f"/api/unit-decisions/{did}/undo")
+        # 復原後 1152 又回到待確認
+        assert client.get("/api/unit-conflicts").json()["data"]["summary"]["code_conflicts"] == 2
+        # 重複復原被擋
+        assert client.post(f"/api/unit-decisions/{did}/undo").status_code == 400
+
+
+def test_reset_returns_to_raw(tmp_path):
+    with _client(tmp_path) as client:
+        _seed(tmp_path)
+        client.post("/api/unit-merge", json={
+            "variants": [{"unit_code": "1152", "unit_name": "法二處"}, {"unit_code": "1152", "unit_name": "法人業務二處"}],
+            "canonical_code": "1152", "canonical_name": "法人業務二處", "reason": "x"})
+        client.post("/api/unit-split", json={
+            "variants": [{"unit_code": "1014", "unit_name": "永和分公司"}, {"unit_code": "1014", "unit_name": "信義分公司"}], "reason": "y"})
+        r = client.post("/api/unit-reset").json()["data"]
+        assert r["removed_masters"] >= 1
+        assert client.get("/api/unit-master").json()["data"]["count"] == 0
+        # 回到原始：兩組撞名都在
+        assert client.get("/api/unit-conflicts").json()["data"]["summary"]["code_conflicts"] == 2
