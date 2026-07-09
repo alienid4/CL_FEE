@@ -1497,3 +1497,6 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .trace-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .trace-lists h4 { font-size: .85rem; margin: 0 0 4px; }
 .trace-lists .note-list li { grid-template-columns: 1fr; }
+
+/* 手動新增 toggle：小按鈕、不撐滿（crud-zone 是 grid，預設會被拉寬） */
+.form-toggle { justify-self: start; width: auto; }

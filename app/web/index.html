@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-30" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-31" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -301,6 +301,7 @@
               <div>
                 <p class="breadcrumb">預算</p>
               </div>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="budget-form">＋ 新增</button>
             </div>
           </section>
 
@@ -309,6 +310,7 @@
               <div>
                 <p class="breadcrumb">專案</p>
               </div>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="project-form">＋ 新增</button>
             </div>
           </section>
 
@@ -444,6 +446,7 @@
               <div>
                 <p class="breadcrumb">簽呈</p>
               </div>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="signoff-form">＋ 新增</button>
             </div>
           </section>
 
@@ -452,6 +455,7 @@
               <div>
                 <p class="breadcrumb">合約</p>
               </div>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="contract-form">＋ 新增</button>
             </div>
           </section>
 
@@ -460,6 +464,7 @@
               <div>
                 <p class="breadcrumb">請購</p>
               </div>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="purchase-form">＋ 新增</button>
             </div>
           </section>
 
@@ -468,6 +473,7 @@
               <div>
                 <p class="breadcrumb">付款</p>
               </div>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="payment-form">＋ 新增</button>
             </div>
           </section>
 
@@ -580,7 +586,7 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="cases-module">
-          <button type="button" class="secondary form-toggle" data-form-toggle="case-form">＋ 手動新增</button>
+          <button type="button" class="secondary form-toggle" data-form-toggle="case-form">＋ 新增</button>
           <h2 id="form-title" hidden>新增案件</h2>
           <form id="case-form" hidden>
             <input name="id" type="hidden" />
@@ -604,7 +610,6 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="contracts-module" hidden>
-          <button type="button" class="secondary form-toggle" data-form-toggle="contract-form">＋ 手動新增</button>
           <form id="contract-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="contract_code" placeholder="合約編號" required />
@@ -626,7 +631,6 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="payments-module" hidden>
-          <button type="button" class="secondary form-toggle" data-form-toggle="payment-form">＋ 手動新增</button>
           <form id="payment-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="item" placeholder="核銷項目" />
@@ -663,7 +667,7 @@
 
         <section class="panel crud-zone module-extra" data-module-parent="data-review" hidden>
             <h2>資料檢核</h2>
-          <button type="button" class="secondary form-toggle" data-form-toggle="document-form">＋ 手動新增</button>
+          <button type="button" class="secondary form-toggle" data-form-toggle="document-form">＋ 新增</button>
           <form id="document-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="file_name" placeholder="檔案名稱" required />
@@ -689,7 +693,6 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="budget" hidden>
-          <button type="button" class="secondary form-toggle" data-form-toggle="budget-form">＋ 手動新增</button>
           <form id="budget-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="budget_code" placeholder="預算編號" required />
@@ -717,7 +720,6 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
-          <button type="button" class="secondary form-toggle" data-form-toggle="project-form">＋ 手動新增</button>
           <form id="project-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="project_code" placeholder="標號" required />
@@ -750,7 +752,6 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="signoff" hidden>
-          <button type="button" class="secondary form-toggle" data-form-toggle="signoff-form">＋ 手動新增</button>
           <form id="signoff-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="signoff_code" placeholder="簽呈號碼（簽呈系統那組，勾稽用）" required />
@@ -775,7 +776,6 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="purchases" hidden>
-          <button type="button" class="secondary form-toggle" data-form-toggle="purchase-form">＋ 手動新增</button>
           <form id="purchase-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="purchase_code" placeholder="請購編號" required />
@@ -799,6 +799,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-30"></script>
+    <script src="/static/app.js?v=v0-9-31"></script>
   </body>
 </html>

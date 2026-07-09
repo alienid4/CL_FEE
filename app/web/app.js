@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.30 · 2026-07-10 · 手動表單預設收合";
+const BUILD_TAG = "v0.9.31 · 2026-07-10 · 新增鈕縮小移右上角";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1851,7 +1851,7 @@ function setManualForm(formEl, open) {
   formEl.hidden = !open;
   if (fid === "case-form") { const t = document.querySelector("#form-title"); if (t) t.hidden = !open; }
   const btn = document.querySelector(`[data-form-toggle="${fid}"]`);
-  if (btn) btn.textContent = open ? "－ 收起表單" : "＋ 手動新增";
+  if (btn) btn.textContent = open ? "－ 收起" : "＋ 新增";
 }
 document.addEventListener("click", (event) => {
   const t = event.target.closest("[data-form-toggle]");
