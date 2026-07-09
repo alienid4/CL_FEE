@@ -39,6 +39,10 @@ from app.store import (
     list_project_items,
     list_budget_allocations,
     budget_unit_rollup,
+    parse_headcount_xlsx,
+    commit_headcounts_import,
+    list_headcounts,
+    compute_budget_allocations,
     expiring_contracts,
     create_import_batch,
     dashboard_summary,
@@ -204,6 +208,9 @@ class BudgetIn(BaseModel):
     status: str = "active"
     case_id: int | None = None
     note: str = ""
+    alloc_method: str = "fixed"
+    alloc_category_kind: str = ""
+    alloc_category: str = ""
 
 
 class BudgetPatch(BaseModel):
@@ -216,6 +223,9 @@ class BudgetPatch(BaseModel):
     case_id: int | None = None
     note: str | None = None
     remainder_unit_code: str | None = None
+    alloc_method: str | None = None
+    alloc_category_kind: str | None = None
+    alloc_category: str | None = None
 
 
 class ProjectIn(BaseModel):
@@ -426,7 +436,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.6 · 2026-07-09 · 分攤尾數承擔"
+BACKEND_BUILD = "v0.9.7 · 2026-07-09 · 分攤按人數自動算"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1157,6 +1167,35 @@ def create_app() -> FastAPI:
     def budget_units(unit_code: str | None = Query(None)) -> dict[str, Any]:
         # 以單位看：各單位在所有項目的分攤合計；帶 unit_code 則回該單位的每筆明細
         return ok(budget_unit_rollup(unit_code))
+
+    # ---- 按人數分攤：人數基準表 + 重算 ----
+    @app.get("/api/budget-headcounts")
+    def budget_headcounts() -> dict[str, Any]:
+        return ok(list_headcounts())
+
+    @app.post("/api/budget-headcounts/import-xlsx")
+    async def import_headcounts_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:
+        who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        if who.get("role_code") not in ("manager_assistant", "admin"):
+            raise HTTPException(status_code=403, detail="只有主管/助理可匯入人數表。")
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=400, detail="請選擇要上傳的 Excel 檔。")
+        try:
+            records = parse_headcount_xlsx(data)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認是人數表格式）：{exc}") from exc
+        if not commit:
+            return ok({"preview": True, "count": len(records), "sample": records[:10]})
+        return ok({"preview": False, **commit_headcounts_import(records)})
+
+    @app.post("/api/budgets/{budget_id}/recompute")
+    def recompute_budget(budget_id: int) -> dict[str, Any]:
+        # 依該預算的分攤方法重算分攤（edit 權限；CIO 唯讀由中介層擋）
+        try:
+            return ok(compute_budget_allocations(budget_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # ---- 專案 projects ----
     @app.post("/api/projects", status_code=201)

@@ -233,6 +233,14 @@ CREATE TABLE IF NOT EXISTS budget_allocations (
     amount REAL NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS unit_headcounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    unit_code TEXT NOT NULL DEFAULT '',
+    unit_name TEXT NOT NULL DEFAULT '',
+    headcount INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -305,6 +313,10 @@ def initialize_database() -> None:
         ensure_column(conn, "projects", "end_date", "TEXT NOT NULL DEFAULT ''")
         # 預算共同費用分攤：尾數承擔單位（整數化後湊不齊的尾數歸給哪個單位；空＝自動抓填寫部門）
         ensure_column(conn, "budgets", "remainder_unit_code", "TEXT NOT NULL DEFAULT ''")
+        # 預算分攤方法：fixed(固定金額) / headcount(按人數) / category(按類別，Phase 2)
+        ensure_column(conn, "budgets", "alloc_method", "TEXT NOT NULL DEFAULT 'fixed'")
+        ensure_column(conn, "budgets", "alloc_category_kind", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "budgets", "alloc_category", "TEXT NOT NULL DEFAULT ''")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -365,7 +377,9 @@ def allowed_fields() -> dict[str, set[str]]:
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
-        "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note", "remainder_unit_code"},
+        "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
+                    "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category"},
+        "unit_headcounts": {"unit_code", "unit_name", "headcount"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
@@ -1131,6 +1145,118 @@ def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
             ).fetchall()
             result["detail"] = [dict(d) for d in detail]
         return result
+
+
+def parse_headcount_xlsx(data: bytes) -> list[dict[str, Any]]:
+    """解析『費用分攤表（人數）』.xlsx → 人數基準。認表頭『人數』欄那一列，讀 代號/部門/人數。"""
+    import io
+    import openpyxl
+
+    def norm(v: Any) -> str:
+        return " ".join(str(v).split()) if v is not None else ""
+
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[dict[str, Any]] = []
+    try:
+        for sheet in wb.sheetnames:
+            rows = [list(r) if r else [] for r in wb[sheet].iter_rows(values_only=True)]
+            hdr = code_c = name_c = hc_c = None
+            for i, r in enumerate(rows[:8]):
+                if any(norm(c) == "人數" for c in r):
+                    hdr = i
+                    for j, c in enumerate(r):
+                        k = norm(c)
+                        if k in ("代號", "部門代號", "單位代碼"):
+                            code_c = j
+                        elif k in ("部門", "部門別", "單位", "單位名稱"):
+                            name_c = j
+                        elif k == "人數":
+                            hc_c = j
+                    break
+            if hdr is None or hc_c is None:
+                continue
+            for r in rows[hdr + 1:]:
+                name = norm(r[name_c]) if (name_c is not None and name_c < len(r)) else ""
+                if name in ("合計", "小計"):
+                    break
+                if not name:
+                    continue
+                code = norm(r[code_c]) if (code_c is not None and code_c < len(r)) else ""
+                try:
+                    hc = int(float(r[hc_c])) if (hc_c < len(r) and r[hc_c] not in (None, "")) else 0
+                except (TypeError, ValueError):
+                    hc = 0
+                out.append({"unit_code": code, "unit_name": name, "headcount": hc})
+    finally:
+        wb.close()
+    return out
+
+
+def commit_headcounts_import(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """寫入人數基準：以 unit_code 為鍵 upsert（無代號者以 unit_name 為鍵）。"""
+    allowed = allowed_fields()["unit_headcounts"]
+    with connect() as conn:
+        existing: dict[str, int] = {}
+        for r in conn.execute("SELECT id, unit_code, unit_name FROM unit_headcounts").fetchall():
+            existing[(r["unit_code"] or "").strip() or ("＃" + (r["unit_name"] or ""))] = r["id"]
+        created = updated = 0
+        for rec in records:
+            fields = {k: v for k, v in rec.items() if k in allowed}
+            key = str(rec.get("unit_code", "")).strip() or ("＃" + str(rec.get("unit_name", "")))
+            if key in existing:
+                rid = existing[key]
+                upd = {k: v for k, v in fields.items() if k != "unit_code"}
+                if upd:
+                    conn.execute(f"UPDATE unit_headcounts SET {', '.join(f'{k} = ?' for k in upd)} WHERE id = ?",
+                                 [*upd.values(), rid])
+                updated += 1
+            else:
+                cols = ", ".join(fields)
+                ph = ", ".join("?" for _ in fields)
+                cur = conn.execute(f"INSERT INTO unit_headcounts ({cols}) VALUES ({ph})", list(fields.values()))
+                existing[key] = cur.lastrowid
+                created += 1
+        return {"created_count": created, "updated_count": updated}
+
+
+def list_headcounts() -> list[dict[str, Any]]:
+    with connect() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM unit_headcounts ORDER BY headcount DESC, id ASC").fetchall()]
+
+
+def compute_budget_allocations(budget_id: int) -> dict[str, Any]:
+    """依預算的 alloc_method 重算分攤並寫入 budget_allocations。
+    headcount：amount = 費用 × 該單位人數 ÷ 總人數（整數化＋尾數承擔在 list_budget_allocations 處理）。"""
+    with connect() as conn:
+        budget = get_row(conn, "budgets", budget_id)
+        method = str(budget.get("alloc_method") or "fixed")
+        total = float(budget.get("amount") or 0)
+        if method == "fixed":
+            return {"method": "fixed", "written": 0, "note": "固定金額：沿用現有分攤，未重算"}
+        if method == "category":
+            raise ValueError("按類別分攤尚未支援（Phase 2）")
+        if method != "headcount":
+            raise ValueError(f"未知分攤方法：{method}")
+        hcs = conn.execute(
+            "SELECT unit_code, unit_name, headcount FROM unit_headcounts WHERE headcount > 0 "
+            "ORDER BY headcount DESC, id ASC").fetchall()
+        total_hc = sum(int(h["headcount"]) for h in hcs)
+        if total_hc <= 0:
+            raise ValueError("人數基準表是空的或總人數為 0，請先匯入人數表。")
+        conn.execute("DELETE FROM budget_allocations WHERE budget_id = ?", (budget_id,))
+        written = 0
+        for seq, h in enumerate(hcs, start=1):
+            hc = int(h["headcount"])
+            conn.execute(
+                "INSERT INTO budget_allocations (budget_id, seq, unit_code, unit_name, share_pct, amount) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (budget_id, seq, h["unit_code"], h["unit_name"],
+                 round(hc / total_hc * 100, 2), round(total * hc / total_hc, 2)))
+            written += 1
+        write_audit_log(conn, "budgets", budget_id, "recompute-headcount", None,
+                        {"units": written, "total": total, "total_headcount": total_hc})
+        return {"method": "headcount", "written": written, "total_headcount": total_hc}
 
 
 def preflight_import_batch_confirm(

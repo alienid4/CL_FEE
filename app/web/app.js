@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.6 · 2026-07-09 · 分攤尾數承擔";
+const BUILD_TAG = "v0.9.7 · 2026-07-09 · 分攤按人數自動算";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -229,7 +229,8 @@ const resourceConfig = {
   budget: {
     plural: "budgets", idAttr: "budget-id", idField: "budgetId", api: "/api/budgets",
     navCount: "nav-count-budgets", navLabel: "預算",
-    fields: ["budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"],
+    fields: ["budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
+             "alloc_method", "alloc_category_kind", "alloc_category"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
       { label: "預算編號", cell: (i) => `<strong>${escapeHtml(i.budget_code)}</strong>` },
@@ -1974,6 +1975,11 @@ async function loadBudgetAllocations(budgetId) {
     const total = al.reduce((s, a) => s + Number(a.amount_int || 0), 0);  // 整數欄合計＝項目總額
     const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
     const absorber = al.find((a) => a.is_remainder_unit);
+    const method = bud ? (bud.alloc_method || "fixed") : "fixed";
+    const methodLabel = { fixed: "固定金額", headcount: "按人數", category: "按類別" }[method] || method;
+    const recomputeBtn = (editable && method !== "fixed")
+      ? ` <button type="button" class="btn-sm" data-recompute="${budgetId}">重算分攤</button>`
+      : "";
     const rows = al.length
       ? al.map((a) => {
           const remTag = a.is_remainder_unit
@@ -1996,7 +2002,7 @@ async function loadBudgetAllocations(budgetId) {
     box.innerHTML = `
       <div class="budget-alloc-head">
         <strong>${escapeHtml(bud ? bud.budget_code : "費用項目")}</strong> 的單位分攤（整數）
-        <span class="muted">共 ${al.length} 個單位，合計 ${money(total)} 元</span>
+        <span class="muted">共 ${al.length} 個單位，合計 ${money(total)} 元 ｜ 方法：${methodLabel}</span>${recomputeBtn}
         <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button>
       </div>
       ${overrideCtl}
@@ -2060,11 +2066,70 @@ document.querySelector("#budgets")?.addEventListener("click", (event) => {
   const b = event.target.closest("[data-budget-alloc]");
   if (b) loadBudgetAllocations(b.getAttribute("data-budget-alloc"));
 });
-document.querySelector("#budget-alloc")?.addEventListener("click", (event) => {
+document.querySelector("#budget-alloc")?.addEventListener("click", async (event) => {
   if (event.target.closest("[data-alloc-close]")) { document.querySelector("#budget-alloc").innerHTML = ""; return; }
+  const rec = event.target.closest("[data-recompute]");
+  if (rec) {
+    const budgetId = rec.getAttribute("data-recompute");
+    rec.disabled = true; rec.textContent = "重算中…";
+    try {
+      await api(`/api/budgets/${budgetId}/recompute`, { method: "POST" });
+      await loadBudgetAllocations(budgetId);
+    } catch (error) {
+      window.alert(`重算失敗：${error.message}`);
+      rec.disabled = false; rec.textContent = "重算分攤";
+    }
+    return;
+  }
   const u = event.target.closest("[data-unit-code]");
   if (u) loadBudgetUnitRollup(u.getAttribute("data-unit-code"));
 });
+
+// 人數基準表：匯入 + 檢視
+async function hcXlsx(commit) {
+  const file = document.querySelector("#hc-xlsx-file")?.files?.[0];
+  const el = document.querySelector("#hc-xlsx-status");
+  const commitBtn = document.querySelector("#hc-xlsx-commit");
+  if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
+  if (commit && !window.confirm("確定匯入人數表？同代號更新。")) return;
+  if (el) el.textContent = commit ? "匯入中…" : "解析中…";
+  try {
+    const res = (await api(`/api/budget-headcounts/import-xlsx?commit=${commit}`, { method: "POST", body: file })).data || {};
+    if (commit) {
+      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`;
+    } else {
+      if (el) el.textContent = `預覽：共 ${res.count} 個單位`;
+      if (commitBtn) commitBtn.disabled = !res.count;
+    }
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+}
+async function loadHeadcountsView() {
+  const box = document.querySelector("#budget-alloc");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">載入人數表…</p>`;
+  try {
+    const hc = (await api("/api/budget-headcounts")).data || [];
+    const totalHc = hc.reduce((s, h) => s + Number(h.headcount || 0), 0);
+    const rows = hc.length
+      ? hc.map((h) => `<tr><td>${escapeHtml(valueOrDash(h.unit_code))}</td><td>${escapeHtml(h.unit_name)}</td><td class="num">${Number(h.headcount || 0)}</td><td class="num">${totalHc ? (Number(h.headcount || 0) / totalHc * 100).toFixed(2) : 0}%</td></tr>`).join("")
+      : `<tr><td colspan="4" class="muted">尚無人數資料。請先匯入人數表。</td></tr>`;
+    box.innerHTML = `
+      <div class="budget-alloc-head"><strong>人數基準表</strong>
+        <span class="muted">共 ${hc.length} 個單位，總人數 ${totalHc} 人</span>
+        <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button></div>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>代號</th><th>部門</th><th>人數</th><th>占比</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (error) {
+    box.innerHTML = `<p class="muted">人數表載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+document.querySelector("#hc-xlsx-preview")?.addEventListener("click", () => hcXlsx(false));
+document.querySelector("#hc-xlsx-commit")?.addEventListener("click", () => hcXlsx(true));
+document.querySelector("#hc-view-btn")?.addEventListener("click", () => loadHeadcountsView());
 // 改「尾數承擔單位」→ 存進該預算、重載分攤（尾數即時改歸新單位）
 document.querySelector("#budget-alloc")?.addEventListener("change", async (event) => {
   const sel = event.target.closest("[data-rem-budget]");
