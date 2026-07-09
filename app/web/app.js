@@ -1,15 +1,16 @@
-// 前端建置版本／日期（單一來源）。每次改前端就 bump 這裡＋index.html 的 ?v=。
-// 徽章同時顯示前端(這裡)與後端(/health 的 build)日期；兩者對不上＝後端沒重啟，會亮警告。
-const BUILD_TAG = "2026-07-09 · 今天線與搜尋";
+// 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
+// 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
+// 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
+const BUILD_TAG = "v0.9.1 · 2026-07-09 · 版本編號制";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
-  const shortDate = (s) => (String(s).match(/\d{4}-(\d{2}-\d{2})/) || [, "?"])[1];
-  const front = shortDate(BUILD_TAG);
+  const verOf = (s) => (String(s).split("·")[0] || "?").trim();  // 取「vX.Y.Z」那段
+  const front = verOf(BUILD_TAG);
   badge.textContent = `前端 ${front} ｜ 後端 …`;
   try {
     const h = await fetch("/health", { credentials: "same-origin", cache: "no-store" }).then((r) => r.json());
-    const back = shortDate(h.build || "");
+    const back = verOf(h.build || "");
     const mismatch = front !== back;
     badge.textContent = `前端 ${front} ｜ 後端 ${back}`;
     badge.classList.toggle("mismatch", mismatch);
