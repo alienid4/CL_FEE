@@ -317,6 +317,9 @@ def initialize_database() -> None:
         ensure_column(conn, "budgets", "alloc_method", "TEXT NOT NULL DEFAULT 'fixed'")
         ensure_column(conn, "budgets", "alloc_category_kind", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "budgets", "alloc_category", "TEXT NOT NULL DEFAULT ''")
+        # 記匯入來源檔名，讓單位撞名清單能指回是哪個 Excel（人類追資料來源）
+        ensure_column(conn, "budget_allocations", "source_file", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "unit_headcounts", "source_file", "TEXT NOT NULL DEFAULT ''")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -379,7 +382,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
                     "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category"},
-        "unit_headcounts": {"unit_code", "unit_name", "headcount"},
+        "unit_headcounts": {"unit_code", "unit_name", "headcount", "source_file"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
@@ -387,7 +390,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
                           "support_needed", "duration_days", "status"},
-        "budget_allocations": {"budget_id", "seq", "unit_code", "unit_name", "share_pct", "amount"},
+        "budget_allocations": {"budget_id", "seq", "unit_code", "unit_name", "share_pct", "amount", "source_file"},
     }
 
 
@@ -1038,9 +1041,11 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
     return out
 
 
-def commit_budgets_import(records: list[dict[str, Any]]) -> dict[str, Any]:
+def commit_budgets_import(records: list[dict[str, Any]], source_file: str = "") -> dict[str, Any]:
     """寫入 budgets：單一交易、逐列稽核。以 budget_code（工作表名）為鍵——同名更新、沒見過新增。
-    每筆預算的 62 單位分攤明細一併寫入 budget_allocations（以 budget_id+unit_code 為鍵、同碼更新）。"""
+    每筆預算的 62 單位分攤明細一併寫入 budget_allocations（以 budget_id+unit_code 為鍵、同碼更新）。
+    source_file：這批資料的來源 Excel 檔名，寫進每筆分攤，供單位撞名清單指回來源。"""
+    source_file = (source_file or "").strip()
     fields_allowed = allowed_fields()["budgets"]
     alloc_fields = allowed_fields()["budget_allocations"]
     with connect() as conn:
@@ -1077,6 +1082,8 @@ def commit_budgets_import(records: list[dict[str, Any]]) -> dict[str, Any]:
             for al in rec.get("allocations", []):
                 afields = {k: v for k, v in al.items() if k in alloc_fields}
                 afields["budget_id"] = rid
+                if source_file:
+                    afields["source_file"] = source_file
                 ucode = afields.get("unit_code", "")
                 if ucode and ucode in seen:
                     upd = {k: v for k, v in afields.items() if k not in ("budget_id", "unit_code")}
@@ -1151,27 +1158,32 @@ def unit_conflicts() -> dict[str, Any]:
     """單位主檔 Step 1：偵測跨資料的『撞名』——同一代號對到多個名稱、或同一名稱對到多個代號。
     掃描目前有引用單位的資料表（budget_allocations、unit_headcounts），只偵測、不合併。
     回傳給前端做唯讀『待確認對照』清單，讓使用者眼見為憑；實際合併留待 Step 2。"""
+    # 每個資料表的中文分類（沒記到來源檔名時的退路標籤）
     sources = [
         ("budget_allocations", "預算分攤"),
         ("unit_headcounts", "人數基準"),
     ]
-    # 收集所有 (代號, 名稱, 來源) 出現次數
+    # 收集所有 (代號, 名稱) 出現次數，並記「來源」＝實際 Excel 檔名（記不到才退回分類標籤）
     pairs: dict[tuple[str, str], dict[str, Any]] = {}
     with connect() as conn:
         for table, label in sources:
             rows = conn.execute(
-                f"SELECT COALESCE(unit_code,'') AS c, COALESCE(unit_name,'') AS n, COUNT(*) AS cnt "
-                f"FROM {table} GROUP BY c, n"
+                f"SELECT COALESCE(unit_code,'') AS c, COALESCE(unit_name,'') AS n, "
+                f"COALESCE(source_file,'') AS f, COUNT(*) AS cnt "
+                f"FROM {table} GROUP BY c, n, f"
             ).fetchall()
             for r in rows:
                 code = str(r["c"]).strip()
                 name = str(r["n"]).strip()
                 if not name and not code:
                     continue
+                fname = str(r["f"]).strip()
+                # 有檔名就顯示檔名；舊資料沒記檔名，退回「分類（未記檔名）」
+                src = fname if fname else f"{label}（舊資料·未記檔名）"
                 key = (code, name)
                 slot = pairs.setdefault(key, {"unit_code": code, "unit_name": name, "count": 0, "sources": set()})
                 slot["count"] += int(r["cnt"])
-                slot["sources"].add(label)
+                slot["sources"].add(src)
 
     by_code: dict[str, list[dict[str, Any]]] = {}
     by_name: dict[str, list[dict[str, Any]]] = {}
@@ -1259,9 +1271,11 @@ def parse_headcount_xlsx(data: bytes) -> list[dict[str, Any]]:
     return out
 
 
-def commit_headcounts_import(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """寫入人數基準：以 unit_code 為鍵 upsert（無代號者以 unit_name 為鍵）。"""
+def commit_headcounts_import(records: list[dict[str, Any]], source_file: str = "") -> dict[str, Any]:
+    """寫入人數基準：以 unit_code 為鍵 upsert（無代號者以 unit_name 為鍵）。
+    source_file：來源 Excel 檔名，寫進每筆，供單位撞名清單指回來源。"""
     allowed = allowed_fields()["unit_headcounts"]
+    source_file = (source_file or "").strip()
     with connect() as conn:
         existing: dict[str, int] = {}
         for r in conn.execute("SELECT id, unit_code, unit_name FROM unit_headcounts").fetchall():
@@ -1269,6 +1283,8 @@ def commit_headcounts_import(records: list[dict[str, Any]]) -> dict[str, Any]:
         created = updated = 0
         for rec in records:
             fields = {k: v for k, v in rec.items() if k in allowed}
+            if source_file:
+                fields["source_file"] = source_file
             key = str(rec.get("unit_code", "")).strip() or ("＃" + str(rec.get("unit_name", "")))
             if key in existing:
                 rid = existing[key]

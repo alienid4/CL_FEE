@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.12 · 2026-07-09 · 單位管理:撞名偵測";
+const BUILD_TAG = "v0.9.13 · 2026-07-09 · 撞名標來源檔名";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1948,7 +1948,7 @@ async function budgetXlsx(commit) {
   if (commit && !window.confirm("確定正式匯入？同名預算會更新、沒見過的會新增。")) return;
   if (el) el.textContent = commit ? "匯入中…" : "解析中…";
   try {
-    const res = (await api(`/api/budgets/import-xlsx?commit=${commit}`, { method: "POST", body: file })).data || {};
+    const res = (await api(`/api/budgets/import-xlsx?commit=${commit}&filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file })).data || {};
     if (commit) {
       if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`;
       await refresh();
@@ -2116,7 +2116,7 @@ async function loadUnitConflicts() {
       ${codeC.map((c) => `<div class="unit-conflict-card">
         <div class="unit-conflict-key">代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱</div>
         <div class="grid-scroll"><table class="grid-table">
-          <thead><tr><th>名稱</th><th>出現在</th><th>筆數</th></tr></thead>
+          <thead><tr><th>名稱</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
           <tbody>${unitVariantRows(c.variants, "byCode")}</tbody>
         </table></div></div>`).join("")}` : "";
 
@@ -2125,7 +2125,7 @@ async function loadUnitConflicts() {
       ${nameC.map((c) => `<div class="unit-conflict-card">
         <div class="unit-conflict-key">名稱 <strong>${escapeHtml(c.unit_name)}</strong> ＝ ${c.variants.length} 個代號</div>
         <div class="grid-scroll"><table class="grid-table">
-          <thead><tr><th>代號</th><th>出現在</th><th>筆數</th></tr></thead>
+          <thead><tr><th>代號</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
           <tbody>${unitVariantRows(c.variants, "byName")}</tbody>
         </table></div></div>`).join("")}` : "";
 
@@ -2148,7 +2148,7 @@ async function hcXlsx(commit) {
   if (commit && !window.confirm("確定匯入人數表？同代號更新。")) return;
   if (el) el.textContent = commit ? "匯入中…" : "解析中…";
   try {
-    const res = (await api(`/api/budget-headcounts/import-xlsx?commit=${commit}`, { method: "POST", body: file })).data || {};
+    const res = (await api(`/api/budget-headcounts/import-xlsx?commit=${commit}&filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file })).data || {};
     if (commit) {
       if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`;
     } else {

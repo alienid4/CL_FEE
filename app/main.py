@@ -437,7 +437,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.12 · 2026-07-09 · 單位管理:撞名偵測"
+BACKEND_BUILD = "v0.9.13 · 2026-07-09 · 撞名標來源檔名"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1185,7 +1185,7 @@ def create_app() -> FastAPI:
         return ok(list_headcounts())
 
     @app.post("/api/budget-headcounts/import-xlsx")
-    async def import_headcounts_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:
+    async def import_headcounts_xlsx(request: Request, commit: bool = Query(False), filename: str = Query("")) -> dict[str, Any]:
         who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
         if who.get("role_code") not in ("manager_assistant", "admin"):
             raise HTTPException(status_code=403, detail="只有主管/助理可匯入人數表。")
@@ -1198,7 +1198,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認是人數表格式）：{exc}") from exc
         if not commit:
             return ok({"preview": True, "count": len(records), "sample": records[:10]})
-        return ok({"preview": False, **commit_headcounts_import(records)})
+        return ok({"preview": False, **commit_headcounts_import(records, source_file=filename)})
 
     @app.post("/api/budgets/{budget_id}/recompute")
     def recompute_budget(budget_id: int) -> dict[str, Any]:
@@ -1270,8 +1270,9 @@ def create_app() -> FastAPI:
         return ok({"preview": False, **commit_projects_import(records)})
 
     @app.post("/api/budgets/import-xlsx")
-    async def import_budgets_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:
+    async def import_budgets_xlsx(request: Request, commit: bool = Query(False), filename: str = Query("")) -> dict[str, Any]:
         # 上傳『預算』.xlsx（表單型：一張工作表＝一筆預算）；commit=false 預覽、true 正式寫入。
+        # filename：前端帶上原始檔名，寫進分攤資料，供單位撞名清單指回來源。
         who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
         if who.get("role_code") not in ("manager_assistant", "admin"):
             raise HTTPException(status_code=403, detail="只有主管/助理可匯入預算。")
@@ -1284,7 +1285,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認是預算表格式）：{exc}") from exc
         if not commit:
             return ok({"preview": True, "count": len(records), "sample": records[:10]})
-        return ok({"preview": False, **commit_budgets_import(records)})
+        return ok({"preview": False, **commit_budgets_import(records, source_file=filename)})
 
     # ---- 簽呈 signoffs ----
     @app.post("/api/signoffs", status_code=201)
