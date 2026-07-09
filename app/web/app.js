@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.16 · 2026-07-09 · 單位裁決防呆+後悔藥";
+const BUILD_TAG = "v0.9.17 · 2026-07-09 · 撞名卡片分組+判斷提示";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2140,19 +2140,62 @@ function conflictActions(kind, index, variants) {
   </div>`;
 }
 
+// 去掉常見通用字尾，比對「有辨識度的核心」（避免『分公司』這種尾巴造成誤判）
+function unitNameCore(s) {
+  return String(s || "").replace(/(股份有限公司|有限公司|分公司|公司|部門|事業處|處|部|科|室|中心|組|課)$/g, "").trim();
+}
+function longestCommonSubstr(a, b) {
+  let best = 0;
+  const dp = Array(b.length + 1).fill(0);
+  for (let i = 0; i < a.length; i++) {
+    let prev = 0;
+    for (let j = 0; j < b.length; j++) {
+      const tmp = dp[j + 1];
+      dp[j + 1] = a[i] === b[j] ? prev + 1 : 0;
+      if (dp[j + 1] > best) best = dp[j + 1];
+      prev = tmp;
+    }
+  }
+  return best;
+}
+function namesLookSame(a, b) {
+  a = unitNameCore(a); b = unitNameCore(b);
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  // 中文縮寫常保留「頭字＋尾字」（法二處→法二 vs 法人業務二處→法人業務二，頭法尾二）；
+  // 頭尾都相同視為相近，能區分 法二/法人業務二（同）與 永和/信義（頭尾皆不同）。
+  if (a.length >= 2 && b.length >= 2 && a[0] === b[0] && a[a.length - 1] === b[b.length - 1]) return true;
+  const lcs = longestCommonSubstr(a, b);
+  return lcs >= 2 && lcs >= Math.min(a.length, b.length) * 0.5;
+}
+// 給一句「傾向合併/傾向分開」的參考提示，幫使用者直覺判斷
+function mergeHint(c, kind) {
+  if (kind === "name") {
+    return { lean: "merge", text: "💡 <strong>名稱一模一樣、只有代號不同</strong>，多半是同一單位代號有出入——通常選「合併」。（僅供參考，你決定）" };
+  }
+  const names = c.variants.map((v) => v.unit_name).filter(Boolean);
+  let allSame = names.length > 1;
+  for (let i = 1; i < names.length; i++) if (!namesLookSame(names[0], names[i])) allSame = false;
+  return allSame
+    ? { lean: "merge", text: "💡 <strong>名稱高度相近</strong>（像簡寫 vs 全名），比較可能是<strong>同一單位</strong>——傾向「合併」。（僅供參考，你決定）" }
+    : { lean: "split", text: "💡 <strong>名稱差異較大</strong>，可能是<strong>不同單位</strong>、或某筆代號打錯——請確認，多半選「分開」。（僅供參考，你決定）" };
+}
+
 function conflictCardHtml(c, kind) {
   const key = kind === "code"
-    ? `代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱`
+    ? `代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱（要判斷是不是同一個單位）`
     : `名稱 <strong>${escapeHtml(c.unit_name)}</strong> ＝ ${c.variants.length} 個代號`;
   const head = kind === "code" ? "名稱" : "代號";
   const rows = unitVariantRows(c.variants, kind === "code" ? "byCode" : "byName");
   const idx = kind === "code" ? unitConflictCache.code.indexOf(c) : unitConflictCache.name.indexOf(c);
+  const hint = mergeHint(c, kind);
   return `<div class="unit-conflict-card">
     <div class="unit-conflict-key">${key}</div>
     <div class="grid-scroll"><table class="grid-table">
       <thead><tr><th>${head}</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
+    <div class="conflict-hint ${hint.lean === "split" ? "lean-split" : ""}">${hint.text}</div>
     ${conflictActions(kind, idx, c.variants)}</div>`;
 }
 
