@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-9" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-10" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -60,6 +60,17 @@
       </aside>
 
       <main>
+        <section class="dashboard-panel" id="search-panel" hidden aria-label="搜尋結果">
+          <div class="dashboard-head">
+            <div>
+              <p class="breadcrumb" id="search-panel-title">搜尋結果</p>
+              <p class="muted">點任一筆可直接開啟該資料的細節。</p>
+            </div>
+            <button type="button" id="search-close" class="secondary">關閉搜尋</button>
+          </div>
+          <div id="search-results-main"></div>
+        </section>
+
         <section class="dashboard-panel module-panel" id="cases-module" aria-label="case dashboard">
           <div class="dashboard-head">
             <div>
@@ -731,6 +742,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-9"></script>
+    <script src="/static/app.js?v=v0-9-10"></script>
   </body>
 </html>

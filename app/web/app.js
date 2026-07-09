@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.9 · 2026-07-09 · 匯入匯出按模組分卡";
+const BUILD_TAG = "v0.9.10 · 2026-07-09 · 搜尋結果移中間可點入";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2247,28 +2247,92 @@ document.addEventListener("click", (event) => {
 });
 
 const globalSearch = document.querySelector("#global-search");
-const searchResults = document.querySelector("#search-results");
+const searchResults = document.querySelector("#search-results");      // 側欄小提示
+const searchPanel = document.querySelector("#search-panel");           // 中間大結果區
+const searchResultsMain = document.querySelector("#search-results-main");
+const SEARCH_LABEL = { case: "案件", contract: "合約", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購" };
+// 每種類型 → 對應模組 nav + 開啟該筆的動作（開編輯表單、顯示細節）
+const SEARCH_NAV = {
+  case: { href: "#cases-module", open: (id) => startEdit(id) },
+  contract: { href: "#contracts-module", open: (id) => startResourceEdit("contract", id) },
+  payment: { href: "#payments-module", open: (id) => startResourceEdit("payment", id) },
+  document: { href: "#data-review", open: (id) => startResourceEdit("document", id) },
+  budget: { href: "#budget", open: (id) => startResourceEdit("budget", id) },
+  project: { href: "#projects", open: (id) => startResourceEdit("project", id) },
+  signoff: { href: "#signoff", open: (id) => startResourceEdit("signoff", id) },
+  purchase: { href: "#purchases", open: (id) => startResourceEdit("purchase", id) },
+};
 let searchTimer = null;
+
+function closeSearchPanel() {
+  if (searchPanel) searchPanel.hidden = true;
+  const active = document.querySelector(".module-card.active");
+  if (active) activateModuleCard(active);  // 還原原本的模組畫面
+}
+
+async function openSearchHit(type, id) {
+  const nav = SEARCH_NAV[type];
+  if (!nav) return;
+  if (searchPanel) searchPanel.hidden = true;
+  const card = document.querySelector(`.module-card[href="${nav.href}"]`);
+  if (card && !card.hidden) activateModuleCard(card);
+  try { await nav.open(id); } catch (_error) { /* 找不到就算了 */ }
+  const targetForm = type === "case" ? form : resourceForms[type];
+  targetForm?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
+
+function renderSearchResults(rows, q, errMsg) {
+  if (!searchPanel || !searchResultsMain) return;
+  document.querySelectorAll(".module-panel, .module-extra").forEach((el) => { el.hidden = true; });
+  searchPanel.hidden = false;
+  const title = document.querySelector("#search-panel-title");
+  if (errMsg) {
+    if (title) title.textContent = "搜尋結果";
+    searchResultsMain.innerHTML = `<p class="muted">搜尋失敗：${escapeHtml(errMsg)}</p>`;
+    return;
+  }
+  if (title) title.textContent = `搜尋「${q}」（${rows.length} 筆）`;
+  searchResultsMain.innerHTML = rows.length
+    ? `<div class="grid-scroll"><table class="grid-table">
+         <thead><tr><th>類型</th><th>編號</th><th>名稱</th><th>明細</th><th class="col-actions">操作</th></tr></thead>
+         <tbody>${rows.map((r) => `<tr class="search-hit-row" data-hit-type="${r.type}" data-hit-id="${r.id}" title="點此開啟">
+           <td><span class="badge">${escapeHtml(SEARCH_LABEL[r.type] || r.type)}</span></td>
+           <td><strong>${escapeHtml(valueOrDash(r.code))}</strong></td>
+           <td>${escapeHtml(r.title || "")}</td>
+           <td class="muted">${escapeHtml(valueOrDash(r.detail))}</td>
+           <td class="col-actions"><span class="search-go">開啟 →</span></td>
+         </tr>`).join("")}</tbody>
+       </table></div>`
+    : `<p class="muted">找不到「${escapeHtml(q)}」。換個關鍵字試試。</p>`;
+}
+
 globalSearch?.addEventListener("input", () => {
   clearTimeout(searchTimer);
   const q = globalSearch.value.trim();
-  if (!searchResults) return;
-  if (q.length < 2) { searchResults.hidden = true; searchResults.innerHTML = ""; return; }
+  if (q.length < 2) {
+    if (searchResults) { searchResults.hidden = true; searchResults.innerHTML = ""; }
+    closeSearchPanel();
+    return;
+  }
   searchTimer = setTimeout(async () => {
-    const label = { case: "案件", contract: "合約", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購" };
     try {
       const rows = (await api(`/api/search?q=${encodeURIComponent(q)}`)).data || [];
-      searchResults.hidden = false;
-      searchResults.innerHTML = rows.length
-        ? rows
-            .map((r) => `<div class="search-hit"><span class="badge">${escapeHtml(label[r.type] || r.type)}</span> <strong>${escapeHtml(valueOrDash(r.code))}</strong> ${escapeHtml(r.title || "")}<small class="muted"> ${escapeHtml(valueOrDash(r.detail))}</small></div>`)
-            .join("")
-        : `<div class="muted" style="padding:.45rem .3rem;">找不到「${escapeHtml(q)}」</div>`;
+      if (searchResults) { searchResults.hidden = false; searchResults.innerHTML = `<small class="muted">找到 ${rows.length} 筆，見中間結果 →</small>`; }
+      renderSearchResults(rows, q);
     } catch (error) {
-      searchResults.hidden = false;
-      searchResults.innerHTML = `<div class="muted" style="padding:.45rem .3rem;">搜尋失敗：${escapeHtml(error.message)}</div>`;
+      renderSearchResults(null, q, error.message);
     }
   }, 250);
+});
+
+document.querySelector("#search-results-main")?.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-hit-type]");
+  if (row) openSearchHit(row.getAttribute("data-hit-type"), row.getAttribute("data-hit-id"));
+});
+document.querySelector("#search-close")?.addEventListener("click", () => {
+  if (globalSearch) globalSearch.value = "";
+  if (searchResults) { searchResults.hidden = true; searchResults.innerHTML = ""; }
+  closeSearchPanel();
 });
 
 document.querySelector("#admin-settings-form")?.addEventListener("submit", async (event) => {

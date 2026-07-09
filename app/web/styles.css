@@ -1425,4 +1425,9 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 #io-result:empty { display: none; }
 #io-result { margin-top: 12px; }
 
+/* 全文搜尋結果（中間大框、可點進去） */
+.search-hit-row { cursor: pointer; }
+.search-hit-row:hover td { background: var(--accent-weak); }
+.search-go { color: var(--accent-2); font-size: .8rem; font-weight: 600; white-space: nowrap; }
+
 @media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }
