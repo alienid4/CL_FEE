@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-32" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-33" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -618,12 +618,18 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="cases-module">
+          <div class="working-year-bar">案號年度制：新案件會領「所屬年度-四位流水號」當身分證，各階段共用。目前作業年度
+            <strong id="working-year-label">…</strong>
+            <button type="button" id="working-year-edit" class="secondary btn-sm">改</button>
+            <span class="help" data-tip="新案件「所屬年度」的預設值。例如今年 8 月就開始編明年預算，把作業年度改成明年，新案件就自動歸到明年、編號也是明年。" role="button" tabindex="0" aria-label="說明">?</span>
+          </div>
           <button type="button" class="secondary form-toggle" data-form-toggle="case-form">＋ 新增</button>
           <h2 id="form-title" hidden>新增案件</h2>
           <form id="case-form" hidden>
             <input name="id" type="hidden" />
             <input name="case_code" placeholder="案件編號" required />
             <input name="title" placeholder="案件名稱" required />
+            <input name="fiscal_year" placeholder="所屬年度（空＝作業年度）" inputmode="numeric" maxlength="4" />
             <input name="owner" placeholder="負責人" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="status">
@@ -831,6 +837,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-32"></script>
+    <script src="/static/app.js?v=v0-9-33"></script>
   </body>
 </html>

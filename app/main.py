@@ -55,6 +55,7 @@ from app.store import (
     list_name_decisions,
     undo_name_decision,
     reset_name_decisions,
+    get_working_year,
     parse_headcount_xlsx,
     commit_headcounts_import,
     list_headcounts,
@@ -119,6 +120,7 @@ class CaseIn(BaseModel):
     note: str = ""
     next_step: str = ""
     due_date: str = ""
+    fiscal_year: str = ""  # 所屬年度；空＝用作業年度
 
 
 class CasePatch(BaseModel):
@@ -131,6 +133,7 @@ class CasePatch(BaseModel):
     note: str | None = None
     next_step: str | None = None
     due_date: str | None = None
+    fiscal_year: str | None = None
 
 
 class ContractIn(BaseModel):
@@ -498,7 +501,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.32 · 2026-07-10 · 名稱歸納Step1"
+BACKEND_BUILD = "v0.9.33 · 2026-07-10 · 系統編號:案件發號"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1355,6 +1358,20 @@ def create_app() -> FastAPI:
     def post_name_reset(request: Request, kind: str | None = Query(None)) -> dict[str, Any]:
         _require_unit_editor(request)
         return ok(reset_name_decisions(kind))
+
+    # ---- 作業年度：新案件「所屬年度」的預設，避免今年寫明年預算時搞混 ----
+    @app.get("/api/working-year")
+    def working_year() -> dict[str, Any]:
+        return ok({"working_year": get_working_year()})
+
+    @app.post("/api/working-year")
+    def set_working_year(request: Request, year: str = Query(...)) -> dict[str, Any]:
+        _require_unit_editor(request)
+        y = (year or "").strip()
+        if not (y.isdigit() and len(y) == 4):
+            raise HTTPException(status_code=400, detail="作業年度請填四位數字年份，例如 2027。")
+        store_set_settings({"working_year": y})
+        return ok({"working_year": y})
 
     # ---- 按人數分攤：人數基準表 + 重算 ----
     @app.get("/api/budget-headcounts")

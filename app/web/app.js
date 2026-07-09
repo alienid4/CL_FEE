@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.32 · 2026-07-10 · 名稱歸納Step1";
+const BUILD_TAG = "v0.9.33 · 2026-07-10 · 系統編號:案件發號";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -184,6 +184,7 @@ const resourceConfig = {
     numberFields: ["amount", "case_id"],
     canDisable: true,
     columns: [
+      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
       { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>` },
       { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name) },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
@@ -234,6 +235,7 @@ const resourceConfig = {
              "alloc_method", "alloc_category_kind", "alloc_category"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
+      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.budget, i.case_id) },
       { label: "預算編號", cell: (i) => `<strong>${escapeHtml(i.budget_code)}</strong>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
       { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
@@ -248,6 +250,7 @@ const resourceConfig = {
              "level", "progress_planned", "rag_status", "start_date", "end_date"],
     numberFields: ["progress", "progress_planned", "case_id"], canDisable: true,
     columns: [
+      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.project, i.case_id) },
       { label: "編號", cell: (i) => `<strong>${escapeHtml(i.project_code)}</strong>` },
       { label: "專案名稱", cell: (i) => escapeHtml(i.project_name) },
       { label: "層級", cell: (i) => escapeHtml(valueOrDash(i.level)) },
@@ -263,6 +266,7 @@ const resourceConfig = {
     fields: ["signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note", "attachment_ref"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
+      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.signoff, i.case_id) },
       { label: "簽呈號碼", cell: (i) => `<strong>${escapeHtml(i.signoff_code)}</strong>` },
       { label: "主旨", cell: (i) => escapeHtml(i.subject) },
       { label: "附件", cell: (i) => attachmentLink(i.attachment_ref) },
@@ -277,6 +281,7 @@ const resourceConfig = {
     fields: ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"],
     numberFields: ["quantity", "amount", "case_id"], canDisable: true,
     columns: [
+      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.purchase, i.case_id) },
       { label: "請購編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
       { label: "品項", cell: (i) => escapeHtml(i.item_name) },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
@@ -322,6 +327,17 @@ function escapeHtml(value) {
 
 function valueOrDash(value) {
   return value === null || value === undefined || value === "" ? "-" : value;
+}
+
+// 系統編號：案件領「年度-四位流水號」，各階段用同尾碼＋前綴組成，做跨階段勾稽
+const SYS_PREFIX = { budget: "Budget", project: "Project", signoff: "Sign", contract: "Contract", purchase: "Purchase", payment: "Pay" };
+function caseNumber(c) {
+  return (c && c.fiscal_year && c.seq) ? `${c.fiscal_year}-${String(c.seq).padStart(4, "0")}` : "";
+}
+function systemCodeCell(prefix, caseId) {
+  const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
+  const n = caseNumber(c);
+  return n ? `<strong>${escapeHtml(prefix + "-" + n)}</strong>` : `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
 }
 
 // 簽呈附件參照：是網址就做成可點連結（新視窗），否則顯示 📎＋文字（如檔案路徑）
@@ -958,6 +974,7 @@ async function loadCases() {
         .map(
           (item) => `
             <article class="row" data-case-id="${item.id}">
+              <span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span>
               <strong>${escapeHtml(item.case_code)}</strong>
               <span>${escapeHtml(item.title)}</span>
               <span class="muted">${escapeHtml(item.owner || "未指派")}</span>
@@ -976,6 +993,25 @@ async function loadCases() {
     : `<p class="muted">目前沒有案件資料。</p>`;
   renderCioTable();
 }
+
+// 作業年度：新案件「所屬年度」的預設；顯示＋可改
+async function loadWorkingYear() {
+  try {
+    const y = (await api("/api/working-year")).data.working_year || "";
+    setText("#working-year-label", y);
+    const fy = document.querySelector('#case-form [name="fiscal_year"]');
+    if (fy) fy.placeholder = `所屬年度（空＝作業年度 ${y}）`;
+  } catch (_e) { /* ignore */ }
+}
+document.querySelector("#working-year-edit")?.addEventListener("click", async () => {
+  const cur = document.querySelector("#working-year-label")?.textContent || "";
+  const y = window.prompt("設定目前作業年度（四位數字，例如 2027）：", cur);
+  if (!y) return;
+  try {
+    await api(`/api/working-year?year=${encodeURIComponent(y.trim())}`, { method: "POST" });
+    await loadWorkingYear();
+  } catch (error) { window.alert(`設定失敗：${error.message}`); }
+});
 
 // 關聯案件下拉：把各表單的 .case-picker 填成「案件編號｜名稱」，保留原選值（供編輯）
 async function loadCaseOptions() {
@@ -1818,7 +1854,7 @@ async function refresh() {
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
-    loadPortfolio(), loadUnitConflicts(), loadCaseOptions(),
+    loadPortfolio(), loadUnitConflicts(), loadCaseOptions(), loadWorkingYear(),
   ]);
 }
 
@@ -1875,6 +1911,7 @@ function startEdit(id) {
   if (!item) return;
   setManualForm(form, true);  // 編輯時自動展開
   form.elements.id.value = item.id;
+  if (form.elements.fiscal_year) form.elements.fiscal_year.value = item.fiscal_year || "";
   form.elements.case_code.value = item.case_code;
   form.elements.title.value = item.title;
   form.elements.owner.value = item.owner || "";

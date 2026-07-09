@@ -400,6 +400,9 @@ def initialize_database() -> None:
         ensure_column(conn, "unit_headcounts", "source_file", "TEXT NOT NULL DEFAULT ''")
         # 簽呈附件參照：貼簽呈系統連結或檔案位置（勾稽用，不存 PDF 本身）
         ensure_column(conn, "signoffs", "attachment_ref", "TEXT NOT NULL DEFAULT ''")
+        # 系統編號：案件領「所屬年度＋四位流水號」，各階段共用此尾碼做跨階段勾稽
+        ensure_column(conn, "cases", "fiscal_year", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "seq", "INTEGER NOT NULL DEFAULT 0")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -427,20 +430,37 @@ def _validate_fks(conn: sqlite3.Connection, fields: dict[str, Any]) -> None:
             raise ValueError(f"關聯的{label} ID {val} 不存在，請確認後再填。")
 
 
+def get_working_year() -> str:
+    """目前作業年度：新案件『所屬年度』的預設值（例如今年 8 月就開始編明年預算）。
+    設定沒填則退回今年。"""
+    v = read_settings(["working_year"]).get("working_year", "")
+    if str(v).strip():
+        return str(v).strip()
+    import datetime
+    return str(datetime.date.today().year)
+
+
 def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     scope = _owner_scope.get()
     if table == "cases":
         payload = {**payload, "created_by": _current_actor.get()}  # 記錄建立者，供雙人複核擋自己核自己
         if scope is not None:
             payload = {**payload, "owner": scope}  # 承辦建案自動歸自己
+        # 所屬年度預設＝作業年度；流水號在交易內配發（同年遞增）
+        payload = {**payload, "fiscal_year": str(payload.get("fiscal_year") or "").strip() or get_working_year()}
     allowed = allowed_fields()
     fields = {key: value for key, value in payload.items() if key in allowed[table]}
     if not fields:
         raise ValueError("No valid fields supplied.")
     validate_status_fields(table, fields)
-    columns = ", ".join(fields)
-    placeholders = ", ".join("?" for _ in fields)
     with connect() as conn:
+        if table == "cases":
+            nxt = conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
+                (fields.get("fiscal_year", ""),)).fetchone()["n"]
+            fields = {**fields, "seq": nxt}  # 案件年度流水號（四位尾碼＝案件身分證）
+        columns = ", ".join(fields)
+        placeholders = ", ".join("?" for _ in fields)
         _validate_fks(conn, fields)
         cursor = conn.execute(
             f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
@@ -454,7 +474,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def allowed_fields() -> dict[str, set[str]]:
     return {
-        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by"},
+        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",

@@ -1500,3 +1500,7 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 
 /* 手動新增 toggle：小按鈕、不撐滿（crud-zone 是 grid，預設會被拉寬） */
 .form-toggle { justify-self: start; width: auto; }
+
+/* 作業年度提示條 */
+.working-year-bar { font-size: .82rem; color: var(--ink-2); background: var(--surface-2); border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.working-year-bar strong { color: var(--accent-2); }
