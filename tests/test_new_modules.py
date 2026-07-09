@@ -61,7 +61,7 @@ def test_case_link_optional_and_settable(tmp_path):
 
 
 def test_projects_purchases_signoffs_scoped_for_handler(tmp_path):
-    """專案/請購/簽呈依案件歸屬隔離：承辦只看自己案件下的；預算不隔離。"""
+    """請購/簽呈依案件歸屬隔離：承辦只看自己案件下的；專案與預算不隔離（全公司共享）。"""
     with _client(tmp_path, login=None) as client:
         from app import store
         mine = store.insert_row("cases", {"case_code": "SC-MINE", "title": "m", "owner": "ap03"})
@@ -73,7 +73,7 @@ def test_projects_purchases_signoffs_scoped_for_handler(tmp_path):
 
         client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         pj = [r["project_code"] for r in client.get("/api/projects").json()["data"]]
-        assert "PJ-MINE" in pj and "PJ-THEIRS" not in pj
+        assert "PJ-MINE" in pj and "PJ-THEIRS" in pj  # 專案不隔離：承辦看得到全部（才能維護）
         po = [r["purchase_code"] for r in client.get("/api/purchases").json()["data"]]
         assert "PO-MINE" in po and "PO-THEIRS" not in po
         sg = [r["signoff_code"] for r in client.get("/api/signoffs").json()["data"]]

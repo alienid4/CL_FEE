@@ -33,9 +33,9 @@ def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
     owned = "SELECT id FROM cases WHERE owner = ?"
     if table == "cases":
         return "owner = ?", [scope]
-    if table in ("contracts", "projects", "signoffs", "purchases"):
-        # 這些都靠 case_id 掛在案件上 → 依案件歸屬隔離（承辦只看自己案件下的）。
-        # 預算(budgets) 不在此列：預算是全公司資料，不做 owner 隔離。
+    if table in ("contracts", "signoffs", "purchases"):
+        # 這些靠 case_id 掛在案件上 → 依案件歸屬隔離（承辦只看自己案件下的）。
+        # 專案(projects)、預算(budgets) 不在此列：是全公司共享資料，不管誰負責、大家都看得到（含承辦，才能維護）。
         return f"case_id IN ({owned})", [scope]
     if table == "payments":
         return f"contract_id IN (SELECT id FROM contracts WHERE case_id IN ({owned}))", [scope]
