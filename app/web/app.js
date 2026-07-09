@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.3 · 2026-07-09 · 專案全員可見";
+const BUILD_TAG = "v0.9.4 · 2026-07-09 · 工作項維護";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1101,7 +1101,97 @@ function pfDetail(p) {
       <div class="pf-prog-line"><span>預計 <b>${c.expected}%</b></span><span>實際 <b class="pf-${c.tone}">${c.actual}%</b></span>${hint}</div>
       ${pfBar(p, c)}
       <div class="pf-note">${escapeHtml(valueOrDash(p.note))}</div>
+      <div class="pf-items" id="pf-items" data-project-id="${p.id}"><p class="muted">載入工作項…</p></div>
     </div>`;
+}
+
+// 工作項清單（可維護）：進度總表點進去看到的 Excel 細節
+const PF_ITEM_FIELDS = [
+  ["item_name", "工作主項目", "text", true],
+  ["owner", "負責人", "text"],
+  ["start_date", "開始日 YYYY-MM-DD", "text"],
+  ["end_date", "結束日 YYYY-MM-DD", "text"],
+  ["exec_status", "執行進度（如：進行中/已完成）", "text"],
+  ["progress", "完成度 %", "number"],
+  ["rag", "燈號（綠/黃/紅）", "text"],
+  ["risk_note", "關鍵風險點／備註", "text"],
+  ["decision_needed", "需決策項目", "text"],
+  ["support_needed", "需支援項目", "text"],
+];
+const canEditPortfolio = () => currentUser && (currentUser.allowed_actions || []).includes("edit");
+
+async function loadProjectItems(projectId) {
+  const box = document.querySelector("#pf-items");
+  if (!box) return;
+  try {
+    const items = (await api(`/api/projects/${projectId}/items`)).data || [];
+    box.innerHTML = renderItemsSection(projectId, items);
+  } catch (error) {
+    box.innerHTML = `<p class="muted">工作項載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderItemsSection(projectId, items) {
+  const editable = canEditPortfolio();
+  const addBtn = editable
+    ? `<button type="button" class="secondary" data-item-add="${projectId}"><span aria-hidden="true">＋</span> 新增工作項</button>`
+    : "";
+  const rows = items.length
+    ? items.map((it) => {
+        const tone = ragTone(it.rag);
+        const track = [
+          it.risk_note && `風險：${escapeHtml(it.risk_note)}`,
+          it.decision_needed && `決策：${escapeHtml(it.decision_needed)}`,
+          it.support_needed && `支援：${escapeHtml(it.support_needed)}`,
+        ].filter(Boolean).join("　") || '<span class="muted">—</span>';
+        const ops = editable
+          ? `<button type="button" class="secondary" data-item-edit="${it.id}">編輯</button> <button type="button" class="danger" data-item-del="${it.id}">刪除</button>`
+          : "—";
+        return `<tr data-item-id="${it.id}">
+          <td>${escapeHtml(it.item_name)}</td>
+          <td>${escapeHtml(valueOrDash(it.owner))}</td>
+          <td class="num">${escapeHtml(valueOrDash(it.start_date))}<br>${escapeHtml(valueOrDash(it.end_date))}</td>
+          <td><span class="pf-dot ${tone}"></span> ${escapeHtml(valueOrDash(it.exec_status))}</td>
+          <td class="num">${Number(it.progress || 0)}%</td>
+          <td>${track}</td>
+          <td class="col-actions">${ops}</td>
+        </tr>`;
+      }).join("")
+    : `<tr><td colspan="7" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
+  return `
+    <div class="pf-items-head"><strong>工作項（${items.length}）</strong>${addBtn}</div>
+    <div class="grid-scroll">
+      <table class="grid-table">
+        <thead><tr><th>工作主項目</th><th>負責人</th><th>起訖</th><th>執行進度</th><th>完成度</th><th>追蹤事項</th><th class="col-actions">操作</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div id="pf-item-editor"></div>`;
+}
+
+function ragTone(v) {
+  const s = String(v || "").trim();
+  if (/紅|red|^r$/i.test(s)) return "danger";
+  if (/黃|橘|amber|^a$/i.test(s)) return "warn";
+  if (/綠|green|^g$/i.test(s)) return "ok";
+  return "muted";
+}
+
+function openItemEditor(projectId, item) {
+  const box = document.querySelector("#pf-item-editor");
+  if (!box) return;
+  const inputs = PF_ITEM_FIELDS.map(([name, ph, type, req]) =>
+    `<input name="${name}" placeholder="${ph}" ${type === "number" ? 'type="number" min="0" max="100" step="1"' : ""} ${req ? "required" : ""} value="${item ? escapeHtml(item[name] ?? "") : ""}" />`).join("");
+  box.innerHTML = `
+    <form class="pf-item-form" data-project-id="${projectId}" data-item-id="${item ? item.id : ""}">
+      <div class="pf-item-form-title">${item ? "編輯工作項" : "新增工作項"}</div>
+      <div class="pf-item-grid">${inputs}</div>
+      <div class="pf-item-actions">
+        <button type="submit">儲存</button>
+        <button type="button" class="secondary" data-item-cancel>取消</button>
+      </div>
+    </form>`;
+  box.querySelector("input")?.focus();
 }
 
 function pfSubPill(label, active, dot) {
@@ -1130,8 +1220,58 @@ function renderPortfolio() {
     subs.push(`<span data-pf-s="${i}">${pfSubPill(p.project_name, portfolioState.s === i, c.tone)}</span>`);
   });
   subsEl.innerHTML = subs.join("");
-  viewEl.innerHTML = portfolioState.s === "ov" ? pfOverview(group) : pfDetail(group.projects[portfolioState.s]);
+  if (portfolioState.s === "ov") {
+    viewEl.innerHTML = pfOverview(group);
+  } else {
+    const proj = group.projects[portfolioState.s];
+    viewEl.innerHTML = pfDetail(proj);
+    loadProjectItems(proj.id);  // 非同步補上工作項清單
+  }
 }
+
+// 工作項維護：新增/編輯/刪除/儲存（承辦也可，直接生效）
+document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
+  const add = event.target.closest("[data-item-add]");
+  const edit = event.target.closest("[data-item-edit]");
+  const del = event.target.closest("[data-item-del]");
+  const cancel = event.target.closest("[data-item-cancel]");
+  if (add) { openItemEditor(Number(add.getAttribute("data-item-add")), null); return; }
+  if (edit) {
+    const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
+    const items = (await api(`/api/projects/${pid}/items`)).data || [];
+    const it = items.find((x) => String(x.id) === edit.getAttribute("data-item-edit"));
+    if (it) openItemEditor(Number(pid), it);
+    return;
+  }
+  if (del) {
+    if (!window.confirm("確定刪除這個工作項？")) return;
+    await api(`/api/project-items/${del.getAttribute("data-item-del")}`, { method: "DELETE" });
+    const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
+    await loadProjectItems(Number(pid));
+    return;
+  }
+  if (cancel) { const b = document.querySelector("#pf-item-editor"); if (b) b.innerHTML = ""; return; }
+});
+
+document.querySelector("#pf-view")?.addEventListener("submit", async (event) => {
+  const form = event.target.closest(".pf-item-form");
+  if (!form) return;
+  event.preventDefault();
+  const projectId = form.getAttribute("data-project-id");
+  const itemId = form.getAttribute("data-item-id");
+  const data = Object.fromEntries(new FormData(form).entries());
+  if (data.progress !== undefined && data.progress !== "") data.progress = Number(data.progress);
+  try {
+    if (itemId) {
+      await api(`/api/project-items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    } else {
+      await api(`/api/projects/${projectId}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    }
+    await loadProjectItems(Number(projectId));
+  } catch (error) {
+    window.alert(`儲存失敗：${error.message}`);
+  }
+});
 
 async function loadPortfolio() {
   if (!document.querySelector("#pf-view")) return;

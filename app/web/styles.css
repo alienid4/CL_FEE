@@ -1390,4 +1390,17 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .pf-detail .pf-bar { height: 18px; }
 .pf-note { margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line); font-size: .84rem; color: var(--ink-2); }
 
+/* 工作項清單（詳情頁點進去的 Excel 細節，可維護） */
+.pf-items { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.pf-items-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.pf-items .grid-table { font-size: .8rem; }
+.pf-items .grid-table td { vertical-align: top; }
+#pf-item-editor:empty { display: none; }
+.pf-item-form { margin-top: 12px; padding: 14px; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--accent-weak); }
+.pf-item-form-title { font-weight: 600; margin-bottom: 10px; color: var(--accent-2); }
+.pf-item-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pf-item-grid input { width: 100%; }
+.pf-item-actions { display: flex; gap: 8px; margin-top: 12px; }
+@media (max-width: 640px) { .pf-item-grid { grid-template-columns: 1fr; } }
+
 @media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }

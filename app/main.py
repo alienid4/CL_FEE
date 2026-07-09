@@ -36,6 +36,7 @@ from app.store import (
     commit_projects_import,
     parse_budget_xlsx,
     commit_budgets_import,
+    list_project_items,
     expiring_contracts,
     create_import_batch,
     dashboard_summary,
@@ -250,6 +251,41 @@ class ProjectPatch(BaseModel):
     end_date: str | None = None
 
 
+class ProjectItemIn(BaseModel):
+    item_name: str = Field(min_length=1)
+    owner: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    exec_status: str = ""
+    sub_total: int = 0
+    sub_done: int = 0
+    progress: float = 0
+    rag: str = ""
+    risk_note: str = ""
+    decision_needed: str = ""
+    support_needed: str = ""
+    duration_days: str = ""
+    seq: int = 0
+
+
+class ProjectItemPatch(BaseModel):
+    item_name: str | None = Field(default=None, min_length=1)
+    owner: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    exec_status: str | None = None
+    sub_total: int | None = None
+    sub_done: int | None = None
+    progress: float | None = None
+    rag: str | None = None
+    risk_note: str | None = None
+    decision_needed: str | None = None
+    support_needed: str | None = None
+    duration_days: str | None = None
+    seq: int | None = None
+    status: str | None = None
+
+
 class SignoffIn(BaseModel):
     signoff_code: str = Field(min_length=1)
     subject: str = Field(min_length=1)
@@ -387,7 +423,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.3 · 2026-07-09 · 專案全員可見"
+BACKEND_BUILD = "v0.9.4 · 2026-07-09 · 工作項維護"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1128,6 +1164,29 @@ def create_app() -> FastAPI:
     @app.delete("/api/projects/{project_id}", status_code=204)
     def delete_project(project_id: int) -> None:
         handle_delete("projects", project_id)
+
+    # ---- 工作項 project_items（進度總表點進去的細節，可由主管/助理/承辦維護；CIO 唯讀）----
+    @app.get("/api/projects/{project_id}/items")
+    def project_items(project_id: int) -> dict[str, Any]:
+        return ok(list_project_items(project_id))
+
+    @app.post("/api/projects/{project_id}/items", status_code=201)
+    def create_project_item(project_id: int, payload: ProjectItemIn) -> dict[str, Any]:
+        data = payload.model_dump()
+        data["project_id"] = project_id
+        return handle_create("project_items", data)
+
+    @app.patch("/api/project-items/{item_id}")
+    def update_project_item(item_id: int, payload: ProjectItemPatch) -> dict[str, Any]:
+        return handle_change("project_items", item_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/project-items/{item_id}/disable")
+    def disable_project_item(item_id: int) -> dict[str, Any]:
+        return handle_disable("project_items", item_id)
+
+    @app.delete("/api/project-items/{item_id}", status_code=204)
+    def delete_project_item(item_id: int) -> None:
+        handle_delete("project_items", item_id)
 
     @app.post("/api/projects/import-xlsx")
     async def import_projects_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:

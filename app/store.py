@@ -201,6 +201,27 @@ CREATE TABLE IF NOT EXISTS import_rows (
     error_message TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS project_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL DEFAULT 0,
+    item_name TEXT NOT NULL DEFAULT '',
+    owner TEXT NOT NULL DEFAULT '',
+    start_date TEXT NOT NULL DEFAULT '',
+    end_date TEXT NOT NULL DEFAULT '',
+    exec_status TEXT NOT NULL DEFAULT '',
+    sub_total INTEGER NOT NULL DEFAULT 0,
+    sub_done INTEGER NOT NULL DEFAULT 0,
+    progress REAL NOT NULL DEFAULT 0,
+    rag TEXT NOT NULL DEFAULT '',
+    risk_note TEXT NOT NULL DEFAULT '',
+    decision_needed TEXT NOT NULL DEFAULT '',
+    support_needed TEXT NOT NULL DEFAULT '',
+    duration_days TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -336,6 +357,9 @@ def allowed_fields() -> dict[str, set[str]]:
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
+        "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
+                          "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
+                          "support_needed", "duration_days", "status"},
     }
 
 
@@ -715,6 +739,17 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
             start_i = find(lambda h: "開始" in h, split)
             end_i = find(lambda h: "結束" in h, split)
             owner_i = find(lambda h: "負責人" in h, split)
+            # 工作項層級欄位（split＝工作主項目那欄之後）
+            item_i = work_i  # 工作主項目
+            exec_i = find(lambda h: "執行進度" in h, split)
+            subtot_i = find(lambda h: "子項目總數" in h, split)
+            subdone_i = find(lambda h: "子項目完成數" in h, split)
+            prog_i = find(lambda h: "完成度" in h, split)
+            wrag_i = find(lambda h: "燈號" in h, split)            # 工作項燈號（split 後第一個）
+            risk_i = find(lambda h: ("風險" in h or "備註" in h), split)
+            dec_i = find(lambda h: "需決策" in h, split)
+            sup_i = find(lambda h: "需支援" in h, split)
+            dur_i = find(lambda h: "持續天數" in h, split)
 
             def cell(r, i):
                 return r[i] if (i is not None and i < len(r)) else None
@@ -722,6 +757,33 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
             def txt(r, i):
                 v = cell(r, i)
                 return str(v).strip() if v is not None else ""
+
+            def as_int(r, i):
+                try:
+                    return int(float(cell(r, i)))
+                except (TypeError, ValueError):
+                    return 0
+
+            def build_item(r, seq_no):
+                name = " ".join(txt(r, item_i).split())
+                if not name:
+                    return None
+                return {
+                    "seq": seq_no,
+                    "item_name": name,
+                    "owner": _clean_owner(cell(r, owner_i)),
+                    "start_date": _norm_date(cell(r, start_i)),
+                    "end_date": _norm_date(cell(r, end_i)),
+                    "exec_status": txt(r, exec_i),
+                    "sub_total": as_int(r, subtot_i),
+                    "sub_done": as_int(r, subdone_i),
+                    "progress": _xls_pct(cell(r, prog_i)),
+                    "rag": txt(r, wrag_i),
+                    "risk_note": txt(r, risk_i),
+                    "decision_needed": txt(r, dec_i),
+                    "support_needed": txt(r, sup_i),
+                    "duration_days": txt(r, dur_i),
+                }
 
             seq = 0
             cur: dict[str, Any] | None = None
@@ -745,8 +807,12 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
                         "owner": _clean_owner(cell(r, owner_i)),
                         "start_date": _norm_date(cell(r, start_i)),
                         "end_date": _norm_date(cell(r, end_i)),
+                        "items": [],
                     }
-                elif cur is not None:  # 工作項續列：擴張起訖、補負責人
+                    first = build_item(r, 1)
+                    if first:
+                        cur["items"].append(first)
+                elif cur is not None:  # 工作項續列：擴張起訖、補負責人、加一筆工作項
                     sd, ed = _norm_date(cell(r, start_i)), _norm_date(cell(r, end_i))
                     if sd and (not cur["start_date"] or sd < cur["start_date"]):
                         cur["start_date"] = sd
@@ -754,6 +820,9 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
                         cur["end_date"] = ed
                     if not cur["owner"]:
                         cur["owner"] = _clean_owner(cell(r, owner_i))
+                    item = build_item(r, len(cur["items"]) + 1)
+                    if item:
+                        cur["items"].append(item)
             if cur is not None:
                 out.append(cur)
     finally:
@@ -770,8 +839,10 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
         existing: dict[tuple[str, str], int] = {}
         for row in conn.execute("SELECT id, source, project_name FROM projects").fetchall():
             existing[(row["source"] or "", row["project_name"] or "")] = row["id"]
+        item_fields = allowed_fields()["project_items"]
         created: list[str] = []
         updated: list[str] = []
+        items_written = 0
         for rec in records:
             name = str(rec.get("project_name", "")).strip()
             if not name:
@@ -794,10 +865,39 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 cur = conn.execute(f"INSERT INTO projects ({columns}) VALUES ({placeholders})", list(fields.values()))
                 after = get_row(conn, "projects", cur.lastrowid)
                 write_audit_log(conn, "projects", cur.lastrowid, "import", None, {**after, "import_source": "xlsx"})
-                existing[key] = cur.lastrowid
+                rid = cur.lastrowid
+                existing[key] = rid
                 created.append(name)
+            # 工作項：以（project_id＋item_name）為鍵，同名更新、沒見過新增（不刪系統內新增的）
+            seen = {r["item_name"]: r["id"] for r in conn.execute(
+                "SELECT id, item_name FROM project_items WHERE project_id = ?", (rid,)).fetchall()}
+            for it in rec.get("items", []):
+                ifields = {k: v for k, v in it.items() if k in item_fields}
+                ifields["project_id"] = rid
+                iname = ifields.get("item_name", "")
+                if iname in seen:
+                    upd = {k: v for k, v in ifields.items() if k not in ("project_id", "item_name")}
+                    if upd:
+                        sets = ", ".join(f"{k} = ?" for k in upd)
+                        conn.execute(f"UPDATE project_items SET {sets} WHERE id = ?", [*upd.values(), seen[iname]])
+                else:
+                    cols = ", ".join(ifields)
+                    ph = ", ".join("?" for _ in ifields)
+                    c2 = conn.execute(f"INSERT INTO project_items ({cols}) VALUES ({ph})", list(ifields.values()))
+                    seen[iname] = c2.lastrowid
+                items_written += 1
         return {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
-                "created": created, "updated": updated}
+                "items_count": items_written, "created": created, "updated": updated}
+
+
+def list_project_items(project_id: int) -> list[dict[str, Any]]:
+    """某專案的工作項清單（排除已停用），依序號排序。"""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM project_items WHERE project_id = ? AND status != 'disabled' ORDER BY seq ASC, id ASC",
+            (project_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
