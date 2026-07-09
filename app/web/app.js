@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.18 · 2026-07-09 · 說明改問號點開";
+const BUILD_TAG = "v0.9.19 · 2026-07-09 · 精簡多餘問號";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2138,9 +2138,9 @@ function unitVariantRows(variants, keyKind) {
 function conflictActions(kind, index, variants) {
   const opts = variants.map((v, i) =>
     `<option value="${i}">${escapeHtml(v.unit_name || "(無名稱)")}${v.unit_code ? "（" + escapeHtml(v.unit_code) + "）" : ""}</option>`).join("");
-  const dup = variants.some((v) => v.master) ? `<span class="dup-warn">⚠ 已裁決過${helpIcon("這組先前已裁決過，再按會覆蓋原本的裁決，請確認。")}</span>` : "";
+  const dup = variants.some((v) => v.master) ? `<span class="dup-warn">⚠ 已裁決過</span>` : "";
   return `<div class="conflict-actions" data-conflict-kind="${kind}" data-conflict-index="${index}">
-    <label class="conflict-canon">以誰為準${helpIcon("合併後，這個單位的代號與名稱會被當成「正式版本」，其他撞名的都認到它底下。")}
+    <label class="conflict-canon">以誰為準
       <select class="conflict-canonical">${opts}</select>
     </label>
     <input type="text" class="conflict-reason" maxlength="120" placeholder="理由（必填）" />
@@ -2203,9 +2203,9 @@ function conflictCardHtml(c, kind) {
   const idx = kind === "code" ? unitConflictCache.code.indexOf(c) : unitConflictCache.name.indexOf(c);
   const hint = mergeHint(c, kind);
   return `<div class="unit-conflict-card">
-    <div class="unit-conflict-key">${key}${helpIcon("同一個代號對到不同名稱（或反之）。要判斷這幾筆是不是同一個真實單位。", "tip-right")}</div>
+    <div class="unit-conflict-key">${key}</div>
     <div class="grid-scroll"><table class="grid-table">
-      <thead><tr><th>${head}</th><th>來源檔${helpIcon("這個名稱/代號是從哪個匯入的 Excel 檔來的，方便你回頭核對。")}</th><th>筆數</th></tr></thead>
+      <thead><tr><th>${head}</th><th>來源檔</th><th>筆數</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     <div class="conflict-hint ${hint.lean === "split" ? "lean-split" : ""}">💡 <strong>${hint.label}</strong>${helpIcon(hint.why)}</div>

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-18" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-19" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -404,8 +404,7 @@
           <section class="dashboard-panel module-panel" id="unit-admin" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">資料管理 / 單位管理<span class="help" data-tip="系統揪出撞名的單位，你來裁決：合併（同一單位、以誰為準）或分開（不同單位）。裁決記進「單位主檔」，原始資料不動、可還原；以後同樣的檔匯進來自動認得。" role="button" tabindex="0" aria-label="說明">?</span></p>
-                <p class="muted">🛡 可還原，改錯回得去<span class="help" data-tip="原始匯入資料永遠不動，這裡的裁決只是另一層對照。改錯了可以「復原」單筆，或「一鍵還原原始」全部回到匯入狀態——帳不會不見。" role="button" tabindex="0" aria-label="說明">?</span></p>
+                <p class="breadcrumb">資料管理 / 單位管理<span class="help" data-tip="系統揪出撞名的單位，你來裁決：合併（同一單位、以誰為準）或分開（不同單位）。原始匯入資料永遠不動、可還原（單筆「復原」或「一鍵還原原始」）；以後同樣的檔匯進來自動認得。" role="button" tabindex="0" aria-label="說明">?</span></p>
               </div>
               <div class="head-actions">
                 <button type="button" id="unitconf-rescan" class="secondary">重新掃描</button>
@@ -417,13 +416,13 @@
             <div id="unitconf-result"></div>
             <div class="unit-master-block">
               <div class="section-heading compact">
-                <h3>單位主檔（已裁決）<span class="help" data-tip="每個真實單位一個永久編號；代號/名稱都是它的別名。按別名旁的「✕ 解除」可還原某筆裁決。" role="button" tabindex="0" aria-label="說明">?</span></h3>
+                <h3>單位主檔（已裁決）</h3>
               </div>
               <div id="unitmaster-result"></div>
             </div>
             <div class="unit-master-block">
               <div class="section-heading compact">
-                <h3>決策紀錄<span class="help" data-tip="誰、何時、把什麼合併/分開、為什麼。每筆可「復原」，回到那次裁決之前。" role="button" tabindex="0" aria-label="說明">?</span></h3>
+                <h3>決策紀錄</h3>
               </div>
               <div id="unitdecisions-result"></div>
             </div>
@@ -800,6 +799,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-18"></script>
+    <script src="/static/app.js?v=v0-9-19"></script>
   </body>
 </html>
