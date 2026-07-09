@@ -40,6 +40,10 @@ from app.store import (
     list_budget_allocations,
     budget_unit_rollup,
     unit_conflicts,
+    list_unit_master,
+    merge_units,
+    split_units,
+    unlink_alias,
     parse_headcount_xlsx,
     commit_headcounts_import,
     list_headcounts,
@@ -227,6 +231,22 @@ class BudgetPatch(BaseModel):
     alloc_method: str | None = None
     alloc_category_kind: str | None = None
     alloc_category: str | None = None
+
+
+class UnitVariant(BaseModel):
+    unit_code: str = ""
+    unit_name: str = ""
+
+
+class UnitMergeIn(BaseModel):
+    variants: list[UnitVariant]
+    canonical_code: str = ""
+    canonical_name: str = ""
+    note: str = ""
+
+
+class UnitSplitIn(BaseModel):
+    variants: list[UnitVariant]
 
 
 class ProjectIn(BaseModel):
@@ -437,7 +457,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.14 · 2026-07-09 · 資料管理後台獨立"
+BACKEND_BUILD = "v0.9.15 · 2026-07-09 · 單位合併Step2"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1175,11 +1195,48 @@ def create_app() -> FastAPI:
         # 以單位看：各單位在所有項目的分攤合計；帶 unit_code 則回該單位的每筆明細
         return ok(budget_unit_rollup(unit_code))
 
-    # ---- 單位管理 Step 1：撞名偵測（唯讀待確認清單，不合併）----
+    # ---- 單位管理 Step 1：撞名偵測（唯讀待確認清單）----
     @app.get("/api/unit-conflicts")
     def get_unit_conflicts() -> dict[str, Any]:
-        # 掃描目前資料，挑出「同代號多名 / 同名多代號」給使用者裁決；合併操作留待 Step 2
+        # 掃描目前資料，挑出「同代號多名 / 同名多代號」給使用者裁決
         return ok(unit_conflicts())
+
+    # ---- 單位管理 Step 2：合併 / 分開 / 主檔（單位主檔＋別名對照，非破壞式）----
+    def _require_unit_editor(request: Request) -> dict[str, Any]:
+        who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        if who.get("role_code") not in ("manager_assistant", "admin"):
+            raise HTTPException(status_code=403, detail="只有主管/助理可裁決單位合併。")
+        return who
+
+    @app.get("/api/unit-master")
+    def get_unit_master() -> dict[str, Any]:
+        return ok(list_unit_master())
+
+    @app.post("/api/unit-merge")
+    def post_unit_merge(payload: UnitMergeIn, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        variants = [v.model_dump() for v in payload.variants]
+        try:
+            return ok(merge_units(variants, payload.canonical_code, payload.canonical_name, payload.note))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/unit-split")
+    def post_unit_split(payload: UnitSplitIn, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        variants = [v.model_dump() for v in payload.variants]
+        try:
+            return ok(split_units(variants))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/unit-alias/{alias_id}/unlink")
+    def post_unit_alias_unlink(alias_id: int, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(unlink_alias(alias_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # ---- 按人數分攤：人數基準表 + 重算 ----
     @app.get("/api/budget-headcounts")

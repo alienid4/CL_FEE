@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.14 · 2026-07-09 · 資料管理後台獨立";
+const BUILD_TAG = "v0.9.15 · 2026-07-09 · 單位合併Step2";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2113,13 +2113,44 @@ document.querySelector("#budget-alloc")?.addEventListener("click", async (event)
   if (u) loadBudgetUnitRollup(u.getAttribute("data-unit-code"));
 });
 
-// 單位管理 Step 1：撞名偵測（唯讀清單，不合併）
+// 單位管理：撞名偵測（Step1）＋ 合併/分開裁決（Step2）
+let unitConflictCache = { code: [], name: [] };  // 供裁決按鈕依 kind+index 取回變體
+
 function unitVariantRows(variants, keyKind) {
   // keyKind: "byCode" → 顯示各名稱；"byName" → 顯示各代號
   return variants.map((v) => `<tr>
     <td>${escapeHtml(valueOrDash(keyKind === "byCode" ? v.unit_name : v.unit_code))}</td>
     <td>${escapeHtml((v.sources || []).join("、") || "-")}</td>
     <td class="num">${Number(v.count || 0)}</td></tr>`).join("");
+}
+
+// 一組撞名的裁決區：以誰為準下拉 + 合併/分開
+function conflictActions(kind, index, variants) {
+  const opts = variants.map((v, i) =>
+    `<option value="${i}">${escapeHtml(v.unit_name || "(無名稱)")}${v.unit_code ? "（" + escapeHtml(v.unit_code) + "）" : ""}</option>`).join("");
+  return `<div class="conflict-actions" data-conflict-kind="${kind}" data-conflict-index="${index}">
+    <label class="conflict-canon">以誰為準
+      <select class="conflict-canonical">${opts}</select>
+    </label>
+    <button type="button" class="btn-sm" data-merge>合併：這些是同一單位</button>
+    <button type="button" class="secondary btn-sm" data-split>分開保留：不同單位</button>
+  </div>`;
+}
+
+function conflictCardHtml(c, kind) {
+  const key = kind === "code"
+    ? `代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱`
+    : `名稱 <strong>${escapeHtml(c.unit_name)}</strong> ＝ ${c.variants.length} 個代號`;
+  const head = kind === "code" ? "名稱" : "代號";
+  const rows = unitVariantRows(c.variants, kind === "code" ? "byCode" : "byName");
+  const idx = kind === "code" ? unitConflictCache.code.indexOf(c) : unitConflictCache.name.indexOf(c);
+  return `<div class="unit-conflict-card">
+    <div class="unit-conflict-key">${key}</div>
+    <div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>${head}</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    ${conflictActions(kind, idx, c.variants)}</div>`;
 }
 
 async function loadUnitConflicts() {
@@ -2131,41 +2162,92 @@ async function loadUnitConflicts() {
     const data = (await api("/api/unit-conflicts")).data || {};
     const codeC = data.code_conflicts || [];
     const nameC = data.name_conflicts || [];
+    unitConflictCache = { code: codeC, name: nameC };
     const total = codeC.length + nameC.length;
+    const resolved = (data.summary || {}).resolved_groups || 0;
     setText("#tile-count-unitconf", total ? `撞名待確認 ${total}` : "撞名待確認 0");
     if (sum) {
       sum.innerHTML = total
-        ? `<p class="warn-line">⚠ 找到 <strong>${total}</strong> 組要你確認：同代號多名 ${codeC.length} 組、同名多代號 ${nameC.length} 組。目前系統<strong>不會自動合併</strong>，等你在第二步裁決。</p>`
-        : `<p class="ok-line">✓ 目前沒有撞名的單位資料，乾淨。</p>`;
+        ? `<p class="warn-line">⚠ 還有 <strong>${total}</strong> 組要你裁決：同代號多名 ${codeC.length} 組、同名多代號 ${nameC.length} 組。系統<strong>不會自動合併</strong>，由你決定。${resolved ? `（已處理 ${resolved} 組）` : ""}</p>`
+        : `<p class="ok-line">✓ 沒有待裁決的撞名了${resolved ? `，已處理 ${resolved} 組` : ""}。</p>`;
     }
 
     const codeBlock = codeC.length ? `
       <h4>同一代號、對到多個名稱（最可能是不同檔案代號撞在一起）</h4>
-      ${codeC.map((c) => `<div class="unit-conflict-card">
-        <div class="unit-conflict-key">代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱</div>
-        <div class="grid-scroll"><table class="grid-table">
-          <thead><tr><th>名稱</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
-          <tbody>${unitVariantRows(c.variants, "byCode")}</tbody>
-        </table></div></div>`).join("")}` : "";
-
+      ${codeC.map((c) => conflictCardHtml(c, "code")).join("")}` : "";
     const nameBlock = nameC.length ? `
       <h4>同一名稱、對到多個代號（可能是代號改過或缺代號）</h4>
-      ${nameC.map((c) => `<div class="unit-conflict-card">
-        <div class="unit-conflict-key">名稱 <strong>${escapeHtml(c.unit_name)}</strong> ＝ ${c.variants.length} 個代號</div>
-        <div class="grid-scroll"><table class="grid-table">
-          <thead><tr><th>代號</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
-          <tbody>${unitVariantRows(c.variants, "byName")}</tbody>
-        </table></div></div>`).join("")}` : "";
+      ${nameC.map((c) => conflictCardHtml(c, "name")).join("")}` : "";
 
-    box.innerHTML = (codeBlock + nameBlock) || `<p class="muted">沒有需要確認的項目。匯入更多資料後可再按「重新掃描」。</p>`;
+    box.innerHTML = (codeBlock + nameBlock) || `<p class="muted">沒有待裁決的撞名。匯入更多資料後可再按「重新掃描」。</p>`;
+    loadUnitMaster();
   } catch (error) {
     box.innerHTML = `<p class="muted">掃描失敗：${escapeHtml(error.message)}</p>`;
     if (sum) sum.innerHTML = "";
   }
 }
 
+async function loadUnitMaster() {
+  const box = document.querySelector("#unitmaster-result");
+  if (!box) return;
+  try {
+    const data = (await api("/api/unit-master")).data || {};
+    const masters = data.masters || [];
+    if (!masters.length) { box.innerHTML = `<p class="muted">還沒有裁決過的單位。上面裁決後會出現在這裡。</p>`; return; }
+    box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>主單位（以此為準）</th><th>代號</th><th>別名（代號／名稱）</th></tr></thead>
+      <tbody>${masters.map((m) => `<tr>
+        <td><strong>${escapeHtml(m.canonical_name || "-")}</strong></td>
+        <td>${escapeHtml(valueOrDash(m.canonical_code))}</td>
+        <td>${(m.aliases || []).map((a) => `<span class="alias-chip">${escapeHtml(a.alias_name || "(無名)")}${a.alias_code ? "／" + escapeHtml(a.alias_code) : ""}
+          <button type="button" class="alias-unlink" data-unlink="${a.id}" title="解除這筆裁決">✕</button></span>`).join(" ")}</td>
+      </tr>`).join("")}</tbody></table></div>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">單位主檔載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+// 裁決：合併 / 分開 / 解除
+document.querySelector("#unitconf-result")?.addEventListener("click", async (event) => {
+  const wrap = event.target.closest(".conflict-actions");
+  if (!wrap) return;
+  const kind = wrap.getAttribute("data-conflict-kind");
+  const index = Number(wrap.getAttribute("data-conflict-index"));
+  const group = (unitConflictCache[kind] || [])[index];
+  if (!group) return;
+  const variants = group.variants.map((v) => ({ unit_code: v.unit_code, unit_name: v.unit_name }));
+  try {
+    if (event.target.closest("[data-merge]")) {
+      const sel = wrap.querySelector(".conflict-canonical");
+      const canon = group.variants[Number(sel.value)] || group.variants[0];
+      if (!window.confirm(`確定把這 ${variants.length} 筆視為同一單位，以「${canon.unit_name}（${canon.unit_code || "無碼"}）」為準？\n（帳不會不見，只是認到同一單位，可還原）`)) return;
+      await api("/api/unit-merge", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variants, canonical_code: canon.unit_code || "", canonical_name: canon.unit_name || "" }) });
+    } else if (event.target.closest("[data-split]")) {
+      if (!window.confirm(`確定把這 ${variants.length} 筆當成不同單位、分開保留？`)) return;
+      await api("/api/unit-split", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variants }) });
+    } else { return; }
+    await loadUnitConflicts();
+    loadBudgetUnitRollup && document.querySelector("#budget-alloc")?.innerHTML && loadBudgetUnitRollup();
+  } catch (error) {
+    window.alert(`裁決失敗：${error.message}`);
+  }
+});
+
+document.querySelector("#unitmaster-result")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-unlink]");
+  if (!btn) return;
+  if (!window.confirm("解除這筆裁決？（該別名會脫離主單位，可能重新變成待確認）")) return;
+  try {
+    await api(`/api/unit-alias/${btn.getAttribute("data-unlink")}/unlink`, { method: "POST" });
+    await loadUnitConflicts();
+  } catch (error) {
+    window.alert(`解除失敗：${error.message}`);
+  }
+});
+
 document.querySelector("#unitconf-rescan")?.addEventListener("click", () => loadUnitConflicts());
-document.querySelector('a.module-card[href="#unit-admin"]')?.addEventListener("click", () => loadUnitConflicts());
 
 // 人數基準表：匯入 + 檢視
 async function hcXlsx(commit) {

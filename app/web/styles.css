@@ -1446,6 +1446,14 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .unit-conflict-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
 .unit-conflict-key { font-size: .84rem; margin-bottom: 6px; }
 .unit-conflict-key strong { color: var(--accent-2); }
+.conflict-actions { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.conflict-canon { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; color: var(--ink-3); }
+.conflict-canon select { min-width: 200px; }
+.unit-master-block { margin-top: 22px; padding-top: 14px; border-top: 2px solid var(--line); }
+.unit-master-block h3 { font-size: .95rem; }
+.alias-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--chip-bg, #eef1f4); border-radius: 999px; padding: 2px 8px; margin: 2px 2px; font-size: .76rem; }
+.alias-unlink { border: 0; background: transparent; cursor: pointer; color: var(--ink-3); font-size: .8rem; line-height: 1; padding: 0 2px; }
+.alias-unlink:hover { color: var(--danger, #c0392b); }
 
 /* 全文搜尋結果（中間大框、可點進去） */
 .search-hit-row { cursor: pointer; }

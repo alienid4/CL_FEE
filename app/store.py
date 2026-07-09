@@ -241,6 +241,26 @@ CREATE TABLE IF NOT EXISTS unit_headcounts (
     headcount INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 單位主檔（Step 2）：每個真實單位一個永不變的內部編號；代號/名稱都是別名。
+-- 非破壞式：原始資料(budget_allocations/unit_headcounts)不動，讀取時經別名認到同一主檔。
+CREATE TABLE IF NOT EXISTS unit_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    canonical_code TEXT NOT NULL DEFAULT '',
+    canonical_name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS unit_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    master_id INTEGER NOT NULL,
+    alias_code TEXT NOT NULL DEFAULT '',
+    alias_name TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(alias_code, alias_name)
+);
 """
 
 
@@ -1136,28 +1156,65 @@ def list_budget_allocations(budget_id: int) -> list[dict[str, Any]]:
 
 def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
     """以單位為主的彙總：每個單位在所有費用項目的分攤合計（部門負擔表）。
-    帶 unit_code 則另回該單位被攤的每一筆明細（含費用項目名）。"""
+    經單位主檔別名解析：合併過的撞名（如同碼異名）會認到同一單位、合併加總；
+    未裁決的維持原 (代號,名稱)。帶 unit_code 則另回該單位被攤的每一筆明細。"""
     with connect() as conn:
-        units = conn.execute(
-            "SELECT unit_code, unit_name, COUNT(*) AS item_count, ROUND(SUM(amount), 0) AS total_amount "
-            "FROM budget_allocations GROUP BY unit_code, unit_name ORDER BY total_amount DESC"
-        ).fetchall()
-        result: dict[str, Any] = {"units": [dict(u) for u in units]}
-        if unit_code is not None:
-            detail = conn.execute(
-                "SELECT a.amount, a.share_pct, b.budget_code, b.category, b.fiscal_year "
-                "FROM budget_allocations a JOIN budgets b ON b.id = a.budget_id "
-                "WHERE a.unit_code = ? ORDER BY a.amount DESC",
-                (unit_code,),
-            ).fetchall()
-            result["detail"] = [dict(d) for d in detail]
-        return result
+        alias_map, _masters = _load_alias_map(conn)
+        rows = [dict(r) for r in conn.execute(
+            "SELECT a.unit_code, a.unit_name, a.amount, a.share_pct, b.budget_code, b.category, b.fiscal_year "
+            "FROM budget_allocations a JOIN budgets b ON b.id = a.budget_id").fetchall()]
+
+    def resolve(code: str, name: str) -> tuple[str, str, str]:
+        m = alias_map.get((code, name))
+        if m:
+            return (f"m{m['master_id']}", m["canonical_code"], m["canonical_name"])
+        return (f"r::{code}::{name}", code, name)
+
+    groups: dict[str, dict[str, Any]] = {}
+    detail: list[dict[str, Any]] = []
+    for r in rows:
+        code = str(r.get("unit_code") or "").strip()
+        name = str(r.get("unit_name") or "").strip()
+        key, disp_code, disp_name = resolve(code, name)
+        g = groups.setdefault(key, {"unit_code": disp_code, "unit_name": disp_name,
+                                    "item_count": 0, "total_amount": 0.0})
+        g["item_count"] += 1
+        g["total_amount"] += float(r.get("amount") or 0)
+        if unit_code is not None and disp_code == str(unit_code):
+            detail.append({"amount": r.get("amount"), "share_pct": r.get("share_pct"),
+                           "budget_code": r.get("budget_code"), "category": r.get("category"),
+                           "fiscal_year": r.get("fiscal_year")})
+
+    units = sorted(groups.values(), key=lambda g: -g["total_amount"])
+    for u in units:
+        u["total_amount"] = round(u["total_amount"])
+    result: dict[str, Any] = {"units": units}
+    if unit_code is not None:
+        detail.sort(key=lambda d: -float(d.get("amount") or 0))
+        result["detail"] = detail
+    return result
+
+
+def _load_alias_map(conn) -> tuple[dict[tuple[str, str], dict[str, Any]], dict[int, dict[str, Any]]]:
+    """讀單位主檔＋別名，回傳：
+    - alias_map：{(代號, 名稱) → {master_id, canonical_code, canonical_name}}
+    - masters：{master_id → {id, canonical_code, canonical_name, ...}}"""
+    masters = {m["id"]: dict(m) for m in conn.execute(
+        "SELECT id, canonical_code, canonical_name, status, note FROM unit_master").fetchall()}
+    alias_map: dict[tuple[str, str], dict[str, Any]] = {}
+    for a in conn.execute("SELECT master_id, alias_code, alias_name FROM unit_aliases").fetchall():
+        m = masters.get(a["master_id"])
+        if not m:
+            continue
+        alias_map[(str(a["alias_code"] or "").strip(), str(a["alias_name"] or "").strip())] = {
+            "master_id": m["id"], "canonical_code": m["canonical_code"], "canonical_name": m["canonical_name"]}
+    return alias_map, masters
 
 
 def unit_conflicts() -> dict[str, Any]:
-    """單位主檔 Step 1：偵測跨資料的『撞名』——同一代號對到多個名稱、或同一名稱對到多個代號。
-    掃描目前有引用單位的資料表（budget_allocations、unit_headcounts），只偵測、不合併。
-    回傳給前端做唯讀『待確認對照』清單，讓使用者眼見為憑；實際合併留待 Step 2。"""
+    """單位主檔：偵測跨資料的『撞名』——同一代號對到多個名稱、或同一名稱對到多個代號。
+    掃描 budget_allocations、unit_headcounts；已在單位主檔裁決過（每個變體都有別名）的組別視為『已處理』，
+    不再列入待確認。每個變體附上它目前對到的主檔（canonical），供前端顯示與合併操作。"""
     # 每個資料表的中文分類（沒記到來源檔名時的退路標籤）
     sources = [
         ("budget_allocations", "預算分攤"),
@@ -1166,6 +1223,7 @@ def unit_conflicts() -> dict[str, Any]:
     # 收集所有 (代號, 名稱) 出現次數，並記「來源」＝實際 Excel 檔名（記不到才退回分類標籤）
     pairs: dict[tuple[str, str], dict[str, Any]] = {}
     with connect() as conn:
+        alias_map, _masters = _load_alias_map(conn)
         for table, label in sources:
             rows = conn.execute(
                 f"SELECT COALESCE(unit_code,'') AS c, COALESCE(unit_name,'') AS n, "
@@ -1185,33 +1243,44 @@ def unit_conflicts() -> dict[str, Any]:
                 slot["count"] += int(r["cnt"])
                 slot["sources"].add(src)
 
+    def _entry(code: str, name: str, slot: dict[str, Any]) -> dict[str, Any]:
+        m = alias_map.get((code, name))
+        return {"unit_code": code, "unit_name": name, "count": slot["count"],
+                "sources": sorted(slot["sources"]),
+                "master": m,  # None＝尚未裁決；否則為它目前對到的主檔
+                "resolved": bool(m)}
+
     by_code: dict[str, list[dict[str, Any]]] = {}
     by_name: dict[str, list[dict[str, Any]]] = {}
     for (code, name), slot in pairs.items():
-        entry = {"unit_code": code, "unit_name": name, "count": slot["count"], "sources": sorted(slot["sources"])}
+        entry = _entry(code, name, slot)
         if code:
             by_code.setdefault(code, []).append(entry)
         if name:
             by_name.setdefault(name, []).append(entry)
 
-    # 一碼多名：同一代號底下出現超過一個名稱
+    # 一碼多名；已全部裁決（每個變體都有別名）者視為已處理，不再列入待確認
     code_conflicts = []
+    resolved_codes = 0
     for code, entries in by_code.items():
         names = {e["unit_name"] for e in entries if e["unit_name"]}
-        if len(names) > 1:
-            code_conflicts.append({
-                "unit_code": code,
-                "variants": sorted(entries, key=lambda e: -e["count"]),
-            })
-    # 一名多碼：同一名稱底下出現超過一個代號（含「有代號 vs 空代號」）
+        if len(names) <= 1:
+            continue
+        if all(e["resolved"] for e in entries):
+            resolved_codes += 1
+            continue
+        code_conflicts.append({"unit_code": code, "variants": sorted(entries, key=lambda e: -e["count"])})
+    # 一名多碼（含「有代號 vs 空代號」）
     name_conflicts = []
+    resolved_names = 0
     for name, entries in by_name.items():
         codes = {e["unit_code"] for e in entries}
-        if len(codes) > 1:
-            name_conflicts.append({
-                "unit_name": name,
-                "variants": sorted(entries, key=lambda e: -e["count"]),
-            })
+        if len(codes) <= 1:
+            continue
+        if all(e["resolved"] for e in entries):
+            resolved_names += 1
+            continue
+        name_conflicts.append({"unit_name": name, "variants": sorted(entries, key=lambda e: -e["count"])})
 
     code_conflicts.sort(key=lambda x: x["unit_code"])
     name_conflicts.sort(key=lambda x: x["unit_name"])
@@ -1221,9 +1290,104 @@ def unit_conflicts() -> dict[str, Any]:
         "summary": {
             "code_conflicts": len(code_conflicts),
             "name_conflicts": len(name_conflicts),
+            "resolved_groups": resolved_codes + resolved_names,
             "distinct_pairs": len(pairs),
         },
     }
+
+
+def list_unit_master() -> dict[str, Any]:
+    """單位主檔清單：每個主檔 + 它底下的別名（代號/名稱），供檢視與解除合併。"""
+    with connect() as conn:
+        masters = [dict(m) for m in conn.execute(
+            "SELECT id, canonical_code, canonical_name, status, note FROM unit_master ORDER BY canonical_code, id").fetchall()]
+        aliases = [dict(a) for a in conn.execute(
+            "SELECT id, master_id, alias_code, alias_name FROM unit_aliases ORDER BY id").fetchall()]
+    by_master: dict[int, list[dict[str, Any]]] = {}
+    for a in aliases:
+        by_master.setdefault(a["master_id"], []).append(a)
+    for m in masters:
+        m["aliases"] = by_master.get(m["id"], [])
+    return {"masters": masters, "count": len(masters)}
+
+
+def _find_or_create_master(conn, canonical_code: str, canonical_name: str, note: str = "") -> int:
+    """以 (canonical_code, canonical_name) 找主檔，沒有就建。回傳 master_id。"""
+    code = (canonical_code or "").strip()
+    name = (canonical_name or "").strip()
+    row = conn.execute(
+        "SELECT id FROM unit_master WHERE canonical_code = ? AND canonical_name = ?", (code, name)).fetchone()
+    if row:
+        return row["id"]
+    cur = conn.execute(
+        "INSERT INTO unit_master (canonical_code, canonical_name, note) VALUES (?, ?, ?)", (code, name, note))
+    return cur.lastrowid
+
+
+def _attach_alias(conn, master_id: int, alias_code: str, alias_name: str) -> None:
+    """把 (代號, 名稱) 掛到某主檔；若別名已存在則改指到此主檔（重新裁決可覆蓋）。"""
+    code = (alias_code or "").strip()
+    name = (alias_name or "").strip()
+    existing = conn.execute(
+        "SELECT id FROM unit_aliases WHERE alias_code = ? AND alias_name = ?", (code, name)).fetchone()
+    if existing:
+        conn.execute("UPDATE unit_aliases SET master_id = ? WHERE id = ?", (master_id, existing["id"]))
+    else:
+        conn.execute(
+            "INSERT INTO unit_aliases (master_id, alias_code, alias_name) VALUES (?, ?, ?)", (master_id, code, name))
+
+
+def merge_units(variants: list[dict[str, Any]], canonical_code: str, canonical_name: str, note: str = "") -> dict[str, Any]:
+    """合併：這些變體是同一單位，以 (canonical_code, canonical_name) 為準。
+    建/取主檔，把每個變體掛成別名。非破壞式：原始資料不動，讀取時經別名認到同一主檔。"""
+    if not variants:
+        raise ValueError("沒有要合併的單位變體。")
+    cname = (canonical_name or "").strip()
+    if not cname and not (canonical_code or "").strip():
+        raise ValueError("請指定要以哪個為準（代號或名稱至少一個）。")
+    with connect() as conn:
+        master_id = _find_or_create_master(conn, canonical_code, canonical_name, note)
+        for v in variants:
+            _attach_alias(conn, master_id, str(v.get("unit_code", "")), str(v.get("unit_name", "")))
+        after = get_row(conn, "unit_master", master_id)
+        write_audit_log(conn, "unit_master", master_id, "merge", None,
+                        {**after, "variants": variants, "canonical": [canonical_code, canonical_name]})
+    return {"master_id": master_id, "merged": len(variants),
+            "canonical_code": (canonical_code or "").strip(), "canonical_name": cname}
+
+
+def split_units(variants: list[dict[str, Any]]) -> dict[str, Any]:
+    """分開保留：這些變體是不同單位，各自成為一個主檔（別名＝自己）。裁決後不再列為待確認。"""
+    if not variants:
+        raise ValueError("沒有要分開的單位變體。")
+    made = 0
+    with connect() as conn:
+        for v in variants:
+            code = str(v.get("unit_code", ""))
+            name = str(v.get("unit_name", ""))
+            mid = _find_or_create_master(conn, code, name)
+            _attach_alias(conn, mid, code, name)
+            made += 1
+        write_audit_log(conn, "unit_master", 0, "split", None, {"variants": variants})
+    return {"split": made}
+
+
+def unlink_alias(alias_id: int) -> dict[str, Any]:
+    """解除某別名（還原裁決）；若主檔已無任何別名，一併刪除該空主檔。"""
+    with connect() as conn:
+        row = conn.execute("SELECT master_id FROM unit_aliases WHERE id = ?", (alias_id,)).fetchone()
+        if not row:
+            raise ValueError("找不到該別名。")
+        master_id = row["master_id"]
+        conn.execute("DELETE FROM unit_aliases WHERE id = ?", (alias_id,))
+        left = conn.execute("SELECT COUNT(*) AS n FROM unit_aliases WHERE master_id = ?", (master_id,)).fetchone()["n"]
+        removed_master = False
+        if left == 0:
+            conn.execute("DELETE FROM unit_master WHERE id = ?", (master_id,))
+            removed_master = True
+        write_audit_log(conn, "unit_master", master_id, "unlink-alias", None,
+                        {"alias_id": alias_id, "removed_master": removed_master})
+    return {"unlinked": alias_id, "removed_master": removed_master}
 
 
 def parse_headcount_xlsx(data: bytes) -> list[dict[str, Any]]:
