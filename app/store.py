@@ -287,6 +287,38 @@ CREATE TABLE IF NOT EXISTS category_shares (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(category, unit_code, unit_name)
 );
+
+-- 名稱歸納（比照單位主檔）：把「中華電信/中華電」這種同一實體的不同寫法歸成一個。
+-- kind＝case(案件名)/project(專案名)/vendor(廠商名)。canonical＝以誰為準；別名皆對到它。
+CREATE TABLE IF NOT EXISTS name_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL DEFAULT '',
+    canonical_name TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(kind, canonical_name)
+);
+
+CREATE TABLE IF NOT EXISTS name_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    master_id INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT '',
+    alias_name TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(kind, alias_name)
+);
+
+CREATE TABLE IF NOT EXISTS name_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT '',
+    detail_json TEXT NOT NULL DEFAULT '',
+    undo_ops_json TEXT NOT NULL DEFAULT '',
+    undone INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -1552,6 +1584,196 @@ def unlink_alias(alias_id: int) -> dict[str, Any]:
         write_audit_log(conn, "unit_master", master_id, "unlink-alias", None,
                         {"alias_id": alias_id, "removed_master": removed_master})
     return {"unlinked": alias_id, "removed_master": removed_master}
+
+
+# ==== 名稱歸納（案件名/專案名/廠商名）：比照單位主檔，把同一實體的不同寫法歸成一個 ====
+NAME_SOURCES: dict[str, list[tuple[str, str]]] = {
+    "case": [("cases", "title")],
+    "project": [("projects", "project_name")],
+    "vendor": [("contracts", "vendor_name"), ("payments", "vendor"), ("purchases", "vendor_name")],
+}
+NAME_KIND_LABEL = {"case": "案件名稱", "project": "專案名稱", "vendor": "廠商名稱"}
+
+
+def _name_alias_map(conn, kind: str) -> dict[str, str]:
+    """{別名 → 主名(canonical)}（限某 kind）。"""
+    rows = conn.execute(
+        "SELECT a.alias_name, m.canonical_name FROM name_aliases a JOIN name_master m ON m.id = a.master_id "
+        "WHERE a.kind = ?", (kind,)).fetchall()
+    return {str(r["alias_name"]): str(r["canonical_name"]) for r in rows}
+
+
+def list_name_values(kind: str) -> dict[str, Any]:
+    """回某 kind 目前所有不同名稱（跨來源表去重、計數），並附它目前歸到的主名（若已裁決）。
+    供前端做相似度分群、裁決合併。"""
+    if kind not in NAME_SOURCES:
+        raise ValueError(f"未知的名稱種類：{kind}")
+    counts: dict[str, int] = {}
+    with connect() as conn:
+        for table, col in NAME_SOURCES[kind]:
+            for r in conn.execute(
+                f"SELECT COALESCE({col},'') AS v, COUNT(*) AS n FROM {table} GROUP BY v").fetchall():
+                name = str(r["v"]).strip()
+                if name:
+                    counts[name] = counts.get(name, 0) + int(r["n"])
+        amap = _name_alias_map(conn, kind)
+    values = [{"name": n, "count": c, "canonical": amap.get(n)} for n, c in counts.items()]
+    values.sort(key=lambda x: (-x["count"], x["name"]))
+    return {"kind": kind, "values": values, "resolved": sum(1 for v in values if v["canonical"])}
+
+
+def _record_name_decision(conn, kind: str, action: str, reason: str, detail: dict, undo_ops: list) -> int:
+    cur = conn.execute(
+        "INSERT INTO name_decisions (kind, action, reason, actor, detail_json, undo_ops_json) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (kind, action, (reason or "").strip(), _current_actor.get(),
+         json.dumps(detail, ensure_ascii=False), json.dumps(undo_ops, ensure_ascii=False)))
+    return cur.lastrowid
+
+
+def _attach_name_alias(conn, master_id: int, kind: str, alias_name: str) -> int | None:
+    name = (alias_name or "").strip()
+    existing = conn.execute(
+        "SELECT id, master_id FROM name_aliases WHERE kind = ? AND alias_name = ?", (kind, name)).fetchone()
+    if existing:
+        prev = existing["master_id"]
+        conn.execute("UPDATE name_aliases SET master_id = ? WHERE id = ?", (master_id, existing["id"]))
+        return prev
+    conn.execute("INSERT INTO name_aliases (master_id, kind, alias_name) VALUES (?, ?, ?)", (master_id, kind, name))
+    return None
+
+
+def _find_or_create_name_master(conn, kind: str, canonical_name: str) -> int:
+    name = (canonical_name or "").strip()
+    row = conn.execute(
+        "SELECT id FROM name_master WHERE kind = ? AND canonical_name = ?", (kind, name)).fetchone()
+    if row:
+        return row["id"]
+    cur = conn.execute("INSERT INTO name_master (kind, canonical_name) VALUES (?, ?)", (kind, name))
+    return cur.lastrowid
+
+
+def _cleanup_empty_name_masters(conn) -> int:
+    rows = conn.execute(
+        "SELECT id FROM name_master WHERE id NOT IN (SELECT DISTINCT master_id FROM name_aliases)").fetchall()
+    for r in rows:
+        conn.execute("DELETE FROM name_master WHERE id = ?", (r["id"],))
+    return len(rows)
+
+
+def merge_names(kind: str, names: list[str], canonical_name: str, reason: str = "") -> dict[str, Any]:
+    """把這些名稱視為同一實體，以 canonical_name 為準（其餘掛成別名）。非破壞式、可復原。"""
+    if kind not in NAME_SOURCES:
+        raise ValueError(f"未知的名稱種類：{kind}")
+    names = [str(n).strip() for n in (names or []) if str(n).strip()]
+    if not names:
+        raise ValueError("沒有要合併的名稱。")
+    if not (reason or "").strip():
+        raise ValueError("請填『為什麼這樣判斷』的理由，才能裁決。")
+    cname = (canonical_name or "").strip()
+    if not cname:
+        raise ValueError("請指定要以哪個名稱為準。")
+    with connect() as conn:
+        master_id = _find_or_create_name_master(conn, kind, cname)
+        undo_ops = []
+        for n in names:
+            prev = _attach_name_alias(conn, master_id, kind, n)
+            undo_ops.append({"alias_name": n, "prev_master_id": prev})
+        _cleanup_empty_name_masters(conn)
+        did = _record_name_decision(conn, kind, "merge", reason,
+                                    {"canonical_name": cname, "names": names}, undo_ops)
+    return {"master_id": master_id, "merged": len(names), "decision_id": did, "canonical_name": cname}
+
+
+def split_names(kind: str, names: list[str], reason: str = "") -> dict[str, Any]:
+    """這些名稱各自是不同實體（各自成主名）。裁決後不再列為待確認。"""
+    if kind not in NAME_SOURCES:
+        raise ValueError(f"未知的名稱種類：{kind}")
+    names = [str(n).strip() for n in (names or []) if str(n).strip()]
+    if not names:
+        raise ValueError("沒有要分開的名稱。")
+    if not (reason or "").strip():
+        raise ValueError("請填『為什麼這樣判斷』的理由，才能裁決。")
+    with connect() as conn:
+        undo_ops = []
+        for n in names:
+            mid = _find_or_create_name_master(conn, kind, n)
+            prev = _attach_name_alias(conn, mid, kind, n)
+            undo_ops.append({"alias_name": n, "prev_master_id": prev})
+        _cleanup_empty_name_masters(conn)
+        did = _record_name_decision(conn, kind, "split", reason, {"names": names}, undo_ops)
+    return {"split": len(names), "decision_id": did}
+
+
+def list_name_decisions(kind: str | None = None, limit: int = 100) -> dict[str, Any]:
+    where = "WHERE kind = ?" if kind else ""
+    params = ([kind] if kind else []) + [limit]
+    with connect() as conn:
+        rows = [dict(r) for r in conn.execute(
+            f"SELECT id, kind, action, reason, actor, detail_json, undone, created_at "
+            f"FROM name_decisions {where} ORDER BY id DESC LIMIT ?", params).fetchall()]
+    out = []
+    for r in rows:
+        try:
+            detail = json.loads(r.get("detail_json") or "{}")
+        except (ValueError, TypeError):
+            detail = {}
+        out.append({"id": r["id"], "kind": r["kind"], "action": r["action"], "reason": r["reason"],
+                    "actor": r["actor"], "undone": bool(r["undone"]), "created_at": r["created_at"],
+                    "canonical_name": detail.get("canonical_name", ""), "names": detail.get("names", [])})
+    return {"decisions": out, "count": len(out)}
+
+
+def undo_name_decision(decision_id: int) -> dict[str, Any]:
+    with connect() as conn:
+        row = conn.execute("SELECT undo_ops_json, undone FROM name_decisions WHERE id = ?", (decision_id,)).fetchone()
+        if not row:
+            raise ValueError("找不到該筆裁決紀錄。")
+        if row["undone"]:
+            raise ValueError("這筆裁決已經復原過了。")
+        try:
+            ops = json.loads(row["undo_ops_json"] or "[]")
+        except (ValueError, TypeError):
+            ops = []
+        d = conn.execute("SELECT kind FROM name_decisions WHERE id = ?", (decision_id,)).fetchone()
+        kind = d["kind"] if d else ""
+        for op in ops:
+            name = str(op.get("alias_name", "")).strip()
+            prev = op.get("prev_master_id")
+            if prev is None:
+                conn.execute("DELETE FROM name_aliases WHERE kind = ? AND alias_name = ?", (kind, name))
+            else:
+                conn.execute("UPDATE name_aliases SET master_id = ? WHERE kind = ? AND alias_name = ?",
+                             (prev, kind, name))
+        removed = _cleanup_empty_name_masters(conn)
+        conn.execute("UPDATE name_decisions SET undone = 1 WHERE id = ?", (decision_id,))
+    return {"undone": decision_id, "removed_masters": removed}
+
+
+def reset_name_decisions(kind: str | None = None) -> dict[str, Any]:
+    """一鍵還原某 kind（或全部）的名稱裁決。原始資料本就沒被動過。"""
+    with connect() as conn:
+        if kind:
+            mids = [r["id"] for r in conn.execute("SELECT id FROM name_master WHERE kind = ?", (kind,)).fetchall()]
+            n_alias = conn.execute("SELECT COUNT(*) AS n FROM name_aliases WHERE kind = ?", (kind,)).fetchone()["n"]
+            conn.execute("DELETE FROM name_aliases WHERE kind = ?", (kind,))
+            for mid in mids:
+                conn.execute("DELETE FROM name_master WHERE id = ?", (mid,))
+            conn.execute("UPDATE name_decisions SET undone = 1 WHERE kind = ? AND undone = 0", (kind,))
+            return {"kind": kind, "removed_aliases": n_alias, "removed_masters": len(mids)}
+        n_alias = conn.execute("SELECT COUNT(*) AS n FROM name_aliases").fetchone()["n"]
+        n_master = conn.execute("SELECT COUNT(*) AS n FROM name_master").fetchone()["n"]
+        conn.execute("DELETE FROM name_aliases")
+        conn.execute("DELETE FROM name_master")
+        conn.execute("UPDATE name_decisions SET undone = 1 WHERE undone = 0")
+        return {"removed_aliases": n_alias, "removed_masters": n_master}
+
+
+def resolve_name(kind: str, name: str) -> str:
+    """把一個名稱解析成它的主名（未裁決則原樣回傳）。供之後報表/彙總用。"""
+    with connect() as conn:
+        amap = _name_alias_map(conn, kind)
+    return amap.get(str(name).strip(), name)
 
 
 def parse_headcount_xlsx(data: bytes) -> list[dict[str, Any]]:

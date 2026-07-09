@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.31 · 2026-07-10 · 新增鈕縮小移右上角";
+const BUILD_TAG = "v0.9.32 · 2026-07-10 · 名稱歸納Step1";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -378,7 +378,7 @@ function activateCaseTab(tabName) {
 }
 
 // 後台「資料管理」底下的工具面板（沒有各自的側欄卡片，改由資料管理頁的磚塊開啟）
-const BACKOFFICE_PANELS = new Set(["io-center", "unit-admin", "data-review", "fee-alloc"]);
+const BACKOFFICE_PANELS = new Set(["io-center", "unit-admin", "data-review", "fee-alloc", "name-admin"]);
 
 // 只切換面板顯示（不動側欄 active）——給有卡片、無卡片兩種入口共用
 function showModulePanel(targetId) {
@@ -410,6 +410,7 @@ function openBackofficeTool(panelId) {
   showModulePanel(panelId);
   if (panelId === "unit-admin") loadUnitConflicts();
   if (panelId === "fee-alloc") loadFeeAllocPicker();
+  if (panelId === "name-admin") loadNameCleaning();
 }
 
 // 統一導覽：後台工具走 openBackofficeTool，其餘走各自卡片
@@ -2592,6 +2593,159 @@ document.querySelector("#unit-reset")?.addEventListener("click", async () => {
 });
 
 document.querySelector("#unitconf-rescan")?.addEventListener("click", () => loadUnitConflicts());
+
+// ===== 名稱歸納（案件名/專案名/廠商名）：相近名稱分群→裁決合併/分開 =====
+let nameKind = "vendor";
+let nameClusterCache = [];  // 供裁決按鈕依 index 取回該群名稱
+const NAME_KIND_LABEL = { vendor: "廠商名", case: "案件名", project: "專案名" };
+
+// 用 union-find 把相近名稱分群（沿用 namesLookSame）
+function clusterNames(values) {
+  const parent = values.map((_, i) => i);
+  const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+  for (let i = 0; i < values.length; i++)
+    for (let j = i + 1; j < values.length; j++)
+      if (namesLookSame(values[i].name, values[j].name)) parent[find(i)] = find(j);
+  const groups = {};
+  values.forEach((v, i) => { const r = find(i); (groups[r] = groups[r] || []).push(v); });
+  // 只留「≥2 個名、且尚未全部歸到同一主名」的群
+  return Object.values(groups).filter((g) => {
+    if (g.length < 2) return false;
+    const canons = new Set(g.map((v) => v.canonical || "＿" + v.name));
+    return canons.size > 1;
+  });
+}
+
+async function loadNameCleaning() {
+  const box = document.querySelector("#name-result");
+  const sum = document.querySelector("#name-summary");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">掃描中…</p>`;
+  try {
+    const data = (await api(`/api/name-values?kind=${nameKind}`)).data || {};
+    const values = data.values || [];
+    const clusters = clusterNames(values);
+    nameClusterCache = clusters;
+    if (sum) {
+      sum.innerHTML = clusters.length
+        ? `<p class="warn-line">⚠ ${NAME_KIND_LABEL[nameKind]}：找到 <strong>${clusters.length}</strong> 組相近名稱要你裁決。系統只挑相近的、不自動合併。</p>`
+        : `<p class="ok-line">✓ ${NAME_KIND_LABEL[nameKind]}：沒有待裁決的相近名稱。</p>`;
+    }
+    box.innerHTML = clusters.length
+      ? clusters.map((g, idx) => nameClusterCardHtml(g, idx)).join("")
+      : `<p class="muted">沒有相近名稱。有新資料進來可再按分頁重掃。</p>`;
+    loadNameMaster();
+    loadNameDecisions();
+  } catch (error) {
+    box.innerHTML = `<p class="muted">掃描失敗：${escapeHtml(error.message)}</p>`;
+    if (sum) sum.innerHTML = "";
+  }
+}
+
+function nameClusterCardHtml(group, idx) {
+  const longest = [...group].sort((a, b) => (b.name || "").length - (a.name || "").length || b.count - a.count)[0];
+  const opts = group.map((v) => `<option value="${escapeHtml(v.name)}"${v.name === longest.name ? " selected" : ""}>${escapeHtml(v.name)}（${v.count} 筆）</option>`).join("");
+  const rows = group.map((v) => `<tr><td>${escapeHtml(v.name)}</td><td class="num">${Number(v.count || 0)}</td><td>${v.canonical ? "→ " + escapeHtml(v.canonical) : "<span class='muted'>未歸納</span>"}</td></tr>`).join("");
+  return `<div class="unit-conflict-card" data-name-index="${idx}">
+    <div class="unit-conflict-key">${group.length} 個相近名稱</div>
+    <div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>名稱</th><th>筆數</th><th>目前歸納</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="conflict-hint">💡 <strong>建議：合併</strong>${helpIcon("名稱相近，多半是同一實體的不同寫法，傾向合併。（僅供參考，你決定）")}</div>
+    <div class="conflict-actions" data-name-actions="${idx}">
+      <label class="conflict-canon">以誰為準<select class="name-canonical">${opts}</select></label>
+      <input type="text" class="name-reason" maxlength="120" placeholder="理由（必填）" />
+      <button type="button" class="btn-sm" data-name-merge>合併</button>
+      <button type="button" class="secondary btn-sm" data-name-split>分開</button>
+    </div></div>`;
+}
+
+async function loadNameMaster() {
+  const box = document.querySelector("#namemaster-result");
+  if (!box) return;
+  try {
+    const list = (await api(`/api/name-values?kind=${nameKind}`)).data.values || [];
+    const byCanon = {};
+    list.filter((v) => v.canonical).forEach((v) => { (byCanon[v.canonical] = byCanon[v.canonical] || []).push(v); });
+    const canons = Object.keys(byCanon);
+    if (!canons.length) { box.innerHTML = `<p class="muted">還沒有歸納過的名稱。</p>`; return; }
+    box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>主名（以此為準）</th><th>別名</th></tr></thead>
+      <tbody>${canons.map((c) => `<tr><td><strong>${escapeHtml(c)}</strong></td>
+        <td>${byCanon[c].filter((v) => v.name !== c).map((v) => `<span class="alias-chip">${escapeHtml(v.name)}</span>`).join(" ") || "<span class='muted'>—</span>"}</td></tr>`).join("")}</tbody></table></div>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function loadNameDecisions() {
+  const box = document.querySelector("#namedecisions-result");
+  if (!box) return;
+  try {
+    const list = (await api(`/api/name-decisions?kind=${nameKind}`)).data.decisions || [];
+    if (!list.length) { box.innerHTML = `<p class="muted">還沒有裁決紀錄。</p>`; return; }
+    box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>時間</th><th>動作</th><th>內容</th><th>理由</th><th>操作者</th><th class="col-actions">復原</th></tr></thead>
+      <tbody>${list.map((d) => {
+        const content = d.action === "merge" ? `${escapeHtml((d.names || []).join("、"))} → 「${escapeHtml(d.canonical_name)}」` : `${escapeHtml((d.names || []).join("、"))}（分開）`;
+        return `<tr class="${d.undone ? "decision-undone" : ""}">
+          <td class="muted">${escapeHtml((d.created_at || "").replace("T", " ").slice(0, 16))}</td>
+          <td><span class="badge">${d.action === "merge" ? "合併" : "分開"}</span></td>
+          <td>${content}</td><td>${escapeHtml(d.reason || "-")}</td><td class="muted">${escapeHtml(d.actor || "-")}</td>
+          <td class="col-actions">${d.undone ? `<span class="muted">已復原</span>` : `<button type="button" class="secondary btn-sm" data-name-undo="${d.id}">復原</button>`}</td></tr>`;
+      }).join("")}</tbody></table></div>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+document.querySelector("#name-kind-tabs")?.addEventListener("click", (event) => {
+  const t = event.target.closest("[data-name-kind]");
+  if (!t) return;
+  nameKind = t.getAttribute("data-name-kind");
+  document.querySelectorAll("#name-kind-tabs .tab").forEach((x) => x.classList.toggle("active", x === t));
+  loadNameCleaning();
+});
+document.querySelector("#name-result")?.addEventListener("click", async (event) => {
+  const wrap = event.target.closest("[data-name-actions]");
+  if (!wrap) return;
+  const isMerge = !!event.target.closest("[data-name-merge]");
+  const isSplit = !!event.target.closest("[data-name-split]");
+  if (!isMerge && !isSplit) return;
+  const group = nameClusterCache[Number(wrap.getAttribute("data-name-actions"))];
+  if (!group) return;
+  const names = group.map((v) => v.name);
+  const reason = (wrap.querySelector(".name-reason")?.value || "").trim();
+  if (!reason) { window.alert("請先填『理由』：為什麼這樣判斷？"); wrap.querySelector(".name-reason")?.focus(); return; }
+  try {
+    if (isMerge) {
+      const canon = wrap.querySelector(".name-canonical").value;
+      if (!window.confirm(`把「${names.join("、")}」視為同一個，以「${canon}」為準？\n（原始資料不動、可復原）`)) return;
+      await api("/api/name-merge", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: nameKind, names, canonical_name: canon, reason }) });
+    } else {
+      if (!window.confirm(`把「${names.join("、")}」當成不同的、分開保留？`)) return;
+      await api("/api/name-split", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: nameKind, names, reason }) });
+    }
+    await loadNameCleaning();
+  } catch (error) { window.alert(`裁決失敗：${error.message}`); }
+});
+document.querySelector("#namedecisions-result")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-name-undo]");
+  if (!btn) return;
+  if (!window.confirm("復原這筆裁決？")) return;
+  try { await api(`/api/name-decisions/${btn.getAttribute("data-name-undo")}/undo`, { method: "POST" }); await loadNameCleaning(); }
+  catch (error) { window.alert(`復原失敗：${error.message}`); }
+});
+document.querySelector("#name-reset")?.addEventListener("click", async () => {
+  if (!window.confirm(`一鍵還原「${NAME_KIND_LABEL[nameKind]}」的所有歸納，回到原始？（原始資料本就沒動過）`)) return;
+  try {
+    const r = (await api(`/api/name-reset?kind=${nameKind}`, { method: "POST" })).data || {};
+    window.alert(`已還原：清掉 ${r.removed_masters} 個主名、${r.removed_aliases} 筆別名。`);
+    await loadNameCleaning();
+  } catch (error) { window.alert(`還原失敗：${error.message}`); }
+});
 
 // 一鍵套用建議：依每組💡建議一次處理完，理由自動帶，事後可在決策紀錄複核/復原
 // 合併時挑「以誰為準」：同代號多名→取最長名稱(通常是全名)；同名多代號→取筆數最多的代號

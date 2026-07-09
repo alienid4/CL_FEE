@@ -49,6 +49,12 @@ from app.store import (
     list_unit_decisions,
     undo_decision,
     reset_unit_decisions,
+    list_name_values,
+    merge_names,
+    split_names,
+    list_name_decisions,
+    undo_name_decision,
+    reset_name_decisions,
     parse_headcount_xlsx,
     commit_headcounts_import,
     list_headcounts,
@@ -269,6 +275,19 @@ class UnitImpactIn(BaseModel):
     variants: list[UnitVariant]
 
 
+class NameMergeIn(BaseModel):
+    kind: str
+    names: list[str]
+    canonical_name: str = ""
+    reason: str = ""
+
+
+class NameSplitIn(BaseModel):
+    kind: str
+    names: list[str]
+    reason: str = ""
+
+
 class ProjectIn(BaseModel):
     project_code: str = Field(min_length=1)
     project_name: str = Field(min_length=1)
@@ -479,7 +498,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.31 · 2026-07-10 · 新增鈕縮小移右上角"
+BACKEND_BUILD = "v0.9.32 · 2026-07-10 · 名稱歸納Step1"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -519,6 +538,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "unit-admin",
             "data-admin",
             "fee-alloc",
+            "name-admin",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },
@@ -552,6 +572,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "unit-admin",
             "data-admin",
             "fee-alloc",
+            "name-admin",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },
@@ -1293,6 +1314,47 @@ def create_app() -> FastAPI:
         # 一鍵還原：清掉所有裁決，回到剛匯入的原始狀態（原始資料本就沒動過）
         _require_unit_editor(request)
         return ok(reset_unit_decisions())
+
+    # ---- 名稱歸納：案件名/專案名/廠商名 撞名清洗（比照單位主檔）----
+    @app.get("/api/name-values")
+    def get_name_values(kind: str = Query(...)) -> dict[str, Any]:
+        try:
+            return ok(list_name_values(kind))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/name-merge")
+    def post_name_merge(payload: NameMergeIn, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(merge_names(payload.kind, payload.names, payload.canonical_name, payload.reason))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/name-split")
+    def post_name_split(payload: NameSplitIn, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(split_names(payload.kind, payload.names, payload.reason))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/name-decisions")
+    def get_name_decisions(kind: str | None = Query(None)) -> dict[str, Any]:
+        return ok(list_name_decisions(kind))
+
+    @app.post("/api/name-decisions/{decision_id}/undo")
+    def post_name_undo(decision_id: int, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(undo_name_decision(decision_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/name-reset")
+    def post_name_reset(request: Request, kind: str | None = Query(None)) -> dict[str, Any]:
+        _require_unit_editor(request)
+        return ok(reset_name_decisions(kind))
 
     # ---- 按人數分攤：人數基準表 + 重算 ----
     @app.get("/api/budget-headcounts")

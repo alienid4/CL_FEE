@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-31" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-32" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -96,6 +96,38 @@
               <strong>費用分攤</strong>
               <small>共同費用怎麼攤給各單位</small>
             </button>
+            <button type="button" class="admin-tile" data-open-panel="name-admin" data-panel-gate="name-admin">
+              <span class="admin-tile-ico">≈</span>
+              <strong>名稱歸納</strong>
+              <small>中華電信/中華電 這種歸成一個</small>
+            </button>
+          </div>
+        </section>
+
+        <section class="dashboard-panel module-panel" id="name-admin" hidden>
+          <div class="dashboard-head">
+            <div>
+              <p class="breadcrumb">資料管理 / 名稱歸納<span class="help" data-tip="把同一實體的不同寫法（中華電信/中華電）歸成一個。系統挑相近的給你，你裁決合併或分開。原始資料不動、可還原。" role="button" tabindex="0" aria-label="說明">?</span></p>
+            </div>
+            <div class="head-actions">
+              <div class="tabs" id="name-kind-tabs">
+                <button type="button" class="tab active" data-name-kind="vendor">廠商名</button>
+                <button type="button" class="tab" data-name-kind="case">案件名</button>
+                <button type="button" class="tab" data-name-kind="project">專案名</button>
+              </div>
+              <button type="button" id="name-reset" class="danger-outline" title="清掉此類別所有歸納，回到原始">一鍵還原原始</button>
+              <button type="button" class="secondary back-to-admin">← 資料管理</button>
+            </div>
+          </div>
+          <div class="unit-admin-summary" id="name-summary"></div>
+          <div id="name-result"></div>
+          <div class="unit-master-block">
+            <div class="section-heading compact"><h3>已歸納</h3></div>
+            <div id="namemaster-result"></div>
+          </div>
+          <div class="unit-master-block">
+            <div class="section-heading compact"><h3>決策紀錄</h3></div>
+            <div id="namedecisions-result"></div>
           </div>
         </section>
 
@@ -799,6 +831,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-31"></script>
+    <script src="/static/app.js?v=v0-9-32"></script>
   </body>
 </html>
