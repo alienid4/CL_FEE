@@ -144,7 +144,7 @@ def test_health_openapi_and_web(tmp_path):
         assert "正式寫入封鎖" in home.text
         assert "來源舉證鏈" in home.text
         assert "需處理案件（待辦）" in home.text  # 假面板已換成真待辦
-        assert "來自真實案件" in home.text
+        assert "列出狀態為「審核中」" in home.text  # 準則收進「?」tooltip（UI 最高原則：不鋪版面）
         assert 'id="todo-list"' in home.text  # 由 /api/todo 動態載入
         assert "月度支出彙總" in home.text  # 真月度支出面板
         assert 'id="monthly-spending-body"' in home.text

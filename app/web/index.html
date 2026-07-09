@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-27" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-28" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -63,7 +63,6 @@
           <div class="dashboard-head">
             <div>
               <p class="breadcrumb" id="search-panel-title">搜尋結果</p>
-              <p class="muted">點任一筆可直接開啟該資料的細節。</p>
             </div>
             <button type="button" id="search-close" class="secondary">關閉搜尋</button>
           </div>
@@ -74,7 +73,6 @@
           <div class="dashboard-head">
             <div>
               <p class="breadcrumb">資料管理（後台）</p>
-              <p class="muted">維護資料本身的工具都收在這裡，八大業務功能保持乾淨。以後這類工具會往這頁加，主畫面不會變亂。</p>
             </div>
           </div>
           <div class="admin-tiles">
@@ -150,8 +148,7 @@
           <section class="case-tab-panel" data-case-panel="dashboard" hidden>
             <section class="watch-list" id="demo-controls" aria-label="示範資料" hidden>
               <div class="section-heading compact">
-                <h2>示範資料（測試用）</h2>
-                <span class="muted">一鍵載入明顯標示「［測試］/ DEMO-」的測試資料，正式上線前請按清空。</span>
+                <h2>示範資料（測試用）<span class="help" data-tip="一鍵載入明顯標示「［測試］/ DEMO-」的測試資料；正式上線前請按「清空示範資料」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <div class="demo-actions">
                 <button type="button" id="demo-seed" class="secondary">載入示範資料</button>
@@ -162,8 +159,7 @@
             <section class="metrics" id="metrics" aria-label="live system metrics"></section>
             <section class="watch-list" id="pending-approvals" aria-label="待我複核" hidden>
               <div class="section-heading compact">
-                <h2>待我複核 <span id="pending-approvals-count" class="badge warn" hidden></span></h2>
-                <span class="muted">送出複核、且不是你建立的案件，按「核准」即進入系統。</span>
+                <h2>待我複核 <span id="pending-approvals-count" class="badge warn" hidden></span><span class="help" data-tip="這裡列「已送出複核、且不是你建立」的案件（雙人複核）；按「核准」即正式進入系統。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <ul class="note-list" id="pending-approvals-list"></ul>
             </section>
@@ -171,7 +167,6 @@
             <section class="watch-list" aria-label="monthly spending">
               <div class="section-heading compact">
                 <h2>月度支出彙總</h2>
-                <span class="muted">依付款月份彙總：總額 / 已付 / 待付（真實資料）。</span>
               </div>
               <div class="table-shell">
                 <table>
@@ -184,24 +179,21 @@
             </section>
             <section class="watch-list" aria-label="expiring contracts">
               <div class="section-heading compact">
-                <h2>合約續約提醒</h2>
-                <span class="muted">90 天內到期或已過期的合約（真實資料）。</span>
+                <h2>合約續約提醒<span class="help" data-tip="列出 90 天內到期或已過期的合約。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <ul class="note-list" id="expiring-list"></ul>
             </section>
             <section class="watch-list" aria-label="overdue reminders">
               <div class="section-heading compact">
-                <h2>催辦清單 <span id="reminders-count" class="badge warn" hidden></span></h2>
+                <h2>催辦清單 <span id="reminders-count" class="badge warn" hidden></span><span class="help" data-tip="列出逾期或 14 天內到期、尚未完成的案件／合約／專案；承辦只看得到自己的。" role="button" tabindex="0" aria-label="說明">?</span></h2>
                 <button type="button" id="notify-reminders" class="secondary">產生催辦通知</button>
               </div>
-              <span class="muted">逾期或即將到期、但尚未完成的案件/合約/專案（14 天內）。承辦只看自己的。</span>
               <ul class="note-list" id="reminders-list"></ul>
               <div id="notify-preview" class="muted" style="white-space:pre-wrap;margin-top:.5rem;"></div>
             </section>
             <section class="watch-list" id="orphan-payments" aria-label="未歸戶付款" hidden>
               <div class="section-heading compact">
-                <h2>未歸戶付款 <span id="orphan-payments-count" class="badge danger" hidden></span></h2>
-                <span class="muted">所屬合約沒有掛案件的付款——CIO 追不到，請補上關聯案件。</span>
+                <h2>未歸戶付款 <span id="orphan-payments-count" class="badge danger" hidden></span><span class="help" data-tip="這些付款所屬的合約沒有掛案件，CIO 追不到來源；請到合約補上關聯案件。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <ul class="note-list" id="orphan-payments-list"></ul>
             </section>
@@ -214,7 +206,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">系統管理</p>
-                <p class="muted">通知設定、系統狀態、稽核紀錄。僅系統管理員可見。</p>
               </div>
             </div>
             <section class="watch-list">
@@ -248,8 +239,7 @@
             <section class="watch-list">
               <div class="section-heading compact"><h2>資料維護</h2></div>
               <div class="demo-actions">
-                <button type="button" id="admin-backup" class="secondary">下載資料庫備份</button>
-                <span class="muted">下載目前整個資料庫（.db 檔）；還原＝把檔案放回並重啟。</span>
+                <button type="button" id="admin-backup" class="secondary">下載資料庫備份</button><span class="help" data-tip="下載目前整個資料庫（.db 檔）。還原方式：把檔案放回原位並重啟服務。" role="button" tabindex="0" aria-label="說明">?</span>
               </div>
             </section>
             <section class="watch-list">
@@ -284,8 +274,7 @@
           <section class="dashboard-panel module-panel" id="cio-overview" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">決策總覽</p>
-                <p class="muted">大方向資金與下月要出的款；點任一列可逐層追查到承辦、合約、付款明細。</p>
+                <p class="breadcrumb">決策總覽<span class="help" data-tip="大方向資金與下月要出的款；點任一列可逐層追查到承辦、合約、付款明細。" role="button" tabindex="0" aria-label="說明">?</span></p>
               </div>
             </div>
             <section class="metrics" id="cio-metrics" aria-label="資金看板"></section>
@@ -311,7 +300,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">預算</p>
-                <p class="muted">年度預算編列即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
           </section>
@@ -320,7 +308,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">專案</p>
-                <p class="muted">專案清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
           </section>
@@ -328,8 +315,7 @@
           <section class="dashboard-panel module-panel" id="portfolio" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">專案進度總表</p>
-                <p class="muted">依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。</p>
+                <p class="breadcrumb">專案進度總表<span class="help" data-tip="依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。" role="button" tabindex="0" aria-label="說明">?</span></p>
               </div>
             </div>
             <div id="pf-groups" class="pf-groups"></div>
@@ -341,7 +327,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">資料管理 / 匯入／匯出</p>
-                <p class="muted">不常用的資料進出都收在這裡，各模組主頁保持乾淨。</p>
               </div>
               <button type="button" class="secondary back-to-admin">← 資料管理</button>
             </div>
@@ -458,7 +443,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">簽呈</p>
-                <p class="muted">簽呈清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
           </section>
@@ -467,7 +451,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">合約</p>
-                <p class="muted">合約清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
           </section>
@@ -476,7 +459,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">請購</p>
-                <p class="muted">請購清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
           </section>
@@ -485,7 +467,6 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">付款</p>
-                <p class="muted">付款清單即時由後端載入，顯示於下方（含新增／編輯）。</p>
               </div>
             </div>
           </section>
@@ -517,8 +498,7 @@
             </section>
             <section class="watch-list">
               <div class="section-heading compact">
-                <h2>需處理案件（待辦）</h2>
-                <span class="muted">來自真實案件：狀態為「審核中」或已填「下一步」者。</span>
+                <h2>需處理案件（待辦）<span class="help" data-tip="列出狀態為「審核中」、或已填「下一步」的案件。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <ul class="note-list" id="todo-list"></ul>
             </section>
@@ -560,7 +540,6 @@
         <section class="panel import-workbench module-extra" data-module-parent="data-review" hidden>
           <div class="section-heading compact">
             <h2>匯入 / 確認架構追溯</h2>
-            <span class="muted">保留既有匯入暫存、試算、正式寫入前檢核測試入口</span>
           </div>
           <form id="import-preview-form" class="import-form">
             <input name="source_name" placeholder="來源檔名" value="import-preview-sample.json" required />
@@ -586,10 +565,9 @@
           </div>
           <div class="formal-import-panel">
             <div class="section-heading compact">
-              <h3>案件正式匯入（寫入資料庫）</h3>
+              <h3>案件正式匯入（寫入資料庫）<span class="help" data-tip="試算無誤後才開放。帶交易保護、冪等（已存在編號自動跳過）、來源舉證與稽核；承辦不可用。" role="button" tabindex="0" aria-label="說明">?</span></h3>
               <button id="formal-import-cases" type="button" disabled>正式匯入</button>
             </div>
-            <span class="muted">試算無誤後才開放；帶交易/冪等（已存在編號跳過）/來源舉證/稽核。承辦不可用。</span>
             <div id="formal-import-result" class="dry-run-result"></div>
           </div>
           <div class="mapping-catalog">
@@ -821,6 +799,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-27"></script>
+    <script src="/static/app.js?v=v0-9-28"></script>
   </body>
 </html>
