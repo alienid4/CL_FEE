@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.10 · 2026-07-09 · 搜尋結果移中間可點入";
+const BUILD_TAG = "v0.9.11 · 2026-07-09 · 匯入標明檔名";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1929,7 +1929,7 @@ async function projXlsx(commit) {
       await refresh();
     } else {
       const names = (res.sample || []).slice(0, 3).map((s) => s.project_name).join("、");
-      if (el) el.textContent = `預覽：共 ${res.count} 個專案${names ? "（例：" + names + "…）" : ""}`;
+      if (el) el.textContent = res.count ? `預覽：共 ${res.count} 個專案${names ? "（例：" + names + "…）" : ""}` : "共 0 個——這個檔不像專案總表，請確認選了「…處級專案進度追蹤總表.xlsx」。";
       if (commitBtn) commitBtn.disabled = !res.count;
     }
   } catch (error) {
@@ -1954,7 +1954,7 @@ async function budgetXlsx(commit) {
       await refresh();
     } else {
       const names = (res.sample || []).slice(0, 3).map((s) => s.budget_code).join("、");
-      if (el) el.textContent = `預覽：共 ${res.count} 筆預算${names ? "（例：" + names + "…）" : ""}`;
+      if (el) el.textContent = res.count ? `預覽：共 ${res.count} 筆預算${names ? "（例：" + names + "…）" : ""}` : "共 0 筆——這個檔不像費用項目表，請確認選了「一、預算.xlsx」（類別矩陣檔暫不支援）。";
       if (commitBtn) commitBtn.disabled = !res.count;
     }
   } catch (error) {
@@ -2098,7 +2098,7 @@ async function hcXlsx(commit) {
     if (commit) {
       if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`;
     } else {
-      if (el) el.textContent = `預覽：共 ${res.count} 個單位`;
+      if (el) el.textContent = res.count ? `預覽：共 ${res.count} 個單位` : "共 0 個——這個檔不像人數表，請確認選了「費用分攤表NEW…(人數).xlsx」。";
       if (commitBtn) commitBtn.disabled = !res.count;
     }
   } catch (error) {

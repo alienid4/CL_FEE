@@ -1421,6 +1421,7 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .io-row:first-of-type { border-top: 0; }
 .io-label { flex: 0 0 32px; font-size: .78rem; font-weight: 600; color: var(--accent-2); }
 .io-sub { font-size: .78rem; color: var(--ink-3); }
+.io-file { font-size: .72rem; color: var(--accent-2); }
 .io-hint { font-size: .74rem; }
 #io-result:empty { display: none; }
 #io-result { margin-top: 12px; }

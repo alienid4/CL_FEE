@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-10" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-11" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -335,14 +335,14 @@
               <div class="io-card">
                 <h4>預算</h4>
                 <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">費用項目＋分攤</span>
+                  <span class="io-sub">費用項目＋分攤　<span class="io-file">請選：一、預算.xlsx</span></span>
                   <input type="file" id="budget-xlsx-file" accept=".xlsx" />
                   <button type="button" id="budget-xlsx-preview" class="secondary btn-sm">預覽</button>
                   <button type="button" id="budget-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
                   <span class="muted" id="budget-xlsx-status" role="status" aria-live="polite"></span>
                 </div>
                 <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">人數基準表（按人數分攤用）</span>
+                  <span class="io-sub">人數基準表　<span class="io-file">請選：費用分攤表NEW…(人數).xlsx</span></span>
                   <input type="file" id="hc-xlsx-file" accept=".xlsx" />
                   <button type="button" id="hc-xlsx-preview" class="secondary btn-sm">預覽</button>
                   <button type="button" id="hc-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
@@ -354,7 +354,7 @@
               <div class="io-card">
                 <h4>專案</h4>
                 <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">進度總表</span>
+                  <span class="io-sub">進度總表　<span class="io-file">請選：…處級專案進度追蹤總表.xlsx</span></span>
                   <input type="file" id="proj-xlsx-file" accept=".xlsx" />
                   <button type="button" id="proj-xlsx-preview" class="secondary btn-sm">預覽</button>
                   <button type="button" id="proj-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
@@ -742,6 +742,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-10"></script>
+    <script src="/static/app.js?v=v0-9-11"></script>
   </body>
 </html>
