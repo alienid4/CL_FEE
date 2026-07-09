@@ -37,6 +37,8 @@ from app.store import (
     parse_budget_xlsx,
     commit_budgets_import,
     list_project_items,
+    list_budget_allocations,
+    budget_unit_rollup,
     expiring_contracts,
     create_import_batch,
     dashboard_summary,
@@ -423,7 +425,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.4 · 2026-07-09 · 工作項維護"
+BACKEND_BUILD = "v0.9.5 · 2026-07-09 · 預算共同費用分攤"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1143,6 +1145,17 @@ def create_app() -> FastAPI:
     @app.delete("/api/budgets/{budget_id}", status_code=204)
     def delete_budget(budget_id: int) -> None:
         handle_delete("budgets", budget_id)
+
+    # ---- 預算共同費用分攤（查詢呈現）----
+    @app.get("/api/budgets/{budget_id}/allocations")
+    def budget_allocations(budget_id: int) -> dict[str, Any]:
+        # 以費用項目看：這筆共用費用攤給哪些單位、各多少
+        return ok(list_budget_allocations(budget_id))
+
+    @app.get("/api/budget-units")
+    def budget_units(unit_code: str | None = Query(None)) -> dict[str, Any]:
+        # 以單位看：各單位在所有項目的分攤合計；帶 unit_code 則回該單位的每筆明細
+        return ok(budget_unit_rollup(unit_code))
 
     # ---- 專案 projects ----
     @app.post("/api/projects", status_code=201)

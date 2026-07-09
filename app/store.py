@@ -222,6 +222,17 @@ CREATE TABLE IF NOT EXISTS project_items (
     status TEXT NOT NULL DEFAULT 'active',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS budget_allocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    budget_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL DEFAULT 0,
+    unit_code TEXT NOT NULL DEFAULT '',
+    unit_name TEXT NOT NULL DEFAULT '',
+    share_pct REAL NOT NULL DEFAULT 0,
+    amount REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
@@ -360,6 +371,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
                           "support_needed", "duration_days", "status"},
+        "budget_allocations": {"budget_id", "seq", "unit_code", "unit_name", "share_pct", "amount"},
     }
 
 
@@ -954,6 +966,47 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
 
             if not (fields.get("category") or amount):
                 continue  # 空白/非預算表跳過
+
+            # 62 單位共同費用分攤表：找「部門代號」表頭列，往下讀到「合計」；col「合計」＝各單位年度分攤額
+            allocations: list[dict[str, Any]] = []
+            code_col = name_col = total_col = None
+            alloc_hdr = None
+            for i, r in enumerate(rows):
+                if any(norm(c) == "部門代號" for c in r):
+                    alloc_hdr = i
+                    for j, c in enumerate(r):
+                        k = norm(c)
+                        if k == "部門代號":
+                            code_col = j
+                        elif k == "部門別":
+                            name_col = j
+                        elif k == "合計":
+                            total_col = j
+                    break
+            if alloc_hdr is not None and name_col is not None and total_col is not None:
+                seq = 0
+                for r in rows[alloc_hdr + 1:]:
+                    nm = norm(r[name_col]) if name_col < len(r) else ""
+                    if nm in ("合計", "EOF"):
+                        if nm == "合計":
+                            break  # 遇到合計列就停
+                        continue
+                    if not nm:
+                        continue
+                    try:
+                        amt = round(float(r[total_col]), 2) if total_col < len(r) else 0.0
+                    except (TypeError, ValueError):
+                        amt = 0.0
+                    cd = norm(r[code_col]) if (code_col is not None and code_col < len(r)) else ""
+                    seq += 1
+                    allocations.append({
+                        "seq": seq,
+                        "unit_code": cd,
+                        "unit_name": nm,
+                        "amount": amt,
+                        "share_pct": round(amt / amount * 100, 2) if amount else 0.0,
+                    })
+
             note = "；".join(x for x in [content, (f"預估人員：{person}" if person else "")] if x)
             out.append({
                 "budget_code": norm(sheet)[:60] or f"預算-{len(out) + 1}",
@@ -962,6 +1015,7 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
                 "fiscal_year": fiscal_year,
                 "amount": amount,
                 "note": note,
+                "allocations": allocations,
             })
     finally:
         wb.close()
@@ -969,12 +1023,15 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
 
 
 def commit_budgets_import(records: list[dict[str, Any]]) -> dict[str, Any]:
-    """寫入 budgets：單一交易、逐列稽核。以 budget_code（工作表名）為鍵——同名更新、沒見過新增。"""
+    """寫入 budgets：單一交易、逐列稽核。以 budget_code（工作表名）為鍵——同名更新、沒見過新增。
+    每筆預算的 62 單位分攤明細一併寫入 budget_allocations（以 budget_id+unit_code 為鍵、同碼更新）。"""
     fields_allowed = allowed_fields()["budgets"]
+    alloc_fields = allowed_fields()["budget_allocations"]
     with connect() as conn:
         existing = {r["budget_code"]: r["id"] for r in conn.execute("SELECT id, budget_code FROM budgets").fetchall()}
         created: list[str] = []
         updated: list[str] = []
+        alloc_written = 0
         for rec in records:
             code = str(rec.get("budget_code", "")).strip()
             if not code:
@@ -995,10 +1052,60 @@ def commit_budgets_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 cur = conn.execute(f"INSERT INTO budgets ({columns}) VALUES ({placeholders})", list(fields.values()))
                 after = get_row(conn, "budgets", cur.lastrowid)
                 write_audit_log(conn, "budgets", cur.lastrowid, "import", None, {**after, "import_source": "xlsx"})
-                existing[code] = cur.lastrowid
+                rid = cur.lastrowid
+                existing[code] = rid
                 created.append(code)
+            # 分攤明細：以（budget_id, unit_code）為鍵 upsert
+            seen = {r["unit_code"]: r["id"] for r in conn.execute(
+                "SELECT id, unit_code FROM budget_allocations WHERE budget_id = ?", (rid,)).fetchall()}
+            for al in rec.get("allocations", []):
+                afields = {k: v for k, v in al.items() if k in alloc_fields}
+                afields["budget_id"] = rid
+                ucode = afields.get("unit_code", "")
+                if ucode and ucode in seen:
+                    upd = {k: v for k, v in afields.items() if k not in ("budget_id", "unit_code")}
+                    if upd:
+                        sets = ", ".join(f"{k} = ?" for k in upd)
+                        conn.execute(f"UPDATE budget_allocations SET {sets} WHERE id = ?", [*upd.values(), seen[ucode]])
+                else:
+                    cols = ", ".join(afields)
+                    ph = ", ".join("?" for _ in afields)
+                    c2 = conn.execute(f"INSERT INTO budget_allocations ({cols}) VALUES ({ph})", list(afields.values()))
+                    if ucode:
+                        seen[ucode] = c2.lastrowid
+                alloc_written += 1
         return {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
-                "created": created, "updated": updated}
+                "allocations_count": alloc_written, "created": created, "updated": updated}
+
+
+def list_budget_allocations(budget_id: int) -> list[dict[str, Any]]:
+    """某費用項目的 62 單位分攤明細，依分攤額由大到小。"""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM budget_allocations WHERE budget_id = ? ORDER BY amount DESC, seq ASC",
+            (budget_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
+    """以單位為主的彙總：每個單位在所有費用項目的分攤合計（部門負擔表）。
+    帶 unit_code 則另回該單位被攤的每一筆明細（含費用項目名）。"""
+    with connect() as conn:
+        units = conn.execute(
+            "SELECT unit_code, unit_name, COUNT(*) AS item_count, ROUND(SUM(amount), 2) AS total_amount "
+            "FROM budget_allocations GROUP BY unit_code, unit_name ORDER BY total_amount DESC"
+        ).fetchall()
+        result: dict[str, Any] = {"units": [dict(u) for u in units]}
+        if unit_code is not None:
+            detail = conn.execute(
+                "SELECT a.amount, a.share_pct, b.budget_code, b.category, b.fiscal_year "
+                "FROM budget_allocations a JOIN budgets b ON b.id = a.budget_id "
+                "WHERE a.unit_code = ? ORDER BY a.amount DESC",
+                (unit_code,),
+            ).fetchall()
+            result["detail"] = [dict(d) for d in detail]
+        return result
 
 
 def preflight_import_batch_confirm(

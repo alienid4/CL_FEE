@@ -1403,4 +1403,13 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .pf-item-actions { display: flex; gap: 8px; margin-top: 12px; }
 @media (max-width: 640px) { .pf-item-grid { grid-template-columns: 1fr; } }
 
+/* 共同費用分攤 UI */
+.btn-sm { padding: 3px 10px; font-size: .76rem; min-height: auto; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent-2); cursor: pointer; text-decoration: underline; font-size: inherit; min-height: auto; }
+.budget-alloc-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 16px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.budget-alloc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+#budget-alloc:empty { display: none; }
+#budget-alloc { margin-top: 6px; }
+.budget-alloc-detail { margin-top: 16px; }
+
 @media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }

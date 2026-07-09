@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.4 · 2026-07-09 · 工作項維護";
+const BUILD_TAG = "v0.9.5 · 2026-07-09 · 預算共同費用分攤";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -236,6 +236,7 @@ const resourceConfig = {
       { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
       { label: "單位／年度", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.unit_name))}｜${escapeHtml(valueOrDash(i.fiscal_year))}</span>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
+      { label: "分攤", cell: (i) => `<button type="button" class="secondary btn-sm" data-budget-alloc="${i.id}">看分攤</button>` },
       { label: "狀態", cell: (i) => statusChip(i.status) },
     ],
   },
@@ -1961,6 +1962,94 @@ async function budgetXlsx(commit) {
 }
 document.querySelector("#budget-xlsx-preview")?.addEventListener("click", () => budgetXlsx(false));
 document.querySelector("#budget-xlsx-commit")?.addEventListener("click", () => budgetXlsx(true));
+
+// ===== 共同費用分攤：以費用項目看（某預算攤給哪些單位）＋ 以單位看（部門負擔彙總）=====
+async function loadBudgetAllocations(budgetId) {
+  const box = document.querySelector("#budget-alloc");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">載入分攤明細…</p>`;
+  try {
+    const al = (await api(`/api/budgets/${budgetId}/allocations`)).data || [];
+    const bud = (resourceCaches.budget || []).find((b) => String(b.id) === String(budgetId));
+    const total = al.reduce((s, a) => s + Number(a.amount || 0), 0);
+    const rows = al.length
+      ? al.map((a) => `<tr>
+          <td>${escapeHtml(valueOrDash(a.unit_code))}</td>
+          <td>${escapeHtml(a.unit_name)}</td>
+          <td class="num">${Number(a.share_pct || 0)}%</td>
+          <td class="num">${money(a.amount)} 元</td></tr>`).join("")
+      : `<tr><td colspan="4" class="muted">這筆預算沒有分攤明細（可能是手動建立、或匯入時無分攤表）。</td></tr>`;
+    box.innerHTML = `
+      <div class="budget-alloc-head">
+        <strong>${escapeHtml(bud ? bud.budget_code : "費用項目")}</strong> 的單位分攤
+        <span class="muted">共 ${al.length} 個單位，合計 ${money(total)} 元</span>
+        <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button>
+      </div>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>單位代碼</th><th>單位名稱</th><th>分攤%</th><th>分攤金額</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (error) {
+    box.innerHTML = `<p class="muted">分攤載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function loadBudgetUnitRollup(unitCode) {
+  const box = document.querySelector("#budget-alloc");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">載入單位彙總…</p>`;
+  try {
+    const data = (await api(`/api/budget-units${unitCode ? `?unit_code=${encodeURIComponent(unitCode)}` : ""}`)).data || {};
+    const units = data.units || [];
+    const grand = units.reduce((s, u) => s + Number(u.total_amount || 0), 0);
+    const rows = units.length
+      ? units.map((u) => `<tr>
+          <td>${escapeHtml(valueOrDash(u.unit_code))}</td>
+          <td><button type="button" class="link-btn" data-unit-code="${escapeHtml(u.unit_code)}">${escapeHtml(u.unit_name)}</button></td>
+          <td class="num">${Number(u.item_count || 0)}</td>
+          <td class="num">${money(u.total_amount)} 元</td></tr>`).join("")
+      : `<tr><td colspan="4" class="muted">尚無分攤資料。請先匯入預算 Excel。</td></tr>`;
+    let detailHtml = "";
+    if (unitCode && data.detail) {
+      const drows = data.detail.map((d) => `<tr>
+        <td>${escapeHtml(valueOrDash(d.budget_code))}</td>
+        <td>${escapeHtml(valueOrDash(d.category))}</td>
+        <td class="num">${Number(d.share_pct || 0)}%</td>
+        <td class="num">${money(d.amount)} 元</td></tr>`).join("");
+      detailHtml = `<div class="budget-alloc-detail"><strong>單位 ${escapeHtml(unitCode)}</strong> 被攤的項目
+        <div class="grid-scroll"><table class="grid-table">
+          <thead><tr><th>費用項目</th><th>類別</th><th>分攤%</th><th>分攤金額</th></tr></thead>
+          <tbody>${drows || '<tr><td colspan="4" class="muted">無</td></tr>'}</tbody>
+        </table></div></div>`;
+    }
+    box.innerHTML = `
+      <div class="budget-alloc-head">
+        <strong>單位分攤彙總（部門負擔表）</strong>
+        <span class="muted">共 ${units.length} 個單位，總分攤 ${money(grand)} 元。點單位看它被攤的項目。</span>
+        <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button>
+      </div>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>單位代碼</th><th>單位名稱</th><th>項目數</th><th>分攤合計</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      ${detailHtml}`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (error) {
+    box.innerHTML = `<p class="muted">單位彙總載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+document.querySelector("#budget-units-btn")?.addEventListener("click", () => loadBudgetUnitRollup());
+document.querySelector("#budgets")?.addEventListener("click", (event) => {
+  const b = event.target.closest("[data-budget-alloc]");
+  if (b) loadBudgetAllocations(b.getAttribute("data-budget-alloc"));
+});
+document.querySelector("#budget-alloc")?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-alloc-close]")) { document.querySelector("#budget-alloc").innerHTML = ""; return; }
+  const u = event.target.closest("[data-unit-code]");
+  if (u) loadBudgetUnitRollup(u.getAttribute("data-unit-code"));
+});
 
 cases.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");

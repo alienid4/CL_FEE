@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-4" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-5" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -573,6 +573,12 @@
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
           <div id="budgets" class="list compact-list"></div>
+          <div class="budget-alloc-bar">
+            <strong>共同費用分攤</strong>
+            <button type="button" id="budget-units-btn" class="secondary">單位分攤彙總（部門負擔表）</button>
+            <span class="muted">或按每筆預算的「看分攤」，看它攤給哪些單位。</span>
+          </div>
+          <div id="budget-alloc"></div>
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
@@ -666,6 +672,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-4"></script>
+    <script src="/static/app.js?v=v0-9-5"></script>
   </body>
 </html>
