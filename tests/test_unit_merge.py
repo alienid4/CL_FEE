@@ -120,6 +120,46 @@ def test_decision_log_and_undo(tmp_path):
         assert client.post(f"/api/unit-decisions/{did}/undo").status_code == 400
 
 
+def test_reassign_moves_single_variant(tmp_path):
+    """代號打錯：把 1015 永和 改派到正確的 1014 永和主單位；金額歸位、不影響同組左營。"""
+    from app import store
+
+    with _client(tmp_path) as client:
+        with store.connect() as conn:
+            conn.execute("INSERT INTO budgets (budget_code,amount) VALUES ('BR',1000)")
+            b = conn.execute("SELECT id FROM budgets WHERE budget_code='BR'").fetchone()["id"]
+            conn.execute("INSERT INTO budget_allocations (budget_id,seq,unit_code,unit_name,amount) VALUES (?,1,'1015','永和分公司',300)", (b,))
+            conn.execute("INSERT INTO budget_allocations (budget_id,seq,unit_code,unit_name,amount) VALUES (?,2,'1015','左營分公司',500)", (b,))
+        # 先建立正確的永和(1014)主單位
+        client.post("/api/unit-merge", json={"variants": [{"unit_code": "1014", "unit_name": "永和分公司"}],
+                                             "canonical_code": "1014", "canonical_name": "永和分公司", "reason": "建立正確永和"})
+        r = client.post("/api/unit-reassign", json={
+            "variant": {"unit_code": "1015", "unit_name": "永和分公司"},
+            "canonical_code": "1014", "canonical_name": "永和分公司", "reason": "代號打錯應為1014"})
+        assert r.status_code == 200 and r.json()["data"]["canonical_code"] == "1014"
+
+        units = {u["unit_name"] + "|" + u["unit_code"]: u for u in client.get("/api/budget-units").json()["data"]["units"]}
+        assert units["永和分公司|1014"]["total_amount"] == 300  # 被改派的金額歸到 1014
+        assert "永和分公司|1015" not in units  # 沒有殘留
+        log = client.get("/api/unit-decisions").json()["data"]["decisions"]
+        assert log[0]["action"] == "reassign"
+
+
+def test_reassign_requires_reason(tmp_path):
+    with _client(tmp_path) as client:
+        r = client.post("/api/unit-reassign", json={
+            "variant": {"unit_code": "1015", "unit_name": "永和分公司"},
+            "canonical_code": "1014", "canonical_name": "永和分公司", "reason": ""})
+        assert r.status_code == 400
+
+
+def test_reassign_blocked_for_handler(tmp_path):
+    with _client(tmp_path, login="ap03") as client:
+        r = client.post("/api/unit-reassign", json={
+            "variant": {"unit_code": "1", "unit_name": "A"}, "canonical_code": "2", "canonical_name": "B", "reason": "x"})
+        assert r.status_code == 403
+
+
 def test_reset_returns_to_raw(tmp_path):
     with _client(tmp_path) as client:
         _seed(tmp_path)

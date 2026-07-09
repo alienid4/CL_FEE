@@ -1413,6 +1413,29 @@ def merge_units(variants: list[dict[str, Any]], canonical_code: str, canonical_n
             "canonical_code": (canonical_code or "").strip(), "canonical_name": cname}
 
 
+def reassign_unit(variant: dict[str, Any], canonical_code: str, canonical_name: str, reason: str = "") -> dict[str, Any]:
+    """逐筆改派：某一筆撞名變體其實屬於別的單位（常見於代號打錯），
+    把它單獨掛到指定的主單位（現有的、或用正確代號/名稱新建），不影響同組其他筆。非破壞式、可復原。"""
+    if not variant or (not str(variant.get("unit_code", "")).strip() and not str(variant.get("unit_name", "")).strip()):
+        raise ValueError("沒有要改派的單位。")
+    if not (reason or "").strip():
+        raise ValueError("請填『為什麼這樣判斷』的理由，才能改派。")
+    cname = (canonical_name or "").strip()
+    if not cname and not (canonical_code or "").strip():
+        raise ValueError("請指定要改派到哪個單位（代號或名稱至少一個）。")
+    code = str(variant.get("unit_code", ""))
+    name = str(variant.get("unit_name", ""))
+    with connect() as conn:
+        master_id = _find_or_create_master(conn, canonical_code, canonical_name)
+        prev = _attach_alias(conn, master_id, code, name)
+        _cleanup_empty_masters(conn)
+        undo_ops = [{"alias_code": code.strip(), "alias_name": name.strip(), "prev_master_id": prev}]
+        detail = {"canonical_code": (canonical_code or "").strip(), "canonical_name": cname, "variants": [variant]}
+        did = _record_decision(conn, "reassign", reason, detail, undo_ops)
+    return {"master_id": master_id, "decision_id": did,
+            "canonical_code": (canonical_code or "").strip(), "canonical_name": cname}
+
+
 def split_units(variants: list[dict[str, Any]], reason: str = "") -> dict[str, Any]:
     """分開保留：這些變體是不同單位，各自成為一個主檔（別名＝自己）。裁決後不再列為待確認。"""
     if not variants:

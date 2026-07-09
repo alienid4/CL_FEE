@@ -1460,6 +1460,11 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .conflict-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; }
 .conflict-canon { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; color: var(--ink-3); }
 .conflict-canon select { min-width: 200px; }
+.reassign-box { margin: 0 14px 4px; padding: 10px 12px; background: #fff; border: 1px dashed var(--accent); border-radius: 8px; }
+.reassign-title { font-size: .82rem; margin-bottom: 8px; }
+.reassign-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.reassign-row select, .reassign-row input { padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: .8rem; }
+.reassign-row .reassign-reason { flex: 1 1 180px; }
 .unit-master-block { margin-top: 22px; padding-top: 14px; border-top: 2px solid var(--line); }
 .unit-master-block h3 { font-size: .95rem; }
 .alias-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--chip-bg, #eef1f4); border-radius: 999px; padding: 2px 8px; margin: 2px 2px; font-size: .76rem; }

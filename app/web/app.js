@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.19 · 2026-07-09 · 精簡多餘問號";
+const BUILD_TAG = "v0.9.20 · 2026-07-09 · 逐筆改派(代號打錯)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2127,11 +2127,12 @@ document.addEventListener("click", (event) => {
 let unitConflictCache = { code: [], name: [] };  // 供裁決按鈕依 kind+index 取回變體
 
 function unitVariantRows(variants, keyKind) {
-  // keyKind: "byCode" → 顯示各名稱；"byName" → 顯示各代號
-  return variants.map((v) => `<tr>
+  // keyKind: "byCode" → 顯示各名稱；"byName" → 顯示各代號。末欄「改派」處理某筆代號打錯、其實屬別的單位
+  return variants.map((v, vi) => `<tr>
     <td>${escapeHtml(valueOrDash(keyKind === "byCode" ? v.unit_name : v.unit_code))}</td>
     <td>${escapeHtml((v.sources || []).join("、") || "-")}</td>
-    <td class="num">${Number(v.count || 0)}</td></tr>`).join("");
+    <td class="num">${Number(v.count || 0)}</td>
+    <td class="col-actions"><button type="button" class="link-btn" data-reassign="${vi}">改派…</button></td></tr>`).join("");
 }
 
 // 一組撞名的裁決區：以誰為準下拉 + 理由（必填）+ 合併/分開；曾裁決過會亮警告
@@ -2202,12 +2203,13 @@ function conflictCardHtml(c, kind) {
   const rows = unitVariantRows(c.variants, kind === "code" ? "byCode" : "byName");
   const idx = kind === "code" ? unitConflictCache.code.indexOf(c) : unitConflictCache.name.indexOf(c);
   const hint = mergeHint(c, kind);
-  return `<div class="unit-conflict-card">
+  return `<div class="unit-conflict-card" data-ckind="${kind}" data-cindex="${idx}">
     <div class="unit-conflict-key">${key}</div>
     <div class="grid-scroll"><table class="grid-table">
-      <thead><tr><th>${head}</th><th>來源檔</th><th>筆數</th></tr></thead>
+      <thead><tr><th>${head}</th><th>來源檔</th><th>筆數</th><th class="col-actions"></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
+    <div class="reassign-box" hidden></div>
     <div class="conflict-hint ${hint.lean === "split" ? "lean-split" : ""}">💡 <strong>${hint.label}</strong>${helpIcon(hint.why)}</div>
     ${conflictActions(kind, idx, c.variants)}</div>`;
 }
@@ -2259,7 +2261,7 @@ async function loadUnitDecisions() {
       <thead><tr><th>時間</th><th>動作</th><th>內容</th><th>理由</th><th>操作者</th><th class="col-actions">復原</th></tr></thead>
       <tbody>${list.map((d) => {
         const names = (d.variants || []).map((v) => v.unit_name || v.unit_code).join("、");
-        const content = d.action === "merge"
+        const content = (d.action === "merge" || d.action === "reassign")
           ? `${escapeHtml(names)} → 以「${escapeHtml(d.canonical_name || d.canonical_code)}」為準`
           : `${escapeHtml(names)}（分開）`;
         return `<tr class="${d.undone ? "decision-undone" : ""}">
@@ -2276,12 +2278,14 @@ async function loadUnitDecisions() {
   }
 }
 
+let unitMasterCache = [];  // 供「改派」下拉列出現有單位
 async function loadUnitMaster() {
   const box = document.querySelector("#unitmaster-result");
   if (!box) return;
   try {
     const data = (await api("/api/unit-master")).data || {};
     const masters = data.masters || [];
+    unitMasterCache = masters;
     if (!masters.length) { box.innerHTML = `<p class="muted">還沒有裁決過的單位。上面裁決後會出現在這裡。</p>`; return; }
     box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
       <thead><tr><th>主單位（以此為準）</th><th>代號</th><th>別名（代號／名稱）</th></tr></thead>
@@ -2305,8 +2309,84 @@ async function unitImpactLine(variants) {
   } catch (_e) { return ""; }
 }
 
-// 裁決：合併 / 分開（含理由必填、影響預覽、重複裁決提醒）
+// 逐筆改派：某筆代號打錯、其實屬別的單位 → 掛到指定/正確單位
+function groupFromCard(card) {
+  const kind = card.getAttribute("data-ckind");
+  const index = Number(card.getAttribute("data-cindex"));
+  return (unitConflictCache[kind] || [])[index];
+}
+function renderReassignBox(card, vi) {
+  const group = groupFromCard(card);
+  const v = group?.variants?.[vi];
+  const box = card.querySelector(".reassign-box");
+  if (!v || !box) return;
+  const masterOpts = unitMasterCache
+    .map((m) => `<option value="m:${m.id}">${escapeHtml(m.canonical_name || "")}（${escapeHtml(m.canonical_code || "無碼")}）</option>`).join("");
+  box.innerHTML = `
+    <div class="reassign-title">把「<strong>${escapeHtml(v.unit_name || "")}${v.unit_code ? "（" + escapeHtml(v.unit_code) + "）" : ""}</strong>」改派到：</div>
+    <div class="reassign-row">
+      <select class="reassign-target">
+        ${masterOpts}
+        <option value="custom">＋ 自訂正確代號／名稱…</option>
+      </select>
+      <input type="text" class="reassign-code" placeholder="正確代號" hidden />
+      <input type="text" class="reassign-name" placeholder="正確名稱" hidden />
+      <input type="text" class="reassign-reason" placeholder="理由（必填）" />
+      <button type="button" class="btn-sm" data-reassign-go="${vi}">確定改派</button>
+      <button type="button" class="secondary btn-sm" data-reassign-cancel>取消</button>
+    </div>`;
+  box.hidden = false;
+  // 沒有任何現有單位時，直接進自訂模式
+  const sel = box.querySelector(".reassign-target");
+  if (!unitMasterCache.length) { sel.value = "custom"; }
+  const toggleCustom = () => {
+    const custom = sel.value === "custom";
+    box.querySelector(".reassign-code").hidden = !custom;
+    box.querySelector(".reassign-name").hidden = !custom;
+  };
+  sel.addEventListener("change", toggleCustom);
+  toggleCustom();
+  box.scrollIntoView({ block: "nearest" });
+}
+
+// 裁決：合併 / 分開 / 改派（含理由必填、影響預覽、重複裁決提醒）
 document.querySelector("#unitconf-result")?.addEventListener("click", async (event) => {
+  // 改派：開啟 / 取消 / 送出
+  const openBtn = event.target.closest("[data-reassign]");
+  if (openBtn) { renderReassignBox(openBtn.closest(".unit-conflict-card"), Number(openBtn.getAttribute("data-reassign"))); return; }
+  if (event.target.closest("[data-reassign-cancel]")) {
+    const box = event.target.closest(".reassign-box"); if (box) { box.hidden = true; box.innerHTML = ""; } return;
+  }
+  const goBtn = event.target.closest("[data-reassign-go]");
+  if (goBtn) {
+    const card = goBtn.closest(".unit-conflict-card");
+    const box = goBtn.closest(".reassign-box");
+    const group = groupFromCard(card);
+    const v = group?.variants?.[Number(goBtn.getAttribute("data-reassign-go"))];
+    if (!v) return;
+    const sel = box.querySelector(".reassign-target");
+    const reason = (box.querySelector(".reassign-reason")?.value || "").trim();
+    if (!reason) { window.alert("請先填『理由』：為什麼這筆該改派？"); box.querySelector(".reassign-reason")?.focus(); return; }
+    let code = "", name = "";
+    if (sel.value === "custom") {
+      code = (box.querySelector(".reassign-code")?.value || "").trim();
+      name = (box.querySelector(".reassign-name")?.value || "").trim();
+      if (!code && !name) { window.alert("請填正確的代號或名稱。"); return; }
+    } else {
+      const m = unitMasterCache.find((x) => `m:${x.id}` === sel.value);
+      if (!m) { window.alert("請選擇要改派到哪個單位。"); return; }
+      code = m.canonical_code || ""; name = m.canonical_name || "";
+    }
+    if (!window.confirm(`把「${v.unit_name}（${v.unit_code || "無碼"}）」改派到「${name}（${code || "無碼"}）」？\n（這筆的分攤金額會改算到目標單位，可復原）`)) return;
+    try {
+      await api("/api/unit-reassign", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant: { unit_code: v.unit_code, unit_name: v.unit_name }, canonical_code: code, canonical_name: name, reason }) });
+      await loadUnitConflicts();
+      if (document.querySelector("#budget-alloc")?.innerHTML) loadBudgetUnitRollup();
+    } catch (error) { window.alert(`改派失敗：${error.message}`); }
+    return;
+  }
+
   const wrap = event.target.closest(".conflict-actions");
   if (!wrap) return;
   const isMerge = !!event.target.closest("[data-merge]");

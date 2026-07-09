@@ -43,6 +43,7 @@ from app.store import (
     list_unit_master,
     merge_units,
     split_units,
+    reassign_unit,
     unlink_alias,
     unit_merge_impact,
     list_unit_decisions,
@@ -251,6 +252,13 @@ class UnitMergeIn(BaseModel):
 
 class UnitSplitIn(BaseModel):
     variants: list[UnitVariant]
+    reason: str = ""
+
+
+class UnitReassignIn(BaseModel):
+    variant: UnitVariant
+    canonical_code: str = ""
+    canonical_name: str = ""
     reason: str = ""
 
 
@@ -466,7 +474,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.19 · 2026-07-09 · 精簡多餘問號"
+BACKEND_BUILD = "v0.9.20 · 2026-07-09 · 逐筆改派(代號打錯)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1241,6 +1249,14 @@ def create_app() -> FastAPI:
         variants = [v.model_dump() for v in payload.variants]
         try:
             return ok(split_units(variants, payload.reason))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/unit-reassign")
+    def post_unit_reassign(payload: UnitReassignIn, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(reassign_unit(payload.variant.model_dump(), payload.canonical_code, payload.canonical_name, payload.reason))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
