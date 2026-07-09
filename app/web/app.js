@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.8 · 2026-07-09 · 匯入匯出集中";
+const BUILD_TAG = "v0.9.9 · 2026-07-09 · 匯入匯出按模組分卡";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2130,6 +2130,11 @@ async function loadHeadcountsView() {
 document.querySelector("#hc-xlsx-preview")?.addEventListener("click", () => hcXlsx(false));
 document.querySelector("#hc-xlsx-commit")?.addEventListener("click", () => hcXlsx(true));
 document.querySelector("#hc-view-btn")?.addEventListener("click", () => loadHeadcountsView());
+// 匯入/匯出專區：「前往某模組」按鈕 → 切到該模組
+document.querySelector("#io-center")?.addEventListener("click", (event) => {
+  const g = event.target.closest("[data-goto-module]");
+  if (g) document.querySelector(`.module-card[href="#${g.getAttribute("data-goto-module")}"]`)?.click();
+});
 // 改「尾數承擔單位」→ 存進該預算、重載分攤（尾數即時改歸新單位）
 document.querySelector("#budget-alloc")?.addEventListener("change", async (event) => {
   const sel = event.target.closest("[data-rem-budget]");
