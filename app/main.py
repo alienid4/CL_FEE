@@ -436,7 +436,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.7 · 2026-07-09 · 分攤按人數自動算"
+BACKEND_BUILD = "v0.9.8 · 2026-07-09 · 匯入匯出集中"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -472,6 +472,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "contracts-module",
             "purchases",
             "payments-module",
+            "io-center",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },
@@ -501,6 +502,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "contracts-module",
             "purchases",
             "payments-module",
+            "io-center",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
     },

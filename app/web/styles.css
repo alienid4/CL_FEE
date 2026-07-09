@@ -1413,5 +1413,10 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .budget-alloc-detail { margin-top: 16px; }
 .rem-ctl { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--ink-2); margin-bottom: 10px; }
 .rem-ctl select { min-width: 220px; }
+/* 匯入/匯出專區 */
+#io-center .panel { margin-bottom: 14px; }
+.io-exports { display: flex; flex-wrap: wrap; gap: 8px; }
+#io-result:empty { display: none; }
+#io-result { margin-top: 8px; }
 
 @media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }

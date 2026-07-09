@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.7 · 2026-07-09 · 分攤按人數自動算";
+const BUILD_TAG = "v0.9.8 · 2026-07-09 · 匯入匯出集中";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2106,7 +2106,7 @@ async function hcXlsx(commit) {
   }
 }
 async function loadHeadcountsView() {
-  const box = document.querySelector("#budget-alloc");
+  const box = document.querySelector("#io-result");
   if (!box) return;
   box.innerHTML = `<p class="muted">載入人數表…</p>`;
   try {
@@ -2229,20 +2229,7 @@ async function runDemo(action) {
 demoSeed?.addEventListener("click", () => runDemo("load"));
 demoClear?.addEventListener("click", () => runDemo("clear"));
 
-// 每個模組的 crud-zone 注入「匯出 CSV」按鈕
-for (const [type, cfg] of Object.entries(resourceConfig)) {
-  const zone = resourceForms[type]?.closest(".crud-zone");
-  const h2 = zone?.querySelector("h2");
-  if (h2 && !h2.querySelector("[data-export]")) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "secondary";
-    btn.dataset.export = `${cfg.api}.csv`;
-    btn.textContent = "匯出 CSV";
-    btn.style.marginLeft = "12px";
-    h2.appendChild(btn);
-  }
-}
+// 匯出 CSV 已集中到「匯入/匯出」專區（不再逐模組注入按鈕）。
 document.addEventListener("click", (event) => {
   const b = event.target.closest("[data-export]");
   if (b) window.location.href = b.dataset.export;

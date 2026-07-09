@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-7" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-8" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -55,6 +55,7 @@
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
           <a class="module-card" href="#data-review" data-roles="cio manager_assistant handler"><span>▦</span><strong>資料檢核</strong><small id="nav-count-todo">待辦 …</small></a>
           <a class="module-card" href="#portfolio" data-roles="cio manager_assistant handler"><span>◷</span><strong>進度總表</strong><small>甘特/落後</small></a>
+          <a class="module-card" href="#io-center" data-roles="manager_assistant"><span>⇅</span><strong>匯入/匯出</strong><small>資料進出</small></a>
         </nav>
       </aside>
 
@@ -293,6 +294,55 @@
             <div id="pf-groups" class="pf-groups"></div>
             <div id="pf-subs" class="pf-subs"></div>
             <div id="pf-view"></div>
+          </section>
+
+          <section class="dashboard-panel module-panel" id="io-center" hidden>
+            <div class="dashboard-head">
+              <div>
+                <p class="breadcrumb">匯入／匯出</p>
+                <p class="muted">不常用的資料進出都收在這裡，各模組主頁保持乾淨。</p>
+              </div>
+            </div>
+            <section class="panel">
+              <div class="section-heading compact"><h3>匯入 Excel</h3></div>
+              <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
+                <strong style="font-size:.9rem;">預算（費用項目＋分攤）</strong>
+                <input type="file" id="budget-xlsx-file" accept=".xlsx" />
+                <button type="button" id="budget-xlsx-preview" class="secondary">預覽</button>
+                <button type="button" id="budget-xlsx-commit" disabled>正式匯入</button>
+                <span class="muted" id="budget-xlsx-status" role="status" aria-live="polite"></span>
+              </div>
+              <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
+                <strong style="font-size:.9rem;">人數基準表（按人數分攤用）</strong>
+                <input type="file" id="hc-xlsx-file" accept=".xlsx" />
+                <button type="button" id="hc-xlsx-preview" class="secondary">預覽</button>
+                <button type="button" id="hc-xlsx-commit" disabled>正式匯入</button>
+                <button type="button" id="hc-view-btn" class="secondary">檢視人數表</button>
+                <span class="muted" id="hc-xlsx-status" role="status" aria-live="polite"></span>
+              </div>
+              <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
+                <strong style="font-size:.9rem;">專案進度總表</strong>
+                <input type="file" id="proj-xlsx-file" accept=".xlsx" />
+                <button type="button" id="proj-xlsx-preview" class="secondary">預覽</button>
+                <button type="button" id="proj-xlsx-commit" disabled>正式匯入</button>
+                <span class="muted" id="proj-xlsx-status" role="status" aria-live="polite"></span>
+              </div>
+              <p class="muted" style="font-size:.82rem;">案件匯入請到「資料檢核」的匯入工作區（有預檢／欄位對應流程）。</p>
+            </section>
+            <section class="panel">
+              <div class="section-heading compact"><h3>匯出 CSV</h3></div>
+              <div class="io-exports">
+                <button type="button" class="secondary" data-export="/api/cases.csv">案件</button>
+                <button type="button" class="secondary" data-export="/api/contracts.csv">合約</button>
+                <button type="button" class="secondary" data-export="/api/payments.csv">付款</button>
+                <button type="button" class="secondary" data-export="/api/documents.csv">文件</button>
+                <button type="button" class="secondary" data-export="/api/budgets.csv">預算</button>
+                <button type="button" class="secondary" data-export="/api/projects.csv">專案</button>
+                <button type="button" class="secondary" data-export="/api/signoffs.csv">簽呈</button>
+                <button type="button" class="secondary" data-export="/api/purchases.csv">請購</button>
+              </div>
+            </section>
+            <div id="io-result"></div>
           </section>
 
           <section class="dashboard-panel module-panel" id="signoff" hidden>
@@ -547,21 +597,6 @@
 
         <section class="panel crud-zone module-extra" data-module-parent="budget" hidden>
           <h2>預算</h2>
-          <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
-            <strong style="font-size:.9rem;">從 Excel 匯入預算</strong>
-            <input type="file" id="budget-xlsx-file" accept=".xlsx" />
-            <button type="button" id="budget-xlsx-preview" class="secondary">預覽</button>
-            <button type="button" id="budget-xlsx-commit" disabled>正式匯入</button>
-            <span class="muted" id="budget-xlsx-status" role="status" aria-live="polite"></span>
-          </div>
-          <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
-            <strong style="font-size:.9rem;">人數基準表（按人數分攤用）</strong>
-            <input type="file" id="hc-xlsx-file" accept=".xlsx" />
-            <button type="button" id="hc-xlsx-preview" class="secondary">預覽</button>
-            <button type="button" id="hc-xlsx-commit" disabled>正式匯入</button>
-            <button type="button" id="hc-view-btn" class="secondary">檢視人數表</button>
-            <span class="muted" id="hc-xlsx-status" role="status" aria-live="polite"></span>
-          </div>
           <form id="budget-form" class="resource-form">
             <input name="id" type="hidden" />
             <input name="budget_code" placeholder="預算編號" required />
@@ -597,13 +632,6 @@
         <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
           <div class="section-heading compact">
             <h2>專案</h2>
-          </div>
-          <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
-            <strong style="font-size:.9rem;">從 Excel 匯入專案</strong>
-            <input type="file" id="proj-xlsx-file" accept=".xlsx" />
-            <button type="button" id="proj-xlsx-preview" class="secondary">預覽</button>
-            <button type="button" id="proj-xlsx-commit" disabled>正式匯入</button>
-            <span class="muted" id="proj-xlsx-status" role="status" aria-live="polite"></span>
           </div>
           <form id="project-form" class="resource-form">
             <input name="id" type="hidden" />
@@ -685,6 +713,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-7"></script>
+    <script src="/static/app.js?v=v0-9-8"></script>
   </body>
 </html>
