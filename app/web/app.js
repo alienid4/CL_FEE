@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.1 · 2026-07-09 · 版本編號制";
+const BUILD_TAG = "v0.9.2 · 2026-07-09 · 預算匯入";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1778,12 +1778,12 @@ async function projXlsx(commit) {
   const el = document.querySelector("#proj-xlsx-status");
   const commitBtn = document.querySelector("#proj-xlsx-commit");
   if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
-  if (commit && !window.confirm("確定正式匯入？已存在的專案會跳過不覆蓋。")) return;
+  if (commit && !window.confirm("確定正式匯入？同名專案會更新、沒見過的會新增。")) return;
   if (el) el.textContent = commit ? "匯入中…" : "解析中…";
   try {
     const res = (await api(`/api/projects/import-xlsx?commit=${commit}`, { method: "POST", body: file })).data || {};
     if (commit) {
-      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 個、跳過 ${res.skipped_count} 個（已存在）。`;
+      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 個、更新 ${res.updated_count} 個。`;
       await refresh();
     } else {
       const names = (res.sample || []).slice(0, 3).map((s) => s.project_name).join("、");
@@ -1796,6 +1796,31 @@ async function projXlsx(commit) {
 }
 document.querySelector("#proj-xlsx-preview")?.addEventListener("click", () => projXlsx(false));
 document.querySelector("#proj-xlsx-commit")?.addEventListener("click", () => projXlsx(true));
+
+// 預算匯入（表單型 xlsx）：作法同專案——預覽→正式匯入→同名更新
+async function budgetXlsx(commit) {
+  const file = document.querySelector("#budget-xlsx-file")?.files?.[0];
+  const el = document.querySelector("#budget-xlsx-status");
+  const commitBtn = document.querySelector("#budget-xlsx-commit");
+  if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
+  if (commit && !window.confirm("確定正式匯入？同名預算會更新、沒見過的會新增。")) return;
+  if (el) el.textContent = commit ? "匯入中…" : "解析中…";
+  try {
+    const res = (await api(`/api/budgets/import-xlsx?commit=${commit}`, { method: "POST", body: file })).data || {};
+    if (commit) {
+      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`;
+      await refresh();
+    } else {
+      const names = (res.sample || []).slice(0, 3).map((s) => s.budget_code).join("、");
+      if (el) el.textContent = `預覽：共 ${res.count} 筆預算${names ? "（例：" + names + "…）" : ""}`;
+      if (commitBtn) commitBtn.disabled = !res.count;
+    }
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+}
+document.querySelector("#budget-xlsx-preview")?.addEventListener("click", () => budgetXlsx(false));
+document.querySelector("#budget-xlsx-commit")?.addEventListener("click", () => budgetXlsx(true));
 
 cases.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-action]");

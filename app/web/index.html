@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-2" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -547,6 +547,13 @@
 
         <section class="panel crud-zone module-extra" data-module-parent="budget" hidden>
           <h2>預算</h2>
+          <div class="xlsx-import" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px;border:1px dashed var(--line-2,#d8d3c9);border-radius:8px;margin-bottom:10px;">
+            <strong style="font-size:.9rem;">從 Excel 匯入預算</strong>
+            <input type="file" id="budget-xlsx-file" accept=".xlsx" />
+            <button type="button" id="budget-xlsx-preview" class="secondary">預覽</button>
+            <button type="button" id="budget-xlsx-commit" disabled>正式匯入</button>
+            <span class="muted" id="budget-xlsx-status" role="status" aria-live="polite"></span>
+          </div>
           <form id="budget-form" class="resource-form">
             <input name="id" type="hidden" />
             <input name="budget_code" placeholder="預算編號" required />
@@ -659,6 +666,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-1"></script>
+    <script src="/static/app.js?v=v0-9-2"></script>
   </body>
 </html>

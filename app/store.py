@@ -800,6 +800,107 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 "created": created, "updated": updated}
 
 
+def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
+    """解析『預算』.xlsx → 預算清單。此檔為『表單型』：一張工作表＝一筆預算，
+    內容是「標籤：值」（預算項目／費用內容／填寫部門／預估人員…）＋右側各年度費用表。
+    故用『認標籤』抓值（不是認欄位位置），金額取『全年度費用』欄中最大的一年。"""
+    import io
+    import openpyxl
+
+    def norm(v: Any) -> str:
+        return " ".join(str(v).split()) if v is not None else ""
+
+    label_map = {"預算項目": "category", "填寫部門": "unit_name"}
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[dict[str, Any]] = []
+    try:
+        for sheet in wb.sheetnames:
+            rows = [list(r) if r else [] for r in wb[sheet].iter_rows(values_only=True)]
+
+            def value_right(r: list, i: int) -> str:
+                for j in range(i + 1, len(r)):
+                    if r[j] is not None and str(r[j]).strip():
+                        return norm(r[j])
+                return ""
+
+            fields: dict[str, str] = {}
+            content = person = ""
+            amount_col: int | None = None
+            for r in rows:
+                for i, cell in enumerate(r):
+                    key = norm(cell).rstrip("：:")
+                    if key in label_map and label_map[key] not in fields:
+                        fields[label_map[key]] = value_right(r, i)
+                    elif key == "費用內容" and not content:
+                        content = value_right(r, i)
+                    elif key == "預估人員" and not person:
+                        person = value_right(r, i)
+                    if norm(cell) == "全年度費用":
+                        amount_col = i
+
+            amount = 0.0
+            fiscal_year = ""
+            if amount_col is not None:
+                for r in rows:
+                    if amount_col < len(r):
+                        try:
+                            fv = float(r[amount_col])
+                        except (TypeError, ValueError):
+                            fv = None
+                        if fv and fv > amount:
+                            yr = next((norm(c) for c in r if norm(c).endswith("年度")
+                                       and any(ch.isdigit() for ch in norm(c))), "")
+                            amount, fiscal_year = round(fv, 2), yr
+
+            if not (fields.get("category") or amount):
+                continue  # 空白/非預算表跳過
+            note = "；".join(x for x in [content, (f"預估人員：{person}" if person else "")] if x)
+            out.append({
+                "budget_code": norm(sheet)[:60] or f"預算-{len(out) + 1}",
+                "category": fields.get("category", ""),
+                "unit_name": fields.get("unit_name", ""),
+                "fiscal_year": fiscal_year,
+                "amount": amount,
+                "note": note,
+            })
+    finally:
+        wb.close()
+    return out
+
+
+def commit_budgets_import(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """寫入 budgets：單一交易、逐列稽核。以 budget_code（工作表名）為鍵——同名更新、沒見過新增。"""
+    fields_allowed = allowed_fields()["budgets"]
+    with connect() as conn:
+        existing = {r["budget_code"]: r["id"] for r in conn.execute("SELECT id, budget_code FROM budgets").fetchall()}
+        created: list[str] = []
+        updated: list[str] = []
+        for rec in records:
+            code = str(rec.get("budget_code", "")).strip()
+            if not code:
+                continue
+            fields = {k: v for k, v in rec.items() if k in fields_allowed}
+            if code in existing:
+                rid = existing[code]
+                before = get_row(conn, "budgets", rid)
+                upd = {k: v for k, v in fields.items() if k != "budget_code"}
+                if upd:
+                    sets = ", ".join(f"{k} = ?" for k in upd)
+                    conn.execute(f"UPDATE budgets SET {sets} WHERE id = ?", [*upd.values(), rid])
+                write_audit_log(conn, "budgets", rid, "import-update", before, get_row(conn, "budgets", rid))
+                updated.append(code)
+            else:
+                columns = ", ".join(fields)
+                placeholders = ", ".join("?" for _ in fields)
+                cur = conn.execute(f"INSERT INTO budgets ({columns}) VALUES ({placeholders})", list(fields.values()))
+                after = get_row(conn, "budgets", cur.lastrowid)
+                write_audit_log(conn, "budgets", cur.lastrowid, "import", None, {**after, "import_source": "xlsx"})
+                existing[code] = cur.lastrowid
+                created.append(code)
+        return {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
+                "created": created, "updated": updated}
+
+
 def preflight_import_batch_confirm(
     batch_id: int,
     confirmed_fields: list[dict[str, Any]],
