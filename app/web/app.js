@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.21 · 2026-07-09 · Phase2按類別分攤";
+const BUILD_TAG = "v0.9.22 · 2026-07-09 · 看分攤按鈕移前面好找";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -234,11 +234,11 @@ const resourceConfig = {
              "alloc_method", "alloc_category_kind", "alloc_category"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
+      { label: "分攤／方法", cell: (i) => `<button type="button" class="btn-sm" data-budget-alloc="${i.id}">看分攤 ▸</button>` },
       { label: "預算編號", cell: (i) => `<strong>${escapeHtml(i.budget_code)}</strong>` },
+      { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
       { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
       { label: "單位／年度", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.unit_name))}｜${escapeHtml(valueOrDash(i.fiscal_year))}</span>` },
-      { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
-      { label: "分攤", cell: (i) => `<button type="button" class="secondary btn-sm" data-budget-alloc="${i.id}">看分攤</button>` },
       { label: "狀態", cell: (i) => statusChip(i.status) },
     ],
   },
