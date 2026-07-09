@@ -303,6 +303,8 @@ def initialize_database() -> None:
         # 專案進度總表：起訖日（供甘特／落後天數計算）
         ensure_column(conn, "projects", "start_date", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "projects", "end_date", "TEXT NOT NULL DEFAULT ''")
+        # 預算共同費用分攤：尾數承擔單位（整數化後湊不齊的尾數歸給哪個單位；空＝自動抓填寫部門）
+        ensure_column(conn, "budgets", "remainder_unit_code", "TEXT NOT NULL DEFAULT ''")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -363,7 +365,7 @@ def allowed_fields() -> dict[str, set[str]]:
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
-        "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note"},
+        "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note", "remainder_unit_code"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
@@ -1079,13 +1081,36 @@ def commit_budgets_import(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def list_budget_allocations(budget_id: int) -> list[dict[str, Any]]:
-    """某費用項目的 62 單位分攤明細，依分攤額由大到小。"""
+    """某費用項目的單位分攤明細（依分攤額大到小），並算出『整數分攤』：
+    各單位四捨五入到元，湊不齊的尾數歸給『尾數承擔單位』（預設＝填寫部門，可用 remainder_unit_code 覆寫），
+    使整數欄合計＝項目總額。回傳每列含 amount(精確)、amount_int(整數)、is_remainder_unit、remainder。"""
     with connect() as conn:
-        rows = conn.execute(
+        budget = get_row(conn, "budgets", budget_id)
+        rows = [dict(r) for r in conn.execute(
             "SELECT * FROM budget_allocations WHERE budget_id = ? ORDER BY amount DESC, seq ASC",
-            (budget_id,),
-        ).fetchall()
-        return [dict(r) for r in rows]
+            (budget_id,)).fetchall()]
+    if not rows:
+        return rows
+    total = int(round(float(budget.get("amount") or 0)))
+    for r in rows:
+        r["amount_int"] = int(round(float(r.get("amount") or 0)))
+        r["is_remainder_unit"] = False
+        r["remainder"] = 0
+    remainder = total - sum(r["amount_int"] for r in rows)
+    # 決定承擔單位：明指 remainder_unit_code > 對到填寫部門(unit_name) > 分攤額最大者
+    rem_code = str(budget.get("remainder_unit_code") or "").strip()
+    bunit = str(budget.get("unit_name") or "").strip()
+    absorber = None
+    if rem_code:
+        absorber = next((r for r in rows if r["unit_code"] == rem_code), None)
+    if absorber is None and bunit:
+        absorber = next((r for r in rows if r["unit_name"] == bunit), None)
+    if absorber is None:
+        absorber = rows[0]  # 分攤額最大者
+    absorber["amount_int"] += remainder
+    absorber["is_remainder_unit"] = True
+    absorber["remainder"] = remainder
+    return rows
 
 
 def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
@@ -1093,7 +1118,7 @@ def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
     帶 unit_code 則另回該單位被攤的每一筆明細（含費用項目名）。"""
     with connect() as conn:
         units = conn.execute(
-            "SELECT unit_code, unit_name, COUNT(*) AS item_count, ROUND(SUM(amount), 2) AS total_amount "
+            "SELECT unit_code, unit_name, COUNT(*) AS item_count, ROUND(SUM(amount), 0) AS total_amount "
             "FROM budget_allocations GROUP BY unit_code, unit_name ORDER BY total_amount DESC"
         ).fetchall()
         result: dict[str, Any] = {"units": [dict(u) for u in units]}

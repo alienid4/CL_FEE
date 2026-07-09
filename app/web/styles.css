@@ -1411,5 +1411,7 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 #budget-alloc:empty { display: none; }
 #budget-alloc { margin-top: 6px; }
 .budget-alloc-detail { margin-top: 16px; }
+.rem-ctl { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--ink-2); margin-bottom: 10px; }
+.rem-ctl select { min-width: 220px; }
 
 @media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }

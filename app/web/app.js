@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.5 · 2026-07-09 · 預算共同費用分攤";
+const BUILD_TAG = "v0.9.6 · 2026-07-09 · 分攤尾數承擔";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1971,20 +1971,35 @@ async function loadBudgetAllocations(budgetId) {
   try {
     const al = (await api(`/api/budgets/${budgetId}/allocations`)).data || [];
     const bud = (resourceCaches.budget || []).find((b) => String(b.id) === String(budgetId));
-    const total = al.reduce((s, a) => s + Number(a.amount || 0), 0);
+    const total = al.reduce((s, a) => s + Number(a.amount_int || 0), 0);  // 整數欄合計＝項目總額
+    const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
+    const absorber = al.find((a) => a.is_remainder_unit);
     const rows = al.length
-      ? al.map((a) => `<tr>
+      ? al.map((a) => {
+          const remTag = a.is_remainder_unit
+            ? ` <span class="badge warn" title="整數化湊不齊的尾數歸此單位">含尾數 ${a.remainder >= 0 ? "+" : ""}${money(a.remainder)}</span>`
+            : "";
+          return `<tr>
           <td>${escapeHtml(valueOrDash(a.unit_code))}</td>
-          <td>${escapeHtml(a.unit_name)}</td>
+          <td>${escapeHtml(a.unit_name)}${remTag}</td>
           <td class="num">${Number(a.share_pct || 0)}%</td>
-          <td class="num">${money(a.amount)} 元</td></tr>`).join("")
+          <td class="num">${money(a.amount_int)} 元</td></tr>`;
+        }).join("")
       : `<tr><td colspan="4" class="muted">這筆預算沒有分攤明細（可能是手動建立、或匯入時無分攤表）。</td></tr>`;
+    const overrideCtl = (editable && al.length)
+      ? `<label class="rem-ctl">尾數承擔單位：
+           <select data-rem-budget="${budgetId}">
+             ${al.map((a) => `<option value="${escapeHtml(a.unit_code)}"${absorber && a.unit_code === absorber.unit_code ? " selected" : ""}>${escapeHtml(a.unit_name)}（${escapeHtml(valueOrDash(a.unit_code))}）</option>`).join("")}
+           </select>
+         </label>`
+      : "";
     box.innerHTML = `
       <div class="budget-alloc-head">
-        <strong>${escapeHtml(bud ? bud.budget_code : "費用項目")}</strong> 的單位分攤
+        <strong>${escapeHtml(bud ? bud.budget_code : "費用項目")}</strong> 的單位分攤（整數）
         <span class="muted">共 ${al.length} 個單位，合計 ${money(total)} 元</span>
         <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button>
       </div>
+      ${overrideCtl}
       <div class="grid-scroll"><table class="grid-table">
         <thead><tr><th>單位代碼</th><th>單位名稱</th><th>分攤%</th><th>分攤金額</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -2049,6 +2064,18 @@ document.querySelector("#budget-alloc")?.addEventListener("click", (event) => {
   if (event.target.closest("[data-alloc-close]")) { document.querySelector("#budget-alloc").innerHTML = ""; return; }
   const u = event.target.closest("[data-unit-code]");
   if (u) loadBudgetUnitRollup(u.getAttribute("data-unit-code"));
+});
+// 改「尾數承擔單位」→ 存進該預算、重載分攤（尾數即時改歸新單位）
+document.querySelector("#budget-alloc")?.addEventListener("change", async (event) => {
+  const sel = event.target.closest("[data-rem-budget]");
+  if (!sel) return;
+  const budgetId = sel.getAttribute("data-rem-budget");
+  try {
+    await api(`/api/budgets/${budgetId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remainder_unit_code: sel.value }) });
+    await loadBudgetAllocations(budgetId);
+  } catch (error) {
+    window.alert(`設定尾數承擔單位失敗：${error.message}`);
+  }
 });
 
 cases.addEventListener("click", async (event) => {

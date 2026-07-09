@@ -86,6 +86,46 @@ def test_import_writes_allocations_and_apis(tmp_path):
         assert len(client.get(f"/api/budgets/{bid}/allocations").json()["data"]) == 3
 
 
+def _budget_wb_remainder() -> bytes:
+    """會產生尾數的分攤：總額 100，甲/乙/丙 = 33.33/33.33/33.34（四捨五入 33+33+33=99，尾數 1）。
+    填寫部門＝乙部門 → 預設由乙承擔尾數。"""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "尾數測試費用"
+    ws.append(["統籌預估表"])
+    ws.append([None, "預算項目：", "測試費"])
+    ws.append([None, "填寫部門：", "乙部門"])
+    ws.append([None, None, None, None, "全年度費用"])
+    ws.append([None, None, None, "115年度", 100])
+    ws.append([None, "部門代號", "部門別", "合計"])
+    ws.append([None, "B01", "甲部門", 33.33])
+    ws.append([None, "B02", "乙部門", 33.33])
+    ws.append([None, "B03", "丙部門", 33.34])
+    ws.append([None, None, "合計", 100])
+    bio = io.BytesIO()
+    wb.save(bio)
+    return bio.getvalue()
+
+
+def test_integer_apportionment_remainder_to_absorber(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/budgets/import-xlsx?commit=true", content=_budget_wb_remainder())
+        bid = client.get("/api/budgets").json()["data"][0]["id"]
+        al = client.get(f"/api/budgets/{bid}/allocations").json()["data"]
+        by = {a["unit_name"]: a for a in al}
+        # 整數欄合計＝總額 100
+        assert sum(a["amount_int"] for a in al) == 100
+        # 預設由「填寫部門＝乙部門」承擔尾數 +1 → 34；甲/丙 各 33
+        assert by["乙部門"]["is_remainder_unit"] and by["乙部門"]["remainder"] == 1 and by["乙部門"]["amount_int"] == 34
+        assert by["甲部門"]["amount_int"] == 33 and by["丙部門"]["amount_int"] == 33
+
+        # 覆寫承擔單位 → 改由丙部門承擔
+        client.patch(f"/api/budgets/{bid}", json={"remainder_unit_code": "B03"})
+        al2 = {a["unit_name"]: a for a in client.get(f"/api/budgets/{bid}/allocations").json()["data"]}
+        assert al2["丙部門"]["is_remainder_unit"] and al2["丙部門"]["amount_int"] == 34
+        assert al2["乙部門"]["amount_int"] == 33
+
+
 @pytest.mark.skipif(not _real_available(), reason="真實預算 xlsx 不存在或被鎖住（docs/）")
 def test_real_budget_allocations_sum_matches_total(tmp_path):
     data = REAL.read_bytes()
