@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.24 · 2026-07-09 · 費用分攤收進資料管理";
+const BUILD_TAG = "v0.9.25 · 2026-07-09 · 簽呈請購友善關聯+追溯鏈";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -953,6 +953,7 @@ async function loadCases() {
               <span class="badge ${item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : ""}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>
               <span class="actions">
                 ${caseWorkflowButtons(item)}
+                <button type="button" class="secondary" data-action="trace">追溯鏈</button>
                 <button type="button" class="secondary" data-action="edit">編輯</button>
                 <button type="button" class="secondary" data-action="disable">停用</button>
                 <button type="button" class="danger" data-action="delete">刪除</button>
@@ -964,6 +965,62 @@ async function loadCases() {
     : `<p class="muted">目前沒有案件資料。</p>`;
   renderCioTable();
 }
+
+// 關聯案件下拉：把各表單的 .case-picker 填成「案件編號｜名稱」，保留原選值（供編輯）
+async function loadCaseOptions() {
+  const pickers = document.querySelectorAll(".case-picker");
+  if (!pickers.length) return;
+  let list = [];
+  try { list = (await api("/api/cases")).data || []; } catch (_e) { return; }
+  const opts = `<option value="">（不關聯案件）</option>` +
+    list.map((c) => `<option value="${c.id}">${escapeHtml(c.case_code)}｜${escapeHtml(c.title || "")}</option>`).join("");
+  for (const sel of pickers) {
+    const cur = sel.value;
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  }
+}
+
+// 追溯鏈：從案件一路看 簽呈 ▸ 請購 ▸ 合約 ▸ 付款（用 case_360 的聚合）
+async function loadCaseTrace(caseId) {
+  const box = document.querySelector("#case-trace");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">載入追溯鏈…</p>`;
+  try {
+    const d = (await api(`/api/cases/${caseId}/360`)).data || {};
+    const c = d.case || {};
+    const t = d.totals || {};
+    const n = (a) => (a || []).length;
+    const chip = (label, count, amount) =>
+      `<div class="trace-node"><span class="trace-count">${count}</span><span class="trace-label">${label}</span>${amount != null ? `<span class="trace-amt">${money(amount)} 元</span>` : ""}</div>`;
+    const listOf = (arr, fn, empty) => (arr && arr.length) ? arr.map(fn).join("") : `<li class="muted">${empty}</li>`;
+    box.innerHTML = `
+      <div class="trace-panel">
+        <div class="section-heading compact">
+          <h3>追溯鏈：${escapeHtml(c.case_code || "")}　${escapeHtml(c.title || "")}</h3>
+          <button type="button" class="secondary btn-sm" id="trace-close">收起</button>
+        </div>
+        <div class="trace-chain">
+          ${chip("簽呈", n(d.signoffs), t.signoff_amount)}<span class="trace-arrow">▸</span>
+          ${chip("請購", n(d.purchases), t.purchase_amount)}<span class="trace-arrow">▸</span>
+          ${chip("合約", n(d.contracts), t.contract_amount)}<span class="trace-arrow">▸</span>
+          ${chip("付款", n(d.payments), t.payment_amount)}
+        </div>
+        <div class="trace-lists">
+          <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, (s) => `<li><strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}</li>`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
+          <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, (p) => `<li><strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元</li>`, "無關聯請購")}</ul></div>
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, (k) => `<li><strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元</li>`, "無關聯合約")}</ul></div>
+          <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, (p) => `<li>${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}</li>`, "無付款紀錄")}</ul></div>
+        </div>
+      </div>`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (error) {
+    box.innerHTML = `<p class="muted">追溯鏈載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+document.querySelector("#case-trace")?.addEventListener("click", (event) => {
+  if (event.target.closest("#trace-close")) document.querySelector("#case-trace").innerHTML = "";
+});
 
 async function loadResource(type) {
   const config = resourceConfig[type];
@@ -1750,7 +1807,7 @@ async function refresh() {
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
-    loadPortfolio(), loadUnitConflicts(),
+    loadPortfolio(), loadUnitConflicts(), loadCaseOptions(),
   ]);
 }
 
@@ -2678,6 +2735,10 @@ cases.addEventListener("click", async (event) => {
   const action = button.dataset.action;
   if (action === "edit") {
     startEdit(id);
+    return;
+  }
+  if (action === "trace") {
+    loadCaseTrace(id);
     return;
   }
   try {

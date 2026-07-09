@@ -1485,3 +1485,15 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .search-go { color: var(--accent-2); font-size: .8rem; font-weight: 600; white-space: nowrap; }
 
 @media (max-width: 640px) { .pf-metas { grid-template-columns: repeat(2, 1fr); } .pf-row-name { flex-basis: 110px; } }
+
+/* 追溯鏈：簽呈 ▸ 請購 ▸ 合約 ▸ 付款 */
+.trace-panel { margin-top: 14px; border: 2px solid var(--accent); border-radius: 12px; padding: 12px 14px; background: var(--surface); box-shadow: 0 2px 10px rgba(30,138,111,.10); }
+.trace-chain { display: flex; align-items: stretch; flex-wrap: wrap; gap: 6px; margin: 6px 0 14px; }
+.trace-node { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 92px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.trace-node .trace-count { font-size: 1.3rem; font-weight: 700; color: var(--accent-2); line-height: 1; }
+.trace-node .trace-label { font-size: .8rem; }
+.trace-node .trace-amt { font-size: .72rem; color: var(--ink-3); }
+.trace-arrow { align-self: center; color: var(--accent); font-size: 1.1rem; }
+.trace-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.trace-lists h4 { font-size: .85rem; margin: 0 0 4px; }
+.trace-lists .note-list li { grid-template-columns: 1fr; }

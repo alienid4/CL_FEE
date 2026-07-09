@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-24" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-25" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -622,6 +622,7 @@
             <button type="button" id="cancel-edit" class="secondary" hidden>取消</button>
           </form>
           <div id="cases" class="list"></div>
+          <div id="case-trace"></div>
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="contracts-module" hidden>
@@ -632,7 +633,7 @@
             <input name="contract_name" placeholder="合約名稱" required />
             <input name="vendor_name" placeholder="廠商" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
               <option value="active">有效</option>
               <option value="reviewing">審核中</option>
@@ -700,7 +701,7 @@
               <option value="archived">已歸檔</option>
               <option value="disabled">已停用</option>
             </select>
-            <input name="case_id" placeholder="案件 ID" type="number" min="1" step="1" />
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <input name="contract_id" placeholder="合約 ID" type="number" min="1" step="1" />
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
@@ -723,7 +724,7 @@
               <option value="headcount">分攤：按人數</option>
               <option value="category">分攤：按類別</option>
             </select>
-            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
               <option value="active">有效</option>
               <option value="closed">已結案</option>
@@ -757,7 +758,7 @@
             <input name="start_date" placeholder="開始日 YYYY-MM-DD" />
             <input name="end_date" placeholder="結束日 YYYY-MM-DD" />
             <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供催辦）" />
-            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
               <option value="active">進行中</option>
               <option value="completed">已完成</option>
@@ -780,7 +781,7 @@
             <input name="applicant" placeholder="申請人" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
-            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
               <option value="draft">草稿</option>
               <option value="submitted">送簽</option>
@@ -804,7 +805,7 @@
             <input name="vendor_name" placeholder="廠商" />
             <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-            <input name="case_id" placeholder="關聯案件 ID" type="number" min="1" step="1" />
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
               <option value="pending">待處理</option>
               <option value="ordered">已下單</option>
@@ -820,6 +821,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-24"></script>
+    <script src="/static/app.js?v=v0-9-25"></script>
   </body>
 </html>
