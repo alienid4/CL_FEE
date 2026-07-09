@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-29" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-30" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -580,8 +580,9 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="cases-module">
-          <h2 id="form-title">新增案件</h2>
-          <form id="case-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="case-form">＋ 手動新增</button>
+          <h2 id="form-title" hidden>新增案件</h2>
+          <form id="case-form" hidden>
             <input name="id" type="hidden" />
             <input name="case_code" placeholder="案件編號" required />
             <input name="title" placeholder="案件名稱" required />
@@ -603,7 +604,8 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="contracts-module" hidden>
-          <form id="contract-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="contract-form">＋ 手動新增</button>
+          <form id="contract-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="contract_code" placeholder="合約編號" required />
             <input name="contract_name" placeholder="合約名稱" required />
@@ -624,7 +626,8 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="payments-module" hidden>
-          <form id="payment-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="payment-form">＋ 手動新增</button>
+          <form id="payment-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="item" placeholder="核銷項目" />
             <input name="settle_no" placeholder="核銷編號" />
@@ -660,7 +663,8 @@
 
         <section class="panel crud-zone module-extra" data-module-parent="data-review" hidden>
             <h2>資料檢核</h2>
-          <form id="document-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="document-form">＋ 手動新增</button>
+          <form id="document-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="file_name" placeholder="檔案名稱" required />
             <select name="document_type">
@@ -685,7 +689,8 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="budget" hidden>
-          <form id="budget-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="budget-form">＋ 手動新增</button>
+          <form id="budget-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="budget_code" placeholder="預算編號" required />
             <input name="category" placeholder="類別（可在系統管理後台維護選項）" list="opt-budget-categories" />
@@ -712,7 +717,8 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="projects" hidden>
-          <form id="project-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="project-form">＋ 手動新增</button>
+          <form id="project-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="project_code" placeholder="標號" required />
             <input name="project_name" placeholder="專案名稱" required />
@@ -744,7 +750,8 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="signoff" hidden>
-          <form id="signoff-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="signoff-form">＋ 手動新增</button>
+          <form id="signoff-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="signoff_code" placeholder="簽呈號碼（簽呈系統那組，勾稽用）" required />
             <input name="subject" placeholder="主旨" required />
@@ -768,7 +775,8 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="purchases" hidden>
-          <form id="purchase-form" class="resource-form">
+          <button type="button" class="secondary form-toggle" data-form-toggle="purchase-form">＋ 手動新增</button>
+          <form id="purchase-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="purchase_code" placeholder="請購編號" required />
             <input name="item_name" placeholder="品項" required />
@@ -791,6 +799,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-29"></script>
+    <script src="/static/app.js?v=v0-9-30"></script>
   </body>
 </html>

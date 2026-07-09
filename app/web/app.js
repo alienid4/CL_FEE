@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.29 · 2026-07-10 · 刪表單重複模組標題";
+const BUILD_TAG = "v0.9.30 · 2026-07-10 · 手動表單預設收合";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1844,17 +1844,35 @@ document.querySelector("#pf-view")?.addEventListener("click", (event) => {
   if (idx >= 0) { portfolioState.s = idx; renderPortfolio(); }
 });
 
+// 手動新增/編輯表單：平常收合、不佔版面；點「＋手動新增」或按清單「編輯」才展開
+function setManualForm(formEl, open) {
+  if (!formEl) return;
+  const fid = formEl.getAttribute("id");  // 注意：form.id 會被表單內 <input name="id"> 遮蔽，須用 getAttribute
+  formEl.hidden = !open;
+  if (fid === "case-form") { const t = document.querySelector("#form-title"); if (t) t.hidden = !open; }
+  const btn = document.querySelector(`[data-form-toggle="${fid}"]`);
+  if (btn) btn.textContent = open ? "－ 收起表單" : "＋ 手動新增";
+}
+document.addEventListener("click", (event) => {
+  const t = event.target.closest("[data-form-toggle]");
+  if (!t) return;
+  const formEl = document.getElementById(t.getAttribute("data-form-toggle"));
+  setManualForm(formEl, !!formEl?.hidden);  // hidden → 打開
+});
+
 function resetForm() {
   form.reset();
   form.elements.id.value = "";
   formTitle.textContent = "新增案件";
   submitCase.textContent = "新增";
   cancelEdit.hidden = true;
+  setManualForm(form, false);  // 取消後收合
 }
 
 function startEdit(id) {
   const item = caseCache.find((entry) => String(entry.id) === String(id));
   if (!item) return;
+  setManualForm(form, true);  // 編輯時自動展開
   form.elements.id.value = item.id;
   form.elements.case_code.value = item.case_code;
   form.elements.title.value = item.title;
@@ -1867,6 +1885,7 @@ function startEdit(id) {
   formTitle.textContent = `編輯 ${item.case_code}`;
   submitCase.textContent = "儲存";
   cancelEdit.hidden = false;
+  form.scrollIntoView({ block: "nearest" });
 }
 
 function serializeResourceForm(type) {
@@ -1887,6 +1906,7 @@ function resetResourceForm(type) {
   targetForm.elements.id.value = "";
   targetForm.querySelector('button[type="submit"]').textContent = "新增";
   targetForm.querySelector("[data-cancel]").hidden = true;
+  setManualForm(targetForm, false);  // 取消後收合
 }
 
 async function startResourceEdit(type, id) {
@@ -1898,12 +1918,14 @@ async function startResourceEdit(type, id) {
   if (!item) return;
   const config = resourceConfig[type];
   const targetForm = resourceForms[type];
+  setManualForm(targetForm, true);  // 編輯時自動展開
   targetForm.elements.id.value = item.id;
   for (const field of config.fields) {
     targetForm.elements[field].value = item[field] ?? "";
   }
   targetForm.querySelector('button[type="submit"]').textContent = "儲存";
   targetForm.querySelector("[data-cancel]").hidden = false;
+  targetForm.scrollIntoView({ block: "nearest" });
 }
 
 async function submitResource(type, event) {
