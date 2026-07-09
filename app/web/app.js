@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.33 · 2026-07-10 · 系統編號:案件發號";
+const BUILD_TAG = "v0.9.34 · 2026-07-10 · 名稱分群改包含關係(修誤併)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2636,13 +2636,23 @@ let nameKind = "vendor";
 let nameClusterCache = [];  // 供裁決按鈕依 index 取回該群名稱
 const NAME_KIND_LABEL = { vendor: "廠商名", case: "案件名", project: "專案名" };
 
-// 用 union-find 把相近名稱分群（沿用 namesLookSame）
+// 名稱分群用「包含關係」判斷（比 namesLookSame 嚴，避免中華電信/中華資安因共用「中華」被誤併）：
+// 一個是另一個的子字串就算同一實體（中華電⊂中華電信⊂中華電信股份有限公司；奧義⊂奧義智慧）。
+function namesClusterSame(a, b) {
+  a = String(a || "").trim(); b = String(b || "").trim();
+  if (!a || !b) return false;
+  if (a === b || a.includes(b) || b.includes(a)) return true;
+  const ca = unitNameCore(a), cb = unitNameCore(b);  // 去通用字尾(公司/部/處…)後再看包含
+  return !!(ca && cb && ca !== cb && (ca.includes(cb) || cb.includes(ca)));
+}
+
+// 用 union-find 把相近名稱分群
 function clusterNames(values) {
   const parent = values.map((_, i) => i);
   const find = (i) => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
   for (let i = 0; i < values.length; i++)
     for (let j = i + 1; j < values.length; j++)
-      if (namesLookSame(values[i].name, values[j].name)) parent[find(i)] = find(j);
+      if (namesClusterSame(values[i].name, values[j].name)) parent[find(i)] = find(j);
   const groups = {};
   values.forEach((v, i) => { const r = find(i); (groups[r] = groups[r] || []).push(v); });
   // 只留「≥2 個名、且尚未全部歸到同一主名」的群
