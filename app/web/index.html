@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-25" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-26" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -776,12 +776,13 @@
           <h2>簽呈</h2>
           <form id="signoff-form" class="resource-form">
             <input name="id" type="hidden" />
-            <input name="signoff_code" placeholder="簽呈編號" required />
+            <input name="signoff_code" placeholder="簽呈號碼（簽呈系統那組，勾稽用）" required />
             <input name="subject" placeholder="主旨" required />
             <input name="applicant" placeholder="申請人" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
+            <input name="attachment_ref" placeholder="簽呈連結／檔案位置（選填，貼簽呈系統連結或路徑）" />
             <select name="status">
               <option value="draft">草稿</option>
               <option value="submitted">送簽</option>
@@ -821,6 +822,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-25"></script>
+    <script src="/static/app.js?v=v0-9-26"></script>
   </body>
 </html>

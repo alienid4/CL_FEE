@@ -366,6 +366,8 @@ def initialize_database() -> None:
         # 記匯入來源檔名，讓單位撞名清單能指回是哪個 Excel（人類追資料來源）
         ensure_column(conn, "budget_allocations", "source_file", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "unit_headcounts", "source_file", "TEXT NOT NULL DEFAULT ''")
+        # 簽呈附件參照：貼簽呈系統連結或檔案位置（勾稽用，不存 PDF 本身）
+        ensure_column(conn, "signoffs", "attachment_ref", "TEXT NOT NULL DEFAULT ''")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -432,7 +434,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "category_shares": {"category", "unit_code", "unit_name", "share_pct", "source_file"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
-        "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
+        "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note", "attachment_ref"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",

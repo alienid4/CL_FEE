@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.25 · 2026-07-09 · 簽呈請購友善關聯+追溯鏈";
+const BUILD_TAG = "v0.9.26 · 2026-07-10 · 簽呈號碼勾稽+選填附件連結";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -260,12 +260,12 @@ const resourceConfig = {
   signoff: {
     plural: "signoffs", idAttr: "signoff-id", idField: "signoffId", api: "/api/signoffs",
     navCount: "nav-count-signoffs", navLabel: "簽呈",
-    fields: ["signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"],
+    fields: ["signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note", "attachment_ref"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
-      { label: "簽呈編號", cell: (i) => `<strong>${escapeHtml(i.signoff_code)}</strong>` },
+      { label: "簽呈號碼", cell: (i) => `<strong>${escapeHtml(i.signoff_code)}</strong>` },
       { label: "主旨", cell: (i) => escapeHtml(i.subject) },
-      { label: "申請人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.applicant))}</span>` },
+      { label: "附件", cell: (i) => attachmentLink(i.attachment_ref) },
       { label: "簽核日", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.sign_date))}</span>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
       { label: "狀態", cell: (i) => statusChip(i.status) },
@@ -322,6 +322,16 @@ function escapeHtml(value) {
 
 function valueOrDash(value) {
   return value === null || value === undefined || value === "" ? "-" : value;
+}
+
+// 簽呈附件參照：是網址就做成可點連結（新視窗），否則顯示 📎＋文字（如檔案路徑）
+function attachmentLink(ref) {
+  const v = String(ref || "").trim();
+  if (!v) return `<span class="muted">-</span>`;
+  if (/^https?:\/\//i.test(v)) {
+    return `<a href="${escapeHtml(v)}" target="_blank" rel="noopener noreferrer" title="開啟簽呈附件">📎 開啟</a>`;
+  }
+  return `<span title="${escapeHtml(v)}">📎 ${escapeHtml(v.length > 20 ? v.slice(0, 20) + "…" : v)}</span>`;
 }
 
 function labelStatus(value) {
@@ -1007,7 +1017,7 @@ async function loadCaseTrace(caseId) {
           ${chip("付款", n(d.payments), t.payment_amount)}
         </div>
         <div class="trace-lists">
-          <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, (s) => `<li><strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}</li>`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
+          <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, (s) => `<li><strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}</li>`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
           <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, (p) => `<li><strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元</li>`, "無關聯請購")}</ul></div>
           <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, (k) => `<li><strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元</li>`, "無關聯合約")}</ul></div>
           <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, (p) => `<li>${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}</li>`, "無付款紀錄")}</ul></div>
