@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.22 · 2026-07-09 · 看分攤按鈕移前面好找";
+const BUILD_TAG = "v0.9.23 · 2026-07-09 · 一鍵套用合併建議";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2479,6 +2479,50 @@ document.querySelector("#unit-reset")?.addEventListener("click", async () => {
 });
 
 document.querySelector("#unitconf-rescan")?.addEventListener("click", () => loadUnitConflicts());
+
+// 一鍵套用建議：依每組💡建議一次處理完，理由自動帶，事後可在決策紀錄複核/復原
+// 合併時挑「以誰為準」：同代號多名→取最長名稱(通常是全名)；同名多代號→取筆數最多的代號
+function suggestedCanonical(group, kind) {
+  const vs = group.variants;
+  if (kind === "code") {
+    const best = [...vs].sort((a, b) => (b.unit_name || "").length - (a.unit_name || "").length || (b.count || 0) - (a.count || 0))[0];
+    return { code: group.unit_code, name: best.unit_name };
+  }
+  const best = [...vs].sort((a, b) => (b.count || 0) - (a.count || 0))[0];
+  return { code: best.unit_code, name: group.unit_name };
+}
+document.querySelector("#unit-apply-suggest")?.addEventListener("click", async (event) => {
+  const groups = [
+    ...unitConflictCache.code.map((g) => ({ g, kind: "code" })),
+    ...unitConflictCache.name.map((g) => ({ g, kind: "name" })),
+  ];
+  if (!groups.length) { window.alert("目前沒有待處理的撞名。"); return; }
+  let mergeN = 0, splitN = 0;
+  for (const { g, kind } of groups) (mergeHint(g, kind).lean === "merge" ? mergeN++ : splitN++);
+  if (!window.confirm(`將依系統建議一次處理 ${groups.length} 組：合併 ${mergeN} 組、分開 ${splitN} 組。\n全部會記進決策紀錄、可逐筆復原或一鍵還原。確定？`)) return;
+  const btn = event.currentTarget;
+  btn.disabled = true; const label = btn.textContent; btn.textContent = "套用中…";
+  let ok = 0, fail = 0;
+  for (const { g, kind } of groups) {
+    const variants = g.variants.map((v) => ({ unit_code: v.unit_code, unit_name: v.unit_name }));
+    const hint = mergeHint(g, kind);
+    try {
+      if (hint.lean === "merge") {
+        const canon = suggestedCanonical(g, kind);
+        await api("/api/unit-merge", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ variants, canonical_code: canon.code || "", canonical_name: canon.name || "", reason: "系統建議：名稱相近，視為同一單位" }) });
+      } else {
+        await api("/api/unit-split", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ variants, reason: "系統建議：名稱差異大，視為不同單位" }) });
+      }
+      ok++;
+    } catch (_e) { fail++; }
+  }
+  btn.disabled = false; btn.textContent = label;
+  await loadUnitConflicts();
+  if (document.querySelector("#budget-alloc")?.innerHTML) loadBudgetUnitRollup();
+  window.alert(`套用完成：成功 ${ok} 組${fail ? `、失敗 ${fail} 組` : ""}。\n請往下拉到「決策紀錄」複核，不對的按「復原」即可。`);
+});
 
 // 人數基準表：匯入 + 檢視
 async function hcXlsx(commit) {
