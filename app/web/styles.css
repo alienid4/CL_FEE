@@ -1426,6 +1426,13 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 #io-result:empty { display: none; }
 #io-result { margin-top: 12px; }
 
+/* 通用「?」說明圖示：預設只顯示問號，hover/點擊才浮出說明，不佔版面 */
+.help { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 5px; border-radius: 50%; border: 1px solid var(--ink-3); color: var(--ink-3); font-size: .7rem; font-weight: 700; line-height: 1; cursor: help; position: relative; vertical-align: middle; user-select: none; }
+.help:hover, .help.open { background: var(--accent); border-color: var(--accent); color: #fff; }
+.help::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 8px); width: 260px; max-width: 70vw; background: #2b2b2b; color: #fff; text-align: left; font-weight: 400; font-size: .76rem; line-height: 1.55; padding: 9px 11px; border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 60; opacity: 0; visibility: hidden; transition: opacity .12s; pointer-events: none; white-space: normal; }
+.help:hover::after, .help.open::after { opacity: 1; visibility: visible; }
+.help.tip-right::after { left: auto; right: 0; }
+
 /* 資料管理後台：側欄分組標籤 + 磚塊首頁 */
 .nav-group-label { margin: 14px 8px 4px; font-size: .68rem; font-weight: 700; letter-spacing: .08em; color: var(--ink-3); text-transform: none; }
 .admin-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 8px; }
@@ -1444,13 +1451,13 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .unit-admin-summary .ok-line { color: var(--accent-2); }
 #unitconf-result h4 { margin: 18px 0 8px; font-size: .92rem; }
 /* 每組撞名做成明顯的一個群組：粗邊框 + 彩色標題列 + 分區的裁決底座 */
-.unit-conflict-card { border: 2px solid var(--accent); border-radius: 12px; margin-bottom: 22px; overflow: hidden; background: var(--surface); box-shadow: 0 2px 10px rgba(30,138,111,.10); }
-.unit-conflict-key { font-size: .92rem; font-weight: 600; margin: 0; padding: 10px 14px; background: var(--accent); color: #fff; }
+.unit-conflict-card { border: 2px solid var(--accent); border-radius: 12px; margin-bottom: 22px; background: var(--surface); box-shadow: 0 2px 10px rgba(30,138,111,.10); }
+.unit-conflict-key { font-size: .92rem; font-weight: 600; margin: 0; padding: 10px 14px; background: var(--accent); color: #fff; border-radius: 10px 10px 0 0; }
 .unit-conflict-key strong { color: #fff; font-size: 1.05rem; }
 .unit-conflict-card .grid-scroll { padding: 12px 14px 0; }
 .conflict-hint { margin: 10px 14px 0; padding: 7px 10px; border-radius: 6px; font-size: .8rem; background: var(--surface-2); border-left: 3px solid var(--accent); }
 .conflict-hint.lean-split { border-left-color: var(--warn); }
-.conflict-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; background: var(--surface-2); border-top: 1px solid var(--line); }
+.conflict-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; background: var(--surface-2); border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; }
 .conflict-canon { display: flex; flex-direction: column; gap: 3px; font-size: .76rem; color: var(--ink-3); }
 .conflict-canon select { min-width: 200px; }
 .unit-master-block { margin-top: 22px; padding-top: 14px; border-top: 2px solid var(--line); }

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.17 · 2026-07-09 · 撞名卡片分組+判斷提示";
+const BUILD_TAG = "v0.9.18 · 2026-07-09 · 說明改問號點開";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2113,6 +2113,16 @@ document.querySelector("#budget-alloc")?.addEventListener("click", async (event)
   if (u) loadBudgetUnitRollup(u.getAttribute("data-unit-code"));
 });
 
+// 通用「?」說明圖示：說明收進 tooltip，不佔版面。hover 顯示；點擊 toggle（觸控友善）。
+function helpIcon(tip, extraClass = "") {
+  return `<span class="help ${extraClass}" data-tip="${escapeHtml(tip)}" role="button" tabindex="0" aria-label="說明">?</span>`;
+}
+document.addEventListener("click", (event) => {
+  const h = event.target.closest(".help");
+  document.querySelectorAll(".help.open").forEach((el) => { if (el !== h) el.classList.remove("open"); });
+  if (h) { event.preventDefault(); h.classList.toggle("open"); }
+});
+
 // 單位管理：撞名偵測（Step1）＋ 合併/分開裁決（Step2）
 let unitConflictCache = { code: [], name: [] };  // 供裁決按鈕依 kind+index 取回變體
 
@@ -2128,14 +2138,14 @@ function unitVariantRows(variants, keyKind) {
 function conflictActions(kind, index, variants) {
   const opts = variants.map((v, i) =>
     `<option value="${i}">${escapeHtml(v.unit_name || "(無名稱)")}${v.unit_code ? "（" + escapeHtml(v.unit_code) + "）" : ""}</option>`).join("");
-  const dup = variants.some((v) => v.master) ? `<span class="dup-warn" title="這組先前已裁決過，再動會覆蓋，請確認">⚠ 已裁決過</span>` : "";
+  const dup = variants.some((v) => v.master) ? `<span class="dup-warn">⚠ 已裁決過${helpIcon("這組先前已裁決過，再按會覆蓋原本的裁決，請確認。")}</span>` : "";
   return `<div class="conflict-actions" data-conflict-kind="${kind}" data-conflict-index="${index}">
-    <label class="conflict-canon">以誰為準
+    <label class="conflict-canon">以誰為準${helpIcon("合併後，這個單位的代號與名稱會被當成「正式版本」，其他撞名的都認到它底下。")}
       <select class="conflict-canonical">${opts}</select>
     </label>
-    <input type="text" class="conflict-reason" maxlength="120" placeholder="理由（必填）：為什麼這樣判斷？" />
-    <button type="button" class="btn-sm" data-merge>合併：這些是同一單位</button>
-    <button type="button" class="secondary btn-sm" data-split>分開保留：不同單位</button>
+    <input type="text" class="conflict-reason" maxlength="120" placeholder="理由（必填）" />
+    <button type="button" class="btn-sm" data-merge>合併</button>
+    <button type="button" class="secondary btn-sm" data-split>分開</button>
     ${dup}
   </div>`;
 }
@@ -2168,34 +2178,37 @@ function namesLookSame(a, b) {
   const lcs = longestCommonSubstr(a, b);
   return lcs >= 2 && lcs >= Math.min(a.length, b.length) * 0.5;
 }
-// 給一句「傾向合併/傾向分開」的參考提示，幫使用者直覺判斷
+// 「傾向合併/傾向分開」的參考提示——只留一句短結論，理由收進 ?
 function mergeHint(c, kind) {
   if (kind === "name") {
-    return { lean: "merge", text: "💡 <strong>名稱一模一樣、只有代號不同</strong>，多半是同一單位代號有出入——通常選「合併」。（僅供參考，你決定）" };
+    return { lean: "merge", label: "建議：合併",
+      why: "名稱一模一樣、只有代號不同，多半是同一單位代號有出入，通常選「合併」。（僅供參考，最後你決定）" };
   }
   const names = c.variants.map((v) => v.unit_name).filter(Boolean);
   let allSame = names.length > 1;
   for (let i = 1; i < names.length; i++) if (!namesLookSame(names[0], names[i])) allSame = false;
   return allSame
-    ? { lean: "merge", text: "💡 <strong>名稱高度相近</strong>（像簡寫 vs 全名），比較可能是<strong>同一單位</strong>——傾向「合併」。（僅供參考，你決定）" }
-    : { lean: "split", text: "💡 <strong>名稱差異較大</strong>，可能是<strong>不同單位</strong>、或某筆代號打錯——請確認，多半選「分開」。（僅供參考，你決定）" };
+    ? { lean: "merge", label: "建議：合併",
+        why: "名稱高度相近（像簡寫 vs 全名），比較可能是同一單位，傾向「合併」。（僅供參考，最後你決定）" }
+    : { lean: "split", label: "建議：分開",
+        why: "名稱差異較大，可能是不同單位、或某筆代號打錯，請確認，多半選「分開」。（僅供參考，最後你決定）" };
 }
 
 function conflictCardHtml(c, kind) {
   const key = kind === "code"
-    ? `代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱（要判斷是不是同一個單位）`
+    ? `代號 <strong>${escapeHtml(c.unit_code)}</strong> ＝ ${c.variants.length} 個名稱`
     : `名稱 <strong>${escapeHtml(c.unit_name)}</strong> ＝ ${c.variants.length} 個代號`;
   const head = kind === "code" ? "名稱" : "代號";
   const rows = unitVariantRows(c.variants, kind === "code" ? "byCode" : "byName");
   const idx = kind === "code" ? unitConflictCache.code.indexOf(c) : unitConflictCache.name.indexOf(c);
   const hint = mergeHint(c, kind);
   return `<div class="unit-conflict-card">
-    <div class="unit-conflict-key">${key}</div>
+    <div class="unit-conflict-key">${key}${helpIcon("同一個代號對到不同名稱（或反之）。要判斷這幾筆是不是同一個真實單位。", "tip-right")}</div>
     <div class="grid-scroll"><table class="grid-table">
-      <thead><tr><th>${head}</th><th>出現在（來源 Excel 檔）</th><th>筆數</th></tr></thead>
+      <thead><tr><th>${head}</th><th>來源檔${helpIcon("這個名稱/代號是從哪個匯入的 Excel 檔來的，方便你回頭核對。")}</th><th>筆數</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
-    <div class="conflict-hint ${hint.lean === "split" ? "lean-split" : ""}">${hint.text}</div>
+    <div class="conflict-hint ${hint.lean === "split" ? "lean-split" : ""}">💡 <strong>${hint.label}</strong>${helpIcon(hint.why)}</div>
     ${conflictActions(kind, idx, c.variants)}</div>`;
 }
 
