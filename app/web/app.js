@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.13 · 2026-07-09 · 撞名標來源檔名";
+const BUILD_TAG = "v0.9.14 · 2026-07-09 · 資料管理後台獨立";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -80,6 +80,7 @@ if (modulePanels.length && !document.querySelector("#module-unbuilt")) {
 }
 const moduleExtras = [...document.querySelectorAll("[data-module-parent]")];
 const drillCards = [...document.querySelectorAll("[data-drill-target]")];
+let lastPanelId = null;
 let lastImportPreview = null;
 let lastImportBatchId = null;
 let importWarningFilter = { severity: "all", code: "all" };
@@ -367,22 +368,45 @@ function activateCaseTab(tabName) {
   }
 }
 
-function activateModuleCard(card) {
-  if (!card || card.hidden) return;
-  const targetId = ("unbuilt" in card.dataset) ? "module-unbuilt" : card.getAttribute("href")?.replace("#", "");
-  for (const moduleCard of moduleCards) {
-    moduleCard.classList.toggle("active", moduleCard === card);
-  }
+// 後台「資料管理」底下的工具面板（沒有各自的側欄卡片，改由資料管理頁的磚塊開啟）
+const BACKOFFICE_PANELS = new Set(["io-center", "unit-admin", "data-review"]);
+
+// 只切換面板顯示（不動側欄 active）——給有卡片、無卡片兩種入口共用
+function showModulePanel(targetId) {
   for (const panel of modulePanels) {
     const isActive = panel.id === targetId;
     panel.hidden = !isActive;
     panel.classList.toggle("active-module", isActive);
   }
   for (const extra of moduleExtras) {
-    const isActive = extra.dataset.moduleParent === targetId;
-    extra.hidden = !isActive;
+    extra.hidden = extra.dataset.moduleParent !== targetId;
   }
+  lastPanelId = targetId;
   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+}
+
+function activateModuleCard(card) {
+  if (!card || card.hidden) return;
+  const targetId = ("unbuilt" in card.dataset) ? "module-unbuilt" : card.getAttribute("href")?.replace("#", "");
+  for (const moduleCard of moduleCards) {
+    moduleCard.classList.toggle("active", moduleCard === card);
+  }
+  showModulePanel(targetId);
+}
+
+// 開啟後台工具：側欄「資料管理」卡維持 active，面板切到工具本身
+function openBackofficeTool(panelId) {
+  const daCard = document.querySelector('a.module-card[href="#data-admin"]');
+  for (const moduleCard of moduleCards) moduleCard.classList.toggle("active", moduleCard === daCard);
+  showModulePanel(panelId);
+  if (panelId === "unit-admin") loadUnitConflicts();
+}
+
+// 統一導覽：後台工具走 openBackofficeTool，其餘走各自卡片
+function navigateToPanel(panelId) {
+  if (!panelId) return;
+  if (BACKOFFICE_PANELS.has(panelId)) { openBackofficeTool(panelId); return; }
+  document.querySelector(`.module-card[href="#${panelId}"]`)?.click();
 }
 
 function rolesForCard(card) {
@@ -395,6 +419,11 @@ function applyRoleVisibility(user) {
     const targetId = card.getAttribute("href")?.replace("#", "");
     const allowedByPolicy = allowedModules.size ? allowedModules.has(targetId) : rolesForCard(card).includes(user.role_code);
     card.hidden = !allowedByPolicy;
+  }
+  // 後台「資料管理」磚塊：依 allowed_modules 過濾（承辦只看得到資料檢核）
+  for (const tile of document.querySelectorAll(".admin-tile[data-panel-gate]")) {
+    const gate = tile.getAttribute("data-panel-gate");
+    tile.hidden = allowedModules.size ? !allowedModules.has(gate) : false;
   }
   // 示範資料工具只給主管/助理（有 edit）；CIO 唯讀、承辦被後端擋，也不顯示。
   if (demoControls) {
@@ -1322,7 +1351,7 @@ async function loadTodo() {
   if (!todoList) return;
   const payload = await api("/api/todo");
   const items = payload.data || [];
-  setText("#nav-count-todo", `待辦 ${items.length}`);
+  setText("#tile-count-todo", `匯入預檢・待辦 ${items.length}`);
   todoList.innerHTML = items.length
     ? items
         .map(
@@ -1911,8 +1940,7 @@ document.querySelector("#export-cases")?.addEventListener("click", () => {
 });
 
 document.querySelector("#goto-import")?.addEventListener("click", () => {
-  const card = document.querySelector('a.module-card[href="#data-review"]');
-  if (card) activateModuleCard(card);  // 匯入工作區在「資料檢核」模組
+  navigateToPanel("data-review");  // 匯入工作區在「資料檢核」（現收在資料管理後台）
 });
 
 async function projXlsx(commit) {
@@ -2104,7 +2132,7 @@ async function loadUnitConflicts() {
     const codeC = data.code_conflicts || [];
     const nameC = data.name_conflicts || [];
     const total = codeC.length + nameC.length;
-    setText("#nav-count-unitconf", `待確認 ${total}`);
+    setText("#tile-count-unitconf", total ? `撞名待確認 ${total}` : "撞名待確認 0");
     if (sum) {
       sum.innerHTML = total
         ? `<p class="warn-line">⚠ 找到 <strong>${total}</strong> 組要你確認：同代號多名 ${codeC.length} 組、同名多代號 ${nameC.length} 組。目前系統<strong>不會自動合併</strong>，等你在第二步裁決。</p>`
@@ -2187,7 +2215,18 @@ document.querySelector("#hc-view-btn")?.addEventListener("click", () => loadHead
 // 匯入/匯出專區：「前往某模組」按鈕 → 切到該模組
 document.querySelector("#io-center")?.addEventListener("click", (event) => {
   const g = event.target.closest("[data-goto-module]");
-  if (g) document.querySelector(`.module-card[href="#${g.getAttribute("data-goto-module")}"]`)?.click();
+  if (g) navigateToPanel(g.getAttribute("data-goto-module"));
+});
+
+// 資料管理後台：磚塊 → 開對應工具；工具頁「← 資料管理」→ 回後台首頁
+document.querySelector("#data-admin")?.addEventListener("click", (event) => {
+  const tile = event.target.closest("[data-open-panel]");
+  if (tile) openBackofficeTool(tile.getAttribute("data-open-panel"));
+});
+document.addEventListener("click", (event) => {
+  if (event.target.closest(".back-to-admin")) {
+    document.querySelector('a.module-card[href="#data-admin"]')?.click();
+  }
 });
 // 改「尾數承擔單位」→ 存進該預算、重載分攤（尾數即時改歸新單位）
 document.querySelector("#budget-alloc")?.addEventListener("change", async (event) => {
@@ -2320,16 +2359,15 @@ let searchTimer = null;
 
 function closeSearchPanel() {
   if (searchPanel) searchPanel.hidden = true;
-  const active = document.querySelector(".module-card.active");
-  if (active) activateModuleCard(active);  // 還原原本的模組畫面
+  if (lastPanelId) showModulePanel(lastPanelId);  // 還原搜尋前顯示的面板（含後台工具）
+  else document.querySelector(".module-card.active") && activateModuleCard(document.querySelector(".module-card.active"));
 }
 
 async function openSearchHit(type, id) {
   const nav = SEARCH_NAV[type];
   if (!nav) return;
   if (searchPanel) searchPanel.hidden = true;
-  const card = document.querySelector(`.module-card[href="${nav.href}"]`);
-  if (card && !card.hidden) activateModuleCard(card);
+  navigateToPanel(nav.href.replace("#", ""));  // 後台工具(如文件→資料檢核)也能正確開啟
   try { await nav.open(id); } catch (_error) { /* 找不到就算了 */ }
   const targetForm = type === "case" ? form : resourceForms[type];
   targetForm?.scrollIntoView({ block: "center", behavior: "smooth" });

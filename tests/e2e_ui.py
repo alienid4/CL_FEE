@@ -100,8 +100,10 @@ def main() -> int:
             page.wait_for_timeout(700)
             results.append(("新增預算出現在真清單", "E2E-BUD-1" in page.inner_text("#budgets")))
 
-            # 3.65) Excel 正式匯入：資料檢核 → 預覽 → 試算 → 正式匯入 → 案件寫入
-            page.click('a.module-card[href="#data-review"]')
+            # 3.65) Excel 正式匯入：資料管理 → 資料檢核磚塊 → 預覽 → 試算 → 正式匯入 → 案件寫入
+            page.click('a.module-card[href="#data-admin"]')
+            page.wait_for_timeout(300)
+            page.click('.admin-tile[data-open-panel="data-review"]')
             page.wait_for_timeout(400)
             page.click('#import-preview-form button[type="submit"]')
             page.wait_for_timeout(700)

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-13" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-14" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -53,10 +53,9 @@
           <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
           <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>請購</strong><small id="nav-count-purchases">請購 …</small></a>
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
-          <a class="module-card" href="#data-review" data-roles="cio manager_assistant handler"><span>▦</span><strong>資料檢核</strong><small id="nav-count-todo">待辦 …</small></a>
           <a class="module-card" href="#portfolio" data-roles="cio manager_assistant handler"><span>◷</span><strong>進度總表</strong><small>甘特/落後</small></a>
-          <a class="module-card" href="#io-center" data-roles="manager_assistant"><span>⇅</span><strong>匯入/匯出</strong><small>資料進出</small></a>
-          <a class="module-card" href="#unit-admin" data-roles="manager_assistant"><span>⌗</span><strong>單位管理</strong><small id="nav-count-unitconf">待確認 …</small></a>
+          <div class="nav-group-label">資料管理（後台）</div>
+          <a class="module-card" href="#data-admin" data-roles="manager_assistant handler"><span>⛭</span><strong>資料管理</strong><small id="nav-count-dataadmin">匯入・單位・檢核</small></a>
         </nav>
       </aside>
 
@@ -70,6 +69,32 @@
             <button type="button" id="search-close" class="secondary">關閉搜尋</button>
           </div>
           <div id="search-results-main"></div>
+        </section>
+
+        <section class="dashboard-panel module-panel" id="data-admin" hidden aria-label="資料管理後台">
+          <div class="dashboard-head">
+            <div>
+              <p class="breadcrumb">資料管理（後台）</p>
+              <p class="muted">維護資料本身的工具都收在這裡，八大業務功能保持乾淨。以後這類工具會往這頁加，主畫面不會變亂。</p>
+            </div>
+          </div>
+          <div class="admin-tiles">
+            <button type="button" class="admin-tile" data-open-panel="io-center" data-panel-gate="io-center">
+              <span class="admin-tile-ico">⇅</span>
+              <strong>匯入／匯出</strong>
+              <small>各模組資料進出，附檔名指引</small>
+            </button>
+            <button type="button" class="admin-tile" data-open-panel="unit-admin" data-panel-gate="unit-admin">
+              <span class="admin-tile-ico">⌗</span>
+              <strong>單位管理</strong>
+              <small id="tile-count-unitconf">撞名待確認 …</small>
+            </button>
+            <button type="button" class="admin-tile" data-open-panel="data-review" data-panel-gate="data-review">
+              <span class="admin-tile-ico">▤</span>
+              <strong>資料檢核</strong>
+              <small id="tile-count-todo">匯入預檢・待辦 …</small>
+            </button>
+          </div>
         </section>
 
         <section class="dashboard-panel module-panel" id="cases-module" aria-label="case dashboard">
@@ -311,9 +336,10 @@
           <section class="dashboard-panel module-panel" id="io-center" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">匯入／匯出</p>
+                <p class="breadcrumb">資料管理 / 匯入／匯出</p>
                 <p class="muted">不常用的資料進出都收在這裡，各模組主頁保持乾淨。</p>
               </div>
+              <button type="button" class="secondary back-to-admin">← 資料管理</button>
             </div>
             <div class="io-modules">
               <div class="io-card">
@@ -378,10 +404,13 @@
           <section class="dashboard-panel module-panel" id="unit-admin" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">單位管理 / 待確認對照</p>
+                <p class="breadcrumb">資料管理 / 單位管理 · 待確認對照</p>
                 <p class="muted">第一步：系統只「揪出」同一代號對到多個名稱、或同一名稱對到多個代號的資料，交給你判斷。合併與「以誰為準」會在第二步加上。</p>
               </div>
-              <button type="button" id="unitconf-rescan" class="secondary">重新掃描</button>
+              <div class="head-actions">
+                <button type="button" id="unitconf-rescan" class="secondary">重新掃描</button>
+                <button type="button" class="secondary back-to-admin">← 資料管理</button>
+              </div>
             </div>
             <div class="unit-admin-summary" id="unitconf-summary"></div>
             <div id="unitconf-result"></div>
@@ -426,17 +455,20 @@
           <section class="dashboard-panel module-panel" id="data-review" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">資料檢核</p>
+                <p class="breadcrumb">資料管理 / 資料檢核</p>
                 <div class="tabs" aria-label="資料檢核檢視">
                   <span class="tab active">檢核總覽</span>
                   <span class="tab">來源舉證</span>
                   <span class="tab">待補清單</span>
                 </div>
               </div>
-              <div class="status-pills">
-                <span class="warn">待確認 4筆</span>
-                <span class="ok">已關聯 12</span>
-                <span>正式寫入封鎖</span>
+              <div class="head-actions">
+                <div class="status-pills">
+                  <span class="warn">待確認 4筆</span>
+                  <span class="ok">已關聯 12</span>
+                  <span>正式寫入封鎖</span>
+                </div>
+                <button type="button" class="secondary back-to-admin">← 資料管理</button>
               </div>
             </div>
             <section class="kpi-grid">
@@ -755,6 +787,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-13"></script>
+    <script src="/static/app.js?v=v0-9-14"></script>
   </body>
 </html>

@@ -1426,6 +1426,18 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 #io-result:empty { display: none; }
 #io-result { margin-top: 12px; }
 
+/* 資料管理後台：側欄分組標籤 + 磚塊首頁 */
+.nav-group-label { margin: 14px 8px 4px; font-size: .68rem; font-weight: 700; letter-spacing: .08em; color: var(--ink-3); text-transform: none; }
+.admin-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 8px; }
+.admin-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .05s; }
+.admin-tile:hover { border-color: var(--accent-2); box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+.admin-tile:active { transform: translateY(1px); }
+.admin-tile .admin-tile-ico { font-size: 1.4rem; color: var(--accent-2); }
+.admin-tile strong { font-size: 1rem; }
+.admin-tile small { color: var(--ink-3); font-size: .78rem; }
+.head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.back-to-admin { white-space: nowrap; }
+
 /* 單位管理：撞名待確認清單 */
 .unit-admin-summary { margin: 6px 0 14px; }
 .unit-admin-summary .warn-line { background: var(--warn-bg, #fff6e5); border: 1px solid var(--warn, #e0a020); color: var(--ink-1); padding: 10px 12px; border-radius: 8px; }
