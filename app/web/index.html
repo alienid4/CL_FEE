@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-20" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-21" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -375,6 +375,13 @@
                   <button type="button" id="hc-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
                   <button type="button" id="hc-view-btn" class="secondary btn-sm">檢視人數表</button>
                   <span class="muted" id="hc-xlsx-status" role="status" aria-live="polite"></span>
+                </div>
+                <div class="io-row"><span class="io-label">匯入</span>
+                  <span class="io-sub">類別基準表（按類別分攤用）　<span class="io-file">請選：資訊架構部費用分攤表…（含「對照」表）</span></span>
+                  <input type="file" id="cat-xlsx-file" accept=".xlsx" />
+                  <button type="button" id="cat-xlsx-preview" class="secondary btn-sm">預覽</button>
+                  <button type="button" id="cat-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                  <span class="muted" id="cat-xlsx-status" role="status" aria-live="polite"></span>
                 </div>
                 <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/budgets.csv">下載 CSV</button></div>
               </div>
@@ -799,6 +806,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-20"></script>
+    <script src="/static/app.js?v=v0-9-21"></script>
   </body>
 </html>

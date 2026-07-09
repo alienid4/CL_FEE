@@ -274,6 +274,19 @@ CREATE TABLE IF NOT EXISTS unit_decisions (
     undone INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 按類別分攤基準（Phase 2）：一個「類別」（台股功能/複委託功能/台複共用…）底下，
+-- 各單位的百分比（來源＝資訊架構部費用分攤表『對照』表 NEW 欄，每類加總=100%）。
+CREATE TABLE IF NOT EXISTS category_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL DEFAULT '',
+    unit_code TEXT NOT NULL DEFAULT '',
+    unit_name TEXT NOT NULL DEFAULT '',
+    share_pct REAL NOT NULL DEFAULT 0,
+    source_file TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(category, unit_code, unit_name)
+);
 """
 
 
@@ -416,6 +429,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
                     "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category"},
         "unit_headcounts": {"unit_code", "unit_name", "headcount", "source_file"},
+        "category_shares": {"category", "unit_code", "unit_name", "share_pct", "source_file"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note"},
@@ -1620,9 +1634,105 @@ def list_headcounts() -> list[dict[str, Any]]:
             "SELECT * FROM unit_headcounts ORDER BY headcount DESC, id ASC").fetchall()]
 
 
+def parse_category_shares_xlsx(data: bytes) -> list[dict[str, Any]]:
+    """解析『資訊架構部費用分攤表』的『對照』表 → 類別基準。
+    表頭第一列是類別（台股功能/複委託功能/台、複共用功能…），第二列標(現行)/(NEW)；
+    只取 NEW 欄。每個有百分比的儲存格 → (類別, 代號, 名稱, 百分比)。"""
+    import io
+    import openpyxl
+
+    def norm(v: Any) -> str:
+        return " ".join(str(v).split()) if v is not None else ""
+
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[dict[str, Any]] = []
+    try:
+        # 找「對照」表；找不到就退回最後一張
+        sheet = next((s for s in wb.sheetnames if "對照" in s), wb.sheetnames[-1])
+        rows = [list(r) if r else [] for r in wb[sheet].iter_rows(values_only=True)]
+        if len(rows) < 3:
+            return out
+        hdr_cat, hdr_ver = rows[0], rows[1]
+        width = max(len(hdr_cat), len(hdr_ver))
+        # 類別名稱往右填滿（合併儲存格只有左上有值）
+        cats, last = [], ""
+        for j in range(width):
+            v = norm(hdr_cat[j]) if j < len(hdr_cat) else ""
+            if v:
+                last = v
+            cats.append(last)
+        # 取 NEW 欄
+        new_cols = [j for j in range(2, width)
+                    if j < len(hdr_ver) and "NEW" in norm(hdr_ver[j]).upper()]
+        for r in rows[2:]:
+            code = norm(r[0]) if len(r) > 0 else ""
+            name = norm(r[1]) if len(r) > 1 else ""
+            if not code and not name:
+                continue
+            if code in ("合計", "小計") or name in ("合計", "小計"):
+                break
+            for j in new_cols:
+                if j >= len(r) or r[j] in (None, ""):
+                    continue
+                try:
+                    pct = float(r[j])
+                except (TypeError, ValueError):
+                    continue
+                if pct <= 0:
+                    continue
+                out.append({"category": cats[j], "unit_code": code, "unit_name": name,
+                            "share_pct": round(pct * 100, 4)})
+    finally:
+        wb.close()
+    return out
+
+
+def commit_category_shares_import(records: list[dict[str, Any]], source_file: str = "") -> dict[str, Any]:
+    """寫入類別基準：以 (類別, 代號, 名稱) 為鍵 upsert。整批重匯前先清掉同來源舊資料避免殘留。"""
+    allowed = allowed_fields()["category_shares"]
+    source_file = (source_file or "").strip()
+    with connect() as conn:
+        existing = {(r["category"], r["unit_code"], r["unit_name"]): r["id"] for r in conn.execute(
+            "SELECT id, category, unit_code, unit_name FROM category_shares").fetchall()}
+        written = 0
+        cats: set[str] = set()
+        for rec in records:
+            fields = {k: v for k, v in rec.items() if k in allowed}
+            if source_file:
+                fields["source_file"] = source_file
+            key = (rec.get("category", ""), rec.get("unit_code", ""), rec.get("unit_name", ""))
+            cats.add(rec.get("category", ""))
+            if key in existing:
+                upd = {k: v for k, v in fields.items() if k not in ("category", "unit_code", "unit_name")}
+                if upd:
+                    conn.execute(f"UPDATE category_shares SET {', '.join(f'{k} = ?' for k in upd)} WHERE id = ?",
+                                 [*upd.values(), existing[key]])
+            else:
+                cols = ", ".join(fields)
+                ph = ", ".join("?" for _ in fields)
+                conn.execute(f"INSERT INTO category_shares ({cols}) VALUES ({ph})", list(fields.values()))
+            written += 1
+        return {"written": written, "categories": sorted(c for c in cats if c)}
+
+
+def list_category_shares(category: str | None = None) -> dict[str, Any]:
+    """類別基準：回各類別清單（含單位數、百分比合計），帶 category 則回該類別各單位明細。"""
+    with connect() as conn:
+        cats = [dict(r) for r in conn.execute(
+            "SELECT category, COUNT(*) AS units, ROUND(SUM(share_pct), 2) AS pct_sum "
+            "FROM category_shares GROUP BY category ORDER BY category").fetchall()]
+        result: dict[str, Any] = {"categories": cats}
+        if category is not None:
+            result["shares"] = [dict(r) for r in conn.execute(
+                "SELECT unit_code, unit_name, share_pct FROM category_shares "
+                "WHERE category = ? ORDER BY share_pct DESC", (category,)).fetchall()]
+        return result
+
+
 def compute_budget_allocations(budget_id: int) -> dict[str, Any]:
     """依預算的 alloc_method 重算分攤並寫入 budget_allocations。
-    headcount：amount = 費用 × 該單位人數 ÷ 總人數（整數化＋尾數承擔在 list_budget_allocations 處理）。"""
+    headcount：amount = 費用 × 該單位人數 ÷ 總人數。
+    category：amount = 費用 × 該類別下該單位%（整數化＋尾數承擔在 list_budget_allocations 處理）。"""
     with connect() as conn:
         budget = get_row(conn, "budgets", budget_id)
         method = str(budget.get("alloc_method") or "fixed")
@@ -1630,7 +1740,26 @@ def compute_budget_allocations(budget_id: int) -> dict[str, Any]:
         if method == "fixed":
             return {"method": "fixed", "written": 0, "note": "固定金額：沿用現有分攤，未重算"}
         if method == "category":
-            raise ValueError("按類別分攤尚未支援（Phase 2）")
+            cat = str(budget.get("alloc_category") or "").strip()
+            if not cat:
+                raise ValueError("請先選一個分攤類別（台股功能／複委託功能／台、複共用功能…）。")
+            shares = conn.execute(
+                "SELECT unit_code, unit_name, share_pct FROM category_shares "
+                "WHERE category = ? AND share_pct > 0 ORDER BY share_pct DESC", (cat,)).fetchall()
+            if not shares:
+                raise ValueError(f"類別「{cat}」在基準表裡查不到資料，請先匯入類別基準（對照表）。")
+            conn.execute("DELETE FROM budget_allocations WHERE budget_id = ?", (budget_id,))
+            written = 0
+            for seq, s in enumerate(shares, start=1):
+                pct = float(s["share_pct"])
+                conn.execute(
+                    "INSERT INTO budget_allocations (budget_id, seq, unit_code, unit_name, share_pct, amount) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (budget_id, seq, s["unit_code"], s["unit_name"], round(pct, 2), round(total * pct / 100, 2)))
+                written += 1
+            write_audit_log(conn, "budgets", budget_id, "recompute-category", None,
+                            {"category": cat, "units": written, "total": total})
+            return {"method": "category", "written": written, "category": cat}
         if method != "headcount":
             raise ValueError(f"未知分攤方法：{method}")
         hcs = conn.execute(

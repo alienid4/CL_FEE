@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.20 · 2026-07-09 · 逐筆改派(代號打錯)";
+const BUILD_TAG = "v0.9.21 · 2026-07-09 · Phase2按類別分攤";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2008,6 +2008,25 @@ async function loadBudgetAllocations(budgetId) {
     const recomputeBtn = (editable && method !== "fixed")
       ? ` <button type="button" class="btn-sm" data-recompute="${budgetId}">重算分攤</button>`
       : "";
+    // 分攤方法可改；選「按類別」再出類別下拉（台股/複委託/台複共用…）
+    const methodCtl = editable
+      ? `<label class="rem-ctl">分攤方法：
+          <select data-alloc-method="${budgetId}">
+            <option value="fixed"${method === "fixed" ? " selected" : ""}>固定金額</option>
+            <option value="headcount"${method === "headcount" ? " selected" : ""}>按人數</option>
+            <option value="category"${method === "category" ? " selected" : ""}>按類別</option>
+          </select></label>`
+      : "";
+    let categoryCtl = "";
+    if (editable && method === "category") {
+      const cats = ((await api("/api/category-shares")).data || {}).categories || [];
+      const cur = (bud && bud.alloc_category) || "";
+      categoryCtl = `<label class="rem-ctl">分攤類別：
+        <select data-alloc-category="${budgetId}">
+          <option value=""${!cur ? " selected" : ""}>（請選類別）</option>
+          ${cats.map((c) => `<option value="${escapeHtml(c.category)}"${c.category === cur ? " selected" : ""}>${escapeHtml(c.category)}（${c.units}單位）</option>`).join("")}
+        </select></label>${cats.length ? "" : ` <span class="muted">尚未匯入類別基準表，請先到匯入/匯出匯入「對照表」。</span>`}`;
+    }
     const rows = al.length
       ? al.map((a) => {
           const remTag = a.is_remainder_unit
@@ -2033,7 +2052,7 @@ async function loadBudgetAllocations(budgetId) {
         <span class="muted">共 ${al.length} 個單位，合計 ${money(total)} 元 ｜ 方法：${methodLabel}</span>${recomputeBtn}
         <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button>
       </div>
-      ${overrideCtl}
+      <div class="alloc-ctls">${methodCtl}${categoryCtl}${overrideCtl}</div>
       <div class="grid-scroll"><table class="grid-table">
         <thead><tr><th>單位代碼</th><th>單位名稱</th><th>分攤%</th><th>分攤金額</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -2506,6 +2525,31 @@ async function loadHeadcountsView() {
 document.querySelector("#hc-xlsx-preview")?.addEventListener("click", () => hcXlsx(false));
 document.querySelector("#hc-xlsx-commit")?.addEventListener("click", () => hcXlsx(true));
 document.querySelector("#hc-view-btn")?.addEventListener("click", () => loadHeadcountsView());
+
+// 類別基準表（對照表）匯入：供「按類別分攤」用
+async function catXlsx(commit) {
+  const file = document.querySelector("#cat-xlsx-file")?.files?.[0];
+  const el = document.querySelector("#cat-xlsx-status");
+  const commitBtn = document.querySelector("#cat-xlsx-commit");
+  if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
+  if (commit && !window.confirm("確定匯入類別基準表？同類別同單位會更新。")) return;
+  if (el) el.textContent = commit ? "匯入中…" : "解析中…";
+  try {
+    const res = (await api(`/api/category-shares/import-xlsx?commit=${commit}&filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file })).data || {};
+    if (commit) {
+      if (el) el.textContent = `匯入完成：共 ${res.written} 筆，類別：${(res.categories || []).join("、")}。`;
+    } else {
+      if (el) el.textContent = res.count
+        ? `預覽：共 ${res.count} 筆，類別：${(res.categories || []).join("、")}`
+        : "共 0 筆——這個檔裡找不到「對照」表，請確認選了資訊架構部費用分攤表。";
+      if (commitBtn) commitBtn.disabled = !res.count;
+    }
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+}
+document.querySelector("#cat-xlsx-preview")?.addEventListener("click", () => catXlsx(false));
+document.querySelector("#cat-xlsx-commit")?.addEventListener("click", () => catXlsx(true));
 // 匯入/匯出專區：「前往某模組」按鈕 → 切到該模組
 document.querySelector("#io-center")?.addEventListener("click", (event) => {
   const g = event.target.closest("[data-goto-module]");
@@ -2525,13 +2569,36 @@ document.addEventListener("click", (event) => {
 // 改「尾數承擔單位」→ 存進該預算、重載分攤（尾數即時改歸新單位）
 document.querySelector("#budget-alloc")?.addEventListener("change", async (event) => {
   const sel = event.target.closest("[data-rem-budget]");
-  if (!sel) return;
-  const budgetId = sel.getAttribute("data-rem-budget");
-  try {
-    await api(`/api/budgets/${budgetId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remainder_unit_code: sel.value }) });
-    await loadBudgetAllocations(budgetId);
-  } catch (error) {
-    window.alert(`設定尾數承擔單位失敗：${error.message}`);
+  if (sel) {
+    const budgetId = sel.getAttribute("data-rem-budget");
+    try {
+      await api(`/api/budgets/${budgetId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remainder_unit_code: sel.value }) });
+      await loadBudgetAllocations(budgetId);
+    } catch (error) { window.alert(`設定尾數承擔單位失敗：${error.message}`); }
+    return;
+  }
+  // 改分攤方法：存進該預算，重載（按類別會再出類別下拉）
+  const mSel = event.target.closest("[data-alloc-method]");
+  if (mSel) {
+    const budgetId = mSel.getAttribute("data-alloc-method");
+    try {
+      await api(`/api/budgets/${budgetId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alloc_method: mSel.value }) });
+      await loadResource("budget");
+      await loadBudgetAllocations(budgetId);
+    } catch (error) { window.alert(`設定分攤方法失敗：${error.message}`); }
+    return;
+  }
+  // 改分攤類別：存進該預算，並立即重算分攤
+  const cSel = event.target.closest("[data-alloc-category]");
+  if (cSel) {
+    const budgetId = cSel.getAttribute("data-alloc-category");
+    try {
+      await api(`/api/budgets/${budgetId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ alloc_category: cSel.value }) });
+      await loadResource("budget");
+      if (cSel.value) await api(`/api/budgets/${budgetId}/recompute`, { method: "POST" });
+      await loadBudgetAllocations(budgetId);
+    } catch (error) { window.alert(`設定分攤類別失敗：${error.message}`); }
+    return;
   }
 });
 

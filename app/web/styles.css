@@ -1413,6 +1413,8 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .budget-alloc-detail { margin-top: 16px; }
 .rem-ctl { display: inline-flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--ink-2); margin-bottom: 10px; }
 .rem-ctl select { min-width: 220px; }
+.alloc-ctls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+.alloc-ctls .rem-ctl select { min-width: 160px; }
 /* 匯入/匯出專區：依八大功能分卡，卡內放該模組的匯入＋匯出 */
 .io-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; align-items: start; }
 .io-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }

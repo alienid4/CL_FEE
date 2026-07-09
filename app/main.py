@@ -52,6 +52,9 @@ from app.store import (
     parse_headcount_xlsx,
     commit_headcounts_import,
     list_headcounts,
+    parse_category_shares_xlsx,
+    commit_category_shares_import,
+    list_category_shares,
     compute_budget_allocations,
     expiring_contracts,
     create_import_batch,
@@ -474,7 +477,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.20 · 2026-07-09 · 逐筆改派(代號打錯)"
+BACKEND_BUILD = "v0.9.21 · 2026-07-09 · Phase2按類別分攤"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1315,6 +1318,29 @@ def create_app() -> FastAPI:
             return ok(compute_budget_allocations(budget_id))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # ---- 按類別分攤：類別基準表（對照表）----
+    @app.get("/api/category-shares")
+    def category_shares(category: str | None = Query(None)) -> dict[str, Any]:
+        # 回類別清單（供分攤方法的類別下拉）；帶 category 則回該類別各單位%
+        return ok(list_category_shares(category))
+
+    @app.post("/api/category-shares/import-xlsx")
+    async def import_category_shares_xlsx(request: Request, commit: bool = Query(False), filename: str = Query("")) -> dict[str, Any]:
+        who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        if who.get("role_code") not in ("manager_assistant", "admin"):
+            raise HTTPException(status_code=403, detail="只有主管/助理可匯入類別基準表。")
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=400, detail="請選擇要上傳的 Excel 檔。")
+        try:
+            records = parse_category_shares_xlsx(data)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認是含『對照』表的費用分攤表）：{exc}") from exc
+        if not commit:
+            cats = sorted({r["category"] for r in records if r.get("category")})
+            return ok({"preview": True, "count": len(records), "categories": cats, "sample": records[:10]})
+        return ok({"preview": False, **commit_category_shares_import(records, source_file=filename)})
 
     # ---- 專案 projects ----
     @app.post("/api/projects", status_code=201)
