@@ -245,6 +245,16 @@ CREATE TABLE IF NOT EXISTS budget_periods (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 年度費用比較的「每年備註」（L3）：給主管/助理寫差異說明、決策註記。一預算一年一筆。
+CREATE TABLE IF NOT EXISTS budget_year_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    budget_id INTEGER NOT NULL,
+    fiscal_year TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(budget_id, fiscal_year)
+);
+
 CREATE TABLE IF NOT EXISTS unit_headcounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     unit_code TEXT NOT NULL DEFAULT '',
@@ -2880,6 +2890,8 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
         rows = conn.execute(
             "SELECT fiscal_year, period, amount FROM budget_periods WHERE budget_id = ? "
             "ORDER BY fiscal_year, id", (budget_id,)).fetchall()
+        notes = {r["fiscal_year"]: r["note"] for r in conn.execute(
+            "SELECT fiscal_year, note FROM budget_year_notes WHERE budget_id = ?", (budget_id,)).fetchall()}
     periods: list[str] = []          # 期間依出現順序（例：1-9月 / 10-12月）
     by_year: dict[str, dict[str, float]] = {}
     for r in rows:
@@ -2909,6 +2921,7 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
             "diff": diff,
             "diff_pct": diff_pct,
             "diff_note": note,
+            "note": notes.get(y, ""),   # 主管/助理可編輯的備註
         })
         prev_total = total
     return {
@@ -2924,3 +2937,14 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
         "periods": periods,
         "years": years_out,
     }
+
+
+def set_budget_year_note(budget_id: int, fiscal_year: str, note: str) -> dict[str, Any]:
+    """寫入/更新某預算某年度的備註（一預算一年一筆，upsert）。"""
+    with connect() as conn:
+        get_row(conn, "budgets", budget_id)  # 不存在會 raise LookupError
+        conn.execute(
+            "INSERT INTO budget_year_notes (budget_id, fiscal_year, note) VALUES (?, ?, ?) "
+            "ON CONFLICT(budget_id, fiscal_year) DO UPDATE SET note = excluded.note",
+            (budget_id, str(fiscal_year).strip(), str(note)))
+    return {"budget_id": budget_id, "fiscal_year": str(fiscal_year).strip(), "note": str(note)}

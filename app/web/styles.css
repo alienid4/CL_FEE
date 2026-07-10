@@ -1515,6 +1515,13 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .budget-diff.up { color: var(--danger); }      /* 費用增加＝紅（花更多） */
 .budget-diff.down { color: var(--ok); }         /* 費用減少＝綠 */
 .budget-diff small { opacity: .75; }
+/* 收緊欄距：數值欄縮到內容寬、備註欄吃掉右邊留白（解決稀落感） */
+.budget-annual-table th, .budget-annual-table td { white-space: nowrap; width: 1%; padding: 8px 14px; }
+.budget-annual-table th.note-col, .budget-annual-table td.note-col { width: 100%; white-space: normal; }
+.budget-note-input { width: 100%; min-width: 180px; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); font-size: .82rem; }
+.budget-note-input:focus { background: var(--surface); border-color: var(--accent); outline: none; }
+.budget-note-input.saved { border-color: var(--ok); }
+.budget-note-input.save-failed { border-color: var(--danger); }
 
 /* Excel 來源勾稽：清單 📎 標記 */
 .source-tag { cursor: help; font-size: .85em; opacity: .75; }
