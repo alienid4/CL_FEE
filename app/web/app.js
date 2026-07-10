@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.62 · 2026-07-10 · 預算列加共同費用連結(與年度費用並排)+移面板冗餘鈕";
+const BUILD_TAG = "v0.9.63 · 2026-07-11 · 單位別預算vs實付彙總報表(主管視角)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1942,6 +1942,61 @@ async function loadMonthly() {
     : `<tr><td colspan="5" class="muted">目前沒有付款資料。</td></tr>`;
 }
 
+// 單位別 預算 vs 實付：主管一眼看各單位錢花到哪、誰超支。年度下拉可篩「所屬年度」。
+let unitBvaYear = "";  // "" = 全部年度
+async function loadUnitBva() {
+  const body = document.querySelector("#unit-bva-body");
+  if (!body) return;
+  const q = unitBvaYear ? `?year=${encodeURIComponent(unitBvaYear)}` : "";
+  const data = (await api(`/api/reports/unit-budget-vs-actual${q}`)).data || {};
+  // 年度下拉只建一次（保留使用者選取）
+  const sel = document.querySelector("#unit-bva-year");
+  if (sel && sel.options.length === 0) {
+    sel.innerHTML = ['<option value="">全部年度</option>']
+      .concat((data.years || []).map((y) => `<option value="${y}">${y} 年度</option>`))
+      .join("");
+    sel.value = unitBvaYear;
+  }
+  const fmt = (n) => Number(n || 0).toLocaleString();
+  const rows = data.rows || [];
+  const lines = rows.map((r) => {
+    const usage = r.usage_pct == null ? "—" : `${r.usage_pct}%`;
+    const over = r.over ? ' <span class="badge danger">超支</span>' : "";
+    return `<tr${r.over ? ' class="over-budget"' : ""}>
+      <td>${escapeHtml(r.unit)}</td>
+      <td class="num">${fmt(r.budget)}</td>
+      <td class="num">${fmt(r.paid)}</td>
+      <td class="num">${fmt(r.pending)}</td>
+      <td class="num">${fmt(r.remaining)}</td>
+      <td class="num">${usage}${over}</td>
+    </tr>`;
+  });
+  const ua = data.unattributed || {};
+  if ((ua.paid || 0) || (ua.pending || 0)) {
+    lines.push(`<tr>
+      <td>未歸單位<span class="help" data-tip="這些付款的案件沒有掛任何預算，無法歸到單位；請到「預算」用「＋歸戶」把該案預算補上，或替該案建預算。" role="button" tabindex="0" aria-label="說明">?</span></td>
+      <td class="num">—</td><td class="num">${fmt(ua.paid)}</td><td class="num">${fmt(ua.pending)}</td>
+      <td class="num">—</td><td class="num">—</td></tr>`);
+  }
+  const t = data.totals || {};
+  if (rows.length || lines.length) {
+    lines.push(`<tr class="total-row">
+      <td>合計</td>
+      <td class="num">${fmt(t.budget)}</td>
+      <td class="num">${fmt(t.paid)}</td>
+      <td class="num">${fmt(t.pending)}</td>
+      <td class="num">${fmt(t.remaining)}</td>
+      <td class="num">${t.budget ? `${Math.round((t.paid / t.budget) * 100)}%` : "—"}</td>
+    </tr>`);
+  }
+  body.innerHTML = lines.join("") || `<tr><td colspan="6" class="muted">目前沒有預算或付款資料。</td></tr>`;
+}
+
+document.querySelector("#unit-bva-year")?.addEventListener("change", (event) => {
+  unitBvaYear = event.target.value;
+  loadUnitBva();
+});
+
 async function loadExpiring() {
   const el = document.querySelector("#expiring-list");
   if (!el) return;
@@ -2282,7 +2337,7 @@ async function refresh() {
   await Promise.all([
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
-    loadMappingCatalog(), loadTodo(), loadMonthly(), loadExpiring(), loadCioOverview(), loadReminders(),
+    loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
     loadPortfolio(), loadUnitConflicts(), loadCaseOptions(), loadWorkingYear(),
   ]);

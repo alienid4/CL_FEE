@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-62" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-63" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -215,6 +215,20 @@
                     <tr><th>月份</th><th>筆數</th><th>總額</th><th>已付</th><th>待付</th></tr>
                   </thead>
                   <tbody id="monthly-spending-body"></tbody>
+                </table>
+              </div>
+            </section>
+            <section class="watch-list" id="unit-bva" aria-label="單位別預算vs實付">
+              <div class="section-heading compact">
+                <h2>單位別 預算 vs 實付<span class="help" data-tip="各單位年度預算對比實際付款。實付＝付款經合約掛到案件、再經該案預算歸到單位；已付＝已結案付款、待付＝其餘。使用率＝已付÷預算，>100% 標紅（超支）。案件沒掛任何預算的付款列在最後「未歸單位」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <select id="unit-bva-year" title="選所屬年度"></select>
+              </div>
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr><th>單位</th><th class="num">預算</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
+                  </thead>
+                  <tbody id="unit-bva-body"></tbody>
                 </table>
               </div>
             </section>
@@ -903,6 +917,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-62"></script>
+    <script src="/static/app.js?v=v0-9-63"></script>
   </body>
 </html>

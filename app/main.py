@@ -89,6 +89,7 @@ from app.store import (
     list_audit_logs,
     list_rows,
     monthly_spending_summary,
+    unit_budget_vs_actual,
     preflight_import_batch_confirm,
     preview_import_mapping,
     search_records,
@@ -528,7 +529,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.62 · 2026-07-10 · 預算列加共同費用連結(與年度費用並排)+移面板冗餘鈕"
+BACKEND_BUILD = "v0.9.63 · 2026-07-11 · 單位別預算vs實付彙總報表(主管視角)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -874,6 +875,10 @@ def create_app() -> FastAPI:
     @app.get("/api/reports/cio-overview")
     def cio_overview_report() -> dict[str, Any]:
         return ok(cio_overview())
+
+    @app.get("/api/reports/unit-budget-vs-actual")
+    def unit_budget_vs_actual_report(year: int | None = None) -> dict[str, Any]:
+        return ok(unit_budget_vs_actual(year))
 
     @app.get("/api/reports/reminders")
     def reminders() -> dict[str, Any]:

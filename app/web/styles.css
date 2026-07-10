@@ -1622,3 +1622,7 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .matrix-item.confirm { border-color: var(--accent); }
 .matrix-item.plan { border-color: var(--line); }
 .case-tab-panel td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 單位別預算vs實付：合計列描邊加粗、超支列淡紅底 */
+#unit-bva tr.total-row td { border-top: 2px solid var(--line); font-weight: 700; }
+#unit-bva tr.over-budget td { background: var(--danger-bg); }
+#unit-bva select { margin-left: auto; }

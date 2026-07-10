@@ -2247,6 +2247,112 @@ def monthly_spending_summary() -> list[dict[str, Any]]:
         return conn.execute(sql, params).fetchall()
 
 
+def unit_budget_vs_actual(fiscal_year: int | None = None) -> dict[str, Any]:
+    """單位別「預算 vs 實付」彙總（給主管看整體錢花在哪、超支在哪）。
+
+    - 預算＝budgets.amount 依 unit_name 加總（排除停用）。
+    - 實付＝付款經合約掛到案件（payment→contract.case_id），再經該案預算的 unit_name 歸到單位。
+      已付＝status='closed'；待付＝其餘。案件沒有任何預算可歸單位的付款進「未歸單位」。
+    - fiscal_year 有給就只算該年度的預算，以及該年度（payment_month 前四碼）的付款；不給＝全部年度。
+    回傳 rows（依預算大→小）＋totals＋unattributed（未歸單位付款）＋years（可選年度清單）。
+    """
+    UNFILLED = "（未填單位）"
+    with connect() as conn:
+        # 可選年度（給前端下拉）：預算年度 ∪ 付款年度。過濾明顯異常年（如民國年/髒資料），只留合理西元範圍。
+        years: set[int] = set()
+
+        def _add_year(raw: Any) -> None:
+            try:
+                y = int(raw)
+            except (TypeError, ValueError):
+                return
+            if 2000 <= y <= 2100:
+                years.add(y)
+
+        for r in conn.execute("SELECT DISTINCT fiscal_year FROM budgets WHERE fiscal_year IS NOT NULL"):
+            _add_year(r["fiscal_year"])
+        for r in conn.execute("SELECT DISTINCT substr(payment_month,1,4) AS y FROM payments WHERE payment_month <> ''"):
+            _add_year(r["y"])
+
+        # 預算：依單位加總
+        bsql = "SELECT unit_name, COALESCE(SUM(amount),0) AS s FROM budgets WHERE status <> 'disabled'"
+        bp: list[Any] = []
+        if fiscal_year is not None:
+            bsql += " AND fiscal_year = ?"
+            bp.append(fiscal_year)
+        bsql += " GROUP BY unit_name"
+        budget_by_unit: dict[str, float] = {}
+        for r in conn.execute(bsql, bp):
+            unit = (r["unit_name"] or "").strip() or UNFILLED
+            budget_by_unit[unit] = budget_by_unit.get(unit, 0.0) + (r["s"] or 0)
+
+        # 案 → 單位：取該案（不限年度）第一筆非停用預算的 unit_name（空白也算，落到「未填單位」）
+        case_unit: dict[int, str] = {}
+        for r in conn.execute(
+            "SELECT case_id, unit_name FROM budgets "
+            "WHERE status <> 'disabled' AND case_id IS NOT NULL ORDER BY id"
+        ):
+            cid = r["case_id"]
+            if cid not in case_unit:
+                case_unit[cid] = (r["unit_name"] or "").strip() or UNFILLED
+
+        # 付款 → 案（經合約）→ 單位
+        psql = (
+            "SELECT k.case_id AS case_id, p.payment_amount AS amt, p.status AS st "
+            "FROM payments p JOIN contracts k ON k.id = p.contract_id WHERE 1=1"
+        )
+        pp: list[Any] = []
+        if fiscal_year is not None:
+            psql += " AND substr(p.payment_month,1,4) = ?"
+            pp.append(str(fiscal_year))
+        paid_by_unit: dict[str, float] = {}
+        pending_by_unit: dict[str, float] = {}
+        unattributed_paid = 0.0
+        unattributed_pending = 0.0
+        for r in conn.execute(psql, pp):
+            unit = case_unit.get(r["case_id"])
+            amt = r["amt"] or 0
+            closed = (r["st"] == "closed")
+            if unit is None:  # 該案沒有任何預算 → 無法歸單位
+                if closed:
+                    unattributed_paid += amt
+                else:
+                    unattributed_pending += amt
+                continue
+            target = paid_by_unit if closed else pending_by_unit
+            target[unit] = target.get(unit, 0.0) + amt
+
+    units = set(budget_by_unit) | set(paid_by_unit) | set(pending_by_unit)
+    rows: list[dict[str, Any]] = []
+    for u in units:
+        budget = budget_by_unit.get(u, 0.0)
+        paid = paid_by_unit.get(u, 0.0)
+        pending = pending_by_unit.get(u, 0.0)
+        rows.append({
+            "unit": u,
+            "budget": budget,
+            "paid": paid,
+            "pending": pending,
+            "remaining": budget - paid,
+            "usage_pct": round(paid / budget * 100, 1) if budget else None,
+            "over": budget > 0 and paid > budget,
+        })
+    rows.sort(key=lambda x: (-(x["budget"] or 0), x["unit"]))
+    totals = {
+        "budget": sum(budget_by_unit.values()),
+        "paid": sum(paid_by_unit.values()) + unattributed_paid,
+        "pending": sum(pending_by_unit.values()) + unattributed_pending,
+    }
+    totals["remaining"] = totals["budget"] - totals["paid"]
+    return {
+        "fiscal_year": fiscal_year,
+        "years": sorted(years, reverse=True),
+        "rows": rows,
+        "totals": totals,
+        "unattributed": {"paid": unattributed_paid, "pending": unattributed_pending},
+    }
+
+
 def cases_needing_attention() -> list[dict[str, Any]]:
     """需處理案件：未作廢，且(審核中 或 有填下一步)。承辦只看自己的。"""
     scope = _owner_scope.get()
