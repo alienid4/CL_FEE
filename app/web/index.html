@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-45" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-46" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -52,7 +52,6 @@
           <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
           <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>請購</strong><small id="nav-count-purchases">請購 …</small></a>
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
-          <a class="module-card" href="#portfolio" data-roles="cio manager_assistant handler"><span>◷</span><strong>進度總表</strong><small>甘特/落後</small></a>
           <div class="nav-group-label">資料管理（後台）</div>
           <a class="module-card" href="#data-admin" data-roles="manager_assistant handler"><span>⛭</span><strong>資料管理</strong><small id="nav-count-dataadmin">匯入・單位・檢核</small></a>
         </nav>
@@ -140,6 +139,7 @@
                 <button class="tab" type="button" data-case-tab="dashboard">主管儀表板</button>
                 <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
                 <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
+                <button class="tab" type="button" data-case-tab="portfolio">進度總表</button>
               </div>
             </div>
             <div class="status-pills">
@@ -283,6 +283,17 @@
             </section>
           </section>
 
+          <section class="case-tab-panel" data-case-panel="portfolio" hidden>
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>進度總表<span class="help" data-tip="依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。總覽依落後幅度排序：落後排前、超前/完成沉底。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <div id="pf-groups" class="pf-groups"></div>
+              <div id="pf-subs" class="pf-subs"></div>
+              <div id="pf-view"></div>
+            </section>
+          </section>
+
         </section>
 
         <section class="module-workspace" aria-label="next module checkpoints">
@@ -396,17 +407,6 @@
               </div>
               <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="project-form">＋ 新增</button>
             </div>
-          </section>
-
-          <section class="dashboard-panel module-panel" id="portfolio" hidden>
-            <div class="dashboard-head">
-              <div>
-                <p class="breadcrumb">專案進度總表<span class="help" data-tip="依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。" role="button" tabindex="0" aria-label="說明">?</span></p>
-              </div>
-            </div>
-            <div id="pf-groups" class="pf-groups"></div>
-            <div id="pf-subs" class="pf-subs"></div>
-            <div id="pf-view"></div>
           </section>
 
           <section class="dashboard-panel module-panel" id="io-center" hidden>
@@ -889,6 +889,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-45"></script>
+    <script src="/static/app.js?v=v0-9-46"></script>
   </body>
 </html>
