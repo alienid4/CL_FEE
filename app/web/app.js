@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.54 · 2026-07-10 · L3-3 預算Excel匯入擴充(年度費用明細+費用內容/人員)";
+const BUILD_TAG = "v0.9.55 · 2026-07-10 · L3-4 分攤整合(年度費用面板看部門分攤摘要)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -588,6 +588,7 @@ function renderBudgetAnnual(data) {
   el.innerHTML = `
     <div class="section-heading compact"><h3>年度費用比較 <span class="muted">— ${escapeHtml(b.category || "")}</span></h3>
       <div class="toolbar">
+        <button type="button" class="secondary btn-sm" id="budget-annual-alloc-btn">部門分攤</button>
         <button type="button" class="secondary btn-sm" id="budget-annual-edit">編輯明細</button>
         <button type="button" class="secondary btn-sm" id="budget-annual-close">收起</button>
       </div></div>
@@ -611,6 +612,41 @@ document.querySelector("#budgets")?.addEventListener("click", async (event) => {
     if (el) el.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
   }
 });
+// Stage 4 分攤整合：在年度費用面板看這個預算的部門分攤摘要（完整編輯在 資料管理›費用分攤）
+async function showBudgetAllocSummary(budgetId) {
+  const box = document.querySelector("#budget-annual-alloc");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">載入部門分攤…</p>`;
+  try {
+    const al = (await api(`/api/budgets/${budgetId}/allocations`)).data || [];
+    if (!al.length) {
+      box.innerHTML = `<p class="muted">這個預算尚無部門分攤（可到「資料管理 › 費用分攤」設定或匯入）。</p>`;
+      return;
+    }
+    const total = al.reduce((s, r) => s + (Number(r.amount_int ?? r.amount) || 0), 0);
+    const top = al.slice(0, 8);
+    const rows = top.map((r) => `<tr>
+      <td>${escapeHtml(valueOrDash(r.unit_code))}</td>
+      <td>${escapeHtml(valueOrDash(r.unit_name))}</td>
+      <td class="num">${money(r.amount_int ?? r.amount)} 元</td>
+      <td class="num">${r.share_pct != null ? Number(r.share_pct).toFixed(1) + "%" : "—"}</td></tr>`).join("");
+    const more = al.length > top.length
+      ? `<p class="muted">…共 ${al.length} 個部門，顯示前 ${top.length} 大。完整明細與編輯（改分攤方法/重算）請到「資料管理 › 費用分攤」。</p>`
+      : `<p class="muted">完整編輯（改分攤方法/重算）請到「資料管理 › 費用分攤」。</p>`;
+    box.innerHTML = `
+      <div class="section-heading compact"><h3>部門分攤 <span class="muted">— 攤給 ${al.length} 個部門，合計 ${money(total)} 元</span></h3>
+        <button type="button" class="secondary btn-sm" data-alloc-summary-close>收起</button></div>
+      <div class="table-shell"><table class="grid-table"><thead><tr><th>部門代號</th><th>部門別</th><th class="num">分攤額</th><th class="num">占比</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${more}`;
+    box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  } catch (error) {
+    box.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+document.querySelector("#budget-annual-alloc")?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-alloc-summary-close]")) document.querySelector("#budget-annual-alloc").innerHTML = "";
+});
+
 async function saveBudgetPeriods() {
   const el = document.querySelector("#budget-annual");
   const budgetId = el.dataset.budgetId;
@@ -642,7 +678,13 @@ document.querySelector("#budget-annual")?.addEventListener("click", async (event
     el.innerHTML = "";
     delete el.dataset.budgetId;
     annualData = null; annualSort = { col: null, dir: "asc" }; annualEditMode = false;
+    const allocBox = document.querySelector("#budget-annual-alloc");
+    if (allocBox) allocBox.innerHTML = "";
     return;
+  }
+  // 部門分攤摘要（Stage 4 整合）
+  if (event.target.closest("#budget-annual-alloc-btn") && el.dataset.budgetId) {
+    showBudgetAllocSummary(el.dataset.budgetId); return;
   }
   // 進編輯模式
   if (event.target.closest("#budget-annual-edit") && annualData) {

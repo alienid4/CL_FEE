@@ -89,6 +89,10 @@ def clear_demo_data() -> dict[str, int]:
             "DELETE FROM budget_periods WHERE budget_id IN "
             "(SELECT id FROM budgets WHERE budget_code LIKE ?)", (DEMO_PREFIX + "%",))
         removed["budget_periods"] = cur.rowcount
+        cur = conn.execute(
+            "DELETE FROM budget_allocations WHERE budget_id IN "
+            "(SELECT id FROM budgets WHERE budget_code LIKE ?)", (DEMO_PREFIX + "%",))
+        removed["budget_allocations"] = cur.rowcount
         cur = conn.execute("DELETE FROM budgets WHERE budget_code LIKE ?", (DEMO_PREFIX + "%",))
         removed["budgets"] = cur.rowcount
         cur = conn.execute("DELETE FROM cases WHERE case_code LIKE ?", (DEMO_PREFIX + "%",))
@@ -148,11 +152,17 @@ def load_demo_data() -> dict[str, int]:
         ("115", "1-9月", 658962), ("115", "10-12月", 219654),
         ("116", "1-9月", 700000), ("116", "10-12月", 250000),
     ]
+    # 部門分攤示範（Stage 4 整合用）：合計≈全年度 878,616
+    _allocs = [("8101", "資訊管理處", 527170), ("8009", "資訊安全部", 219654), ("8553", "數位開發部", 131792)]
     with store.connect() as conn:
         for fy, period, amt in _periods:
             conn.execute(
                 "INSERT INTO budget_periods (budget_id, fiscal_year, period, amount) VALUES (?, ?, ?, ?)",
                 (bud_id, fy, period, amt))
+        for uc, un, amt in _allocs:
+            conn.execute(
+                "INSERT INTO budget_allocations (budget_id, unit_code, unit_name, amount, share_pct) VALUES (?, ?, ?, ?, ?)",
+                (bud_id, uc, un, amt, round(amt / 878616 * 100, 2)))
 
     return {
         "cases": len(_CASES),
