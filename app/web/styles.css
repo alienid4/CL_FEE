@@ -1549,7 +1549,7 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 
 /* ── 處理優先矩陣 ── */
 .case-matrix {
-  position: relative; height: 360px; margin: 12px 0 16px; border: 1px solid var(--line);
+  position: relative; height: 440px; margin: 12px 0 16px; border: 1px solid var(--line);
   border-radius: 10px; background: var(--surface); overflow: hidden;
 }
 .case-matrix::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
@@ -1564,12 +1564,13 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .matrix-label.week { bottom: 12%; right: 12%; }
 .matrix-label.plan { bottom: 12%; left: 12%; }
 .matrix-item {
-  position: absolute; transform: translate(-50%, -50%); z-index: 2; max-width: 160px;
-  padding: 5px 9px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line);
-  box-shadow: 0 1px 4px rgba(0,0,0,.08); font-size: .72rem; white-space: nowrap; cursor: default;
+  position: absolute; transform: translate(-50%, -50%); z-index: 2; width: 66px; box-sizing: border-box;
+  padding: 2px 5px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(0,0,0,.1); font-size: .58rem; cursor: default; text-align: center;
 }
-.matrix-item b { display: block; font-size: .74rem; }
-.matrix-item span { color: var(--ink-2); font-size: .66rem; }
+.matrix-item:hover { z-index: 3; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.matrix-item b { display: block; font-size: .64rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.matrix-item span { color: var(--ink-2); font-size: .58rem; white-space: nowrap; }
 .matrix-item.now { border-color: var(--danger); background: var(--danger-bg); }
 .matrix-item.week { border-color: var(--warn); background: var(--warn-bg); }
 .matrix-item.confirm { border-color: var(--accent); }

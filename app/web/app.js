@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.40 · 2026-07-10 · Excel來源勾稽(案件記來源檔+列號,清單📎)";
+const BUILD_TAG = "v0.9.41 · 2026-07-10 · 處理優先矩陣象限內平鋪(泡泡不重疊)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -433,15 +433,37 @@ function renderMatrix(items) {
   const body = document.querySelector("#case-matrix-body");
   if (box) {
     box.querySelectorAll(".matrix-item").forEach((n) => n.remove());
-    for (const it of items) {
-      const m = it.matrix || {};
-      const el = document.createElement("div");
-      el.className = `matrix-item ${m.quadrant || "plan"}`;
-      el.style.left = `${m.x}%`;
-      el.style.top = `${m.y}%`;
-      el.title = `${escapeHtml(it.title)}｜${it.amount ? money(it.amount) + " 元" : "0"}｜${urgencyText(it.urgency_days)}`;
-      el.innerHTML = `<b>${escapeHtml(it.title.slice(0, 10))}</b><span>${it.amount ? money(it.amount) : 0} / ${urgencyText(it.urgency_days)}</span>`;
-      box.appendChild(el);
+    // 象限內網格平鋪：多案也不重疊、不藏案；金額大的排前（左上優先）
+    const REGION = {
+      confirm: { x0: 7, y0: 11, w: 39, h: 33 },
+      now: { x0: 54, y0: 11, w: 39, h: 33 },
+      plan: { x0: 7, y0: 55, w: 39, h: 37 },
+      week: { x0: 54, y0: 55, w: 39, h: 37 },
+    };
+    const groups = {};
+    for (const it of items) (groups[(it.matrix && it.matrix.quadrant) || "plan"] ||= []).push(it);
+    const boxW = box.clientWidth || 560;
+    const CHIP_W = 66; // 與 CSS .matrix-item 寬度一致，用來算象限塞得下幾欄
+    for (const [quad, list] of Object.entries(groups)) {
+      const reg = REGION[quad] || REGION.plan;
+      list.sort((a, b) => (b.amount || 0) - (a.amount || 0));
+      // 依象限實際像素寬，算「泡泡不橫向相撞」的最大欄數
+      const regionPx = boxW * (reg.w / 100);
+      const fitCols = Math.max(1, Math.floor(regionPx / (CHIP_W + 6)));
+      const cols = Math.max(1, Math.min(fitCols, Math.ceil(Math.sqrt(list.length))));
+      const rows = Math.ceil(list.length / cols);
+      list.forEach((it, i) => {
+        const c = i % cols, r = Math.floor(i / cols);
+        const x = reg.x0 + (reg.w / cols) * (c + 0.5);
+        const y = reg.y0 + (reg.h / rows) * (r + 0.5);
+        const el = document.createElement("div");
+        el.className = `matrix-item ${quad}`;
+        el.style.left = `${x}%`;
+        el.style.top = `${y}%`;
+        el.title = `${escapeHtml(it.title)}｜${it.amount ? money(it.amount) + " 元" : "0"}｜${urgencyText(it.urgency_days)}（詳見下表）`;
+        el.innerHTML = `<b>${escapeHtml(it.title.slice(0, 7))}</b>`;
+        box.appendChild(el);
+      });
     }
   }
   if (body) {
