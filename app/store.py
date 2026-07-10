@@ -2728,10 +2728,25 @@ def case_progress_overview() -> dict[str, Any]:
                 quadrant, reason = "week", "期限近"
             else:
                 quadrant, reason = "plan", "可安排"
-            # 落點：x 越右越急、y 越上金額越高
-            x = {"red": 82, "orange": 64, "white": 42, "green": 22}[worst_tone]
-            ratio = min(amount / _AMOUNT_HIGH, 1.0) if amount > 0 else 0
-            y = round(78 - ratio * 54)  # 高金額→靠上(小 top%)
+            # 落點：真散佈（非排排站）——x 依急迫度、y 依金額，位置反映數值本身
+            # Y：以 _AMOUNT_HIGH 為中線；≥門檻→上半、以下→下半，越極端越靠邊
+            ar = amount / _AMOUNT_HIGH if _AMOUNT_HIGH else 0
+            if ar >= 1:
+                y = 50 - min((ar - 1) / 2.0, 1.0) * 38   # 門檻→50，≥3倍→12(最上)
+            else:
+                y = 50 + (1 - ar) * 36                    # 門檻→50，0→86(最下)
+            # X：逾期→最右、近期限→右、未來越久→左、無期限→偏左
+            if urgency is None:
+                x = 24.0
+            elif urgency < 0:
+                x = 68 + min(-urgency / 30.0, 1.0) * 24   # 逾期越久越右 68..92
+            elif urgency <= _ORANGE_WINDOW_DAYS:
+                x = 54 + (_ORANGE_WINDOW_DAYS - urgency) / _ORANGE_WINDOW_DAYS * 12  # 近 54..66
+            else:
+                x = 48 - min((urgency - _ORANGE_WINDOW_DAYS) / 90.0, 1.0) * 34       # 遠 48..14
+            # 穩定微抖動（用 case_id，避免同值完全疊住、但重整不亂跳）
+            x = max(6, min(94, round(x + (cid % 7) - 3)))
+            y = max(6, min(94, round(y + (cid % 5) - 2)))
             items.append({
                 "case_id": cid,
                 "case_code": c["case_code"],
