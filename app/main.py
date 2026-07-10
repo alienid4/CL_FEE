@@ -24,6 +24,7 @@ from app.store import (
     approve_case,
     backup_database,
     case_360,
+    case_progress_overview,
     cases_needing_attention,
     cio_overview,
     orphan_payments,
@@ -501,7 +502,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.37 · 2026-07-10 · 核銷編號自動發號(Settle-年-流水號)"
+BACKEND_BUILD = "v0.9.38 · 2026-07-10 · 線性進度圖+處理優先矩陣(系統自動推導)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1089,6 +1090,11 @@ def create_app() -> FastAPI:
     @app.get("/api/cases")
     def cases(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
         return ok(list_rows("cases", limit))
+
+    @app.get("/api/cases/progress")
+    def cases_progress() -> dict[str, Any]:
+        # 線性進度圖＋處理優先矩陣：系統自動推導、唯讀
+        return ok(case_progress_overview())
 
     @app.get("/api/cases.csv", include_in_schema=False)
     def export_cases_csv() -> Response:

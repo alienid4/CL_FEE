@@ -111,10 +111,12 @@ def test_health_openapi_and_web(tmp_path):
         assert "重新整理" not in home.text
         assert "主管儀表板" in home.text
         assert 'data-case-tab="list"' in home.text
-        # 假 tab 已移除：案件管理只保留「案件清單」「主管儀表板」兩個真面板
-        assert 'data-case-panel="matrix"' not in home.text
-        assert "處理優先矩陣" not in home.text
-        assert "線性進度圖" not in home.text
+        # 線性進度圖／處理優先矩陣已由系統自動推導實作（v0.9.38），為真面板
+        assert 'data-case-panel="progress"' in home.text
+        assert 'data-case-panel="matrix"' in home.text
+        assert "處理優先矩陣" in home.text
+        assert "線性進度圖" in home.text
+        # 這些是模擬檔的舊 tab 命名，未採用
         assert 'data-case-panel="flow"' not in home.text
         assert 'data-case-panel="linear"' not in home.text
         assert 'data-case-panel="confirm"' not in home.text

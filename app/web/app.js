@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.37 · 2026-07-10 · 核銷編號自動發號(Settle-年-流水號)";
+const BUILD_TAG = "v0.9.38 · 2026-07-10 · 線性進度圖+處理優先矩陣(系統自動推導)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -397,6 +397,78 @@ function activateCaseTab(tabName) {
     const isActive = panel.dataset.casePanel === tabName;
     panel.hidden = !isActive;
     panel.classList.toggle("active", isActive);
+  }
+  if (tabName === "progress" || tabName === "matrix") loadCaseProgress();
+}
+
+// ── 線性進度圖／處理優先矩陣：讀 /api/cases/progress，系統自動推導、唯讀 ──
+const TONE_LABEL = { green: "完成", white: "還沒輪到", orange: "快逾期待處理", red: "已逾期" };
+const QUAD_LABEL = { now: "立即處理", confirm: "主管確認", week: "本週處理", plan: "可安排" };
+const QUAD_RANK = { now: 0, week: 1, confirm: 2, plan: 3 };
+
+function urgencyText(days) {
+  if (days == null) return "待確認";
+  if (days < 0) return `逾期 ${-days} 天`;
+  return `${days} 天`;
+}
+
+function renderProgressRow(it) {
+  const dots = (it.stages || []).map((s) =>
+    `<span class="case-step" title="${escapeHtml(s.label)}：${TONE_LABEL[s.tone] || s.tone}${s.days != null ? "（" + urgencyText(s.days) + "）" : ""}">`
+    + `<span class="case-dot ${s.tone}"></span><span>${escapeHtml(s.label)}</span></span>`).join("");
+  const amt = it.amount ? `${money(it.amount)} 元` : "—";
+  return `<div class="case-progress-row" data-case-id="${it.case_id}">
+    <div class="case-progress-name"><b>${escapeHtml(it.case_code)}　${escapeHtml(it.title)}</b>
+      <span>${amt}｜${escapeHtml(it.owner || "未指派")}</span></div>
+    <div class="case-progress-track">${dots || '<span class="muted">尚未建立流程階段</span>'}</div>
+    <div class="case-progress-status"><span class="status-pill ${it.block.tone}">${escapeHtml(it.block.text)}</span></div>
+  </div>`;
+}
+
+function renderMatrix(items) {
+  const box = document.querySelector("#case-matrix");
+  const body = document.querySelector("#case-matrix-body");
+  if (box) {
+    box.querySelectorAll(".matrix-item").forEach((n) => n.remove());
+    for (const it of items) {
+      const m = it.matrix || {};
+      const el = document.createElement("div");
+      el.className = `matrix-item ${m.quadrant || "plan"}`;
+      el.style.left = `${m.x}%`;
+      el.style.top = `${m.y}%`;
+      el.title = `${escapeHtml(it.title)}｜${it.amount ? money(it.amount) + " 元" : "0"}｜${urgencyText(it.urgency_days)}`;
+      el.innerHTML = `<b>${escapeHtml(it.title.slice(0, 10))}</b><span>${it.amount ? money(it.amount) : 0} / ${urgencyText(it.urgency_days)}</span>`;
+      box.appendChild(el);
+    }
+  }
+  if (body) {
+    const sorted = [...items].sort((a, b) => (QUAD_RANK[a.matrix.quadrant] ?? 9) - (QUAD_RANK[b.matrix.quadrant] ?? 9));
+    body.innerHTML = sorted.length
+      ? sorted.map((it, i) => `<tr data-case-id="${it.case_id}">
+          <td>${i + 1}</td>
+          <td>${escapeHtml(it.title)}</td>
+          <td class="num">${it.amount ? money(it.amount) + " 元" : "—"}</td>
+          <td>${urgencyText(it.urgency_days)}</td>
+          <td>${QUAD_LABEL[it.matrix.quadrant] || "-"} / ${escapeHtml(it.matrix.reason || "")}</td>
+          <td><span class="status-pill ${it.block.tone}">${escapeHtml(it.block.text)}</span></td>
+        </tr>`).join("")
+      : `<tr><td colspan="6" class="muted">目前沒有案件。</td></tr>`;
+  }
+}
+
+async function loadCaseProgress() {
+  const listEl = document.querySelector("#case-progress-list");
+  try {
+    const payload = await api("/api/cases/progress");
+    const items = (payload.data && payload.data.items) || [];
+    if (listEl) {
+      listEl.innerHTML = items.length
+        ? items.map(renderProgressRow).join("")
+        : `<p class="muted">目前沒有案件。</p>`;
+    }
+    renderMatrix(items);
+  } catch (error) {
+    if (listEl) listEl.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
   }
 }
 

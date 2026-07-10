@@ -1508,3 +1508,66 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 /* 表格欄名可排序 */
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { background: var(--surface); text-decoration: underline; }
+
+/* ── 線性進度圖：四色燈號（綠完成/白未到/橘快逾期/紅逾期） ── */
+.case-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; }
+.case-dot.green { background: var(--ok); }
+.case-dot.white { background: var(--surface); border: 2px solid var(--line); }
+.case-dot.orange { background: var(--warn); }
+.case-dot.red { background: var(--danger); }
+.case-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 14px; font-size: .76rem; color: var(--ink-2); }
+.case-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+
+.case-progress-list { display: flex; flex-direction: column; gap: 2px; }
+.case-progress-row {
+  display: grid; grid-template-columns: minmax(180px, 1.1fr) 2.4fr minmax(120px, auto);
+  align-items: center; gap: 16px; padding: 12px 8px; border-bottom: 1px solid var(--line);
+}
+.case-progress-name b { display: block; font-size: .9rem; }
+.case-progress-name span { color: var(--ink-2); font-size: .74rem; }
+.case-progress-track { display: flex; align-items: flex-start; }
+.case-step {
+  position: relative; flex: 1; min-width: 42px; display: flex; flex-direction: column;
+  align-items: center; gap: 5px; font-size: .68rem; color: var(--ink-2); text-decoration: none;
+}
+.case-step:not(:last-child)::after {
+  content: ""; position: absolute; top: 6px; left: 50%; width: 100%; height: 2px;
+  background: var(--line); z-index: 0;
+}
+.case-step .case-dot { position: relative; z-index: 1; }
+.case-progress-status { text-align: right; }
+
+.status-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .74rem; white-space: nowrap; }
+.status-pill.green { background: var(--ok-bg); color: var(--ok); }
+.status-pill.white { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.status-pill.orange { background: var(--warn-bg); color: var(--warn); }
+.status-pill.red { background: var(--danger-bg); color: var(--danger); }
+
+/* ── 處理優先矩陣 ── */
+.case-matrix {
+  position: relative; height: 360px; margin: 12px 0 16px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--surface); overflow: hidden;
+}
+.case-matrix::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
+.case-matrix::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; border-top: 1px dashed var(--line); }
+.matrix-axis { position: absolute; font-size: .72rem; color: var(--ink-2); z-index: 1; }
+.matrix-axis.y-high { top: 8px; left: 10px; }
+.matrix-axis.y-low { bottom: 8px; left: 10px; }
+.matrix-axis.x-soon { bottom: 8px; right: 10px; }
+.matrix-label { position: absolute; font-size: .8rem; font-weight: 700; color: var(--ink-2); opacity: .28; z-index: 0; }
+.matrix-label.now { top: 10%; right: 12%; }
+.matrix-label.confirm { top: 10%; left: 12%; }
+.matrix-label.week { bottom: 12%; right: 12%; }
+.matrix-label.plan { bottom: 12%; left: 12%; }
+.matrix-item {
+  position: absolute; transform: translate(-50%, -50%); z-index: 2; max-width: 160px;
+  padding: 5px 9px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line);
+  box-shadow: 0 1px 4px rgba(0,0,0,.08); font-size: .72rem; white-space: nowrap; cursor: default;
+}
+.matrix-item b { display: block; font-size: .74rem; }
+.matrix-item span { color: var(--ink-2); font-size: .66rem; }
+.matrix-item.now { border-color: var(--danger); background: var(--danger-bg); }
+.matrix-item.week { border-color: var(--warn); background: var(--warn-bg); }
+.matrix-item.confirm { border-color: var(--accent); }
+.matrix-item.plan { border-color: var(--line); }
+.case-tab-panel td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }

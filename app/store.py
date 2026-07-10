@@ -2532,3 +2532,218 @@ def case_360(case_id: int) -> dict[str, Any]:
                 "purchase_amount": sum(row["amount"] for row in purchases),
             },
         }
+
+
+# ── 案件線性進度圖／處理優先矩陣：由系統自動推導，唯讀（不手改、不匯入） ──
+# 四色燈：green=完成 white=還沒輪到 orange=東西到了/快逾期待處理 red=已逾期
+# 每案只顯示「用得到的階段」（查無關聯資料的階段不出現）
+_STAGE_ORDER = ["budget", "project", "signoff", "approval", "contract", "purchase", "payment", "invoice"]
+_STAGE_LABEL = {"budget": "預算", "project": "專案", "signoff": "簽呈", "approval": "核准",
+                "contract": "合約", "purchase": "請購", "payment": "付款", "invoice": "發票"}
+_TONE_RANK = {"green": 0, "white": 1, "orange": 2, "red": 3}
+_ORANGE_WINDOW_DAYS = 7          # 距期限 7 天內＝橘燈（快逾期）
+_AMOUNT_HIGH = 10_000_000        # 金額 ≥ 1000 萬＝矩陣「金額/影響高」
+
+
+def _pdate(value: Any):
+    """寬鬆解析日期字串（YYYY-MM-DD / YYYY/MM/DD），失敗回 None。"""
+    s = str(value or "").strip().replace("/", "-")
+    try:
+        return date.fromisoformat(s[:10])
+    except ValueError:
+        return None
+
+
+def _tone_by_deadline(deadline, *, overdue="red", near="orange", ok="white"):
+    """依距今天數給燈：已過→overdue，7 天內→near，其餘→ok；無日期→ok。回 (tone, days)。"""
+    if deadline is None:
+        return ok, None
+    days = (deadline - date.today()).days
+    if days < 0:
+        return overdue, days
+    if days <= _ORANGE_WINDOW_DAYS:
+        return near, days
+    return ok, days
+
+
+def _worst(tones: list[str]) -> str | None:
+    """取最嚴重的燈（red>orange>white>green）；空清單回 None（該階段不適用）。"""
+    tones = [t for t in tones if t]
+    if not tones:
+        return None
+    return max(tones, key=lambda t: _TONE_RANK.get(t, 0))
+
+
+def _month_tone(payment_month: str, *, done: bool):
+    """付款/發票期程比對當月：已完成→green；期程已過未完→red；當月→orange；未來→white。回 (tone, days)。"""
+    if done:
+        return "green", None
+    cur = date.today().strftime("%Y-%m")
+    pm = str(payment_month or "").strip()[:7]
+    if not pm:
+        return "white", None
+    # 以每月 1 日估算距今天數，供矩陣急迫度排序
+    d = _pdate(pm + "-01")
+    days = (d - date.today()).days if d else None
+    if pm < cur:
+        return "red", days
+    if pm == cur:
+        return "orange", days
+    return "white", days
+
+
+def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, payments):
+    """回傳 (stages, urgency_days)：stages 只含適用階段 [{key,label,tone,days}]。"""
+    stages: list[dict[str, Any]] = []
+    days_pool: list[int] = []
+
+    def add(key, tone, days=None):
+        if tone is None:
+            return
+        stages.append({"key": key, "label": _STAGE_LABEL[key], "tone": tone, "days": days})
+        if days is not None and tone in ("orange", "red"):
+            days_pool.append(days)
+
+    # 預算：有非停用預算＝已編列（綠）；無＝不適用
+    add("budget", "green" if budgets else None)
+
+    # 專案：completed/進度100＝綠；否則看 due_date/end_date
+    p_tones, p_days = [], []
+    for p in projects:
+        try:
+            prog = float(p["progress"] or 0)
+        except (TypeError, ValueError):
+            prog = 0.0
+        if p["status"] == "completed" or prog >= 100:
+            p_tones.append("green")
+        else:
+            t, d = _tone_by_deadline(_pdate(p["due_date"] or p["end_date"]))
+            p_tones.append(t)
+            if d is not None:
+                p_days.append(d)
+    pt = _worst(p_tones)
+    add("project", pt, min(p_days) if (p_days and pt in ("orange", "red")) else None)
+
+    # 簽呈：approved＝綠、rejected＝紅、其餘（草稿/送審）＝白
+    s_tones = []
+    for s in signoffs:
+        st = s["status"]
+        s_tones.append("green" if st == "approved" else "red" if st == "rejected" else "white")
+    add("signoff", _worst(s_tones))
+
+    # 核准＝案件複核狀態；進入送審後才顯示（草稿不列）
+    cstatus = case["status"]
+    if cstatus == "approved":
+        add("approval", "green")
+    elif cstatus in ("pending_review", "reviewing"):
+        add("approval", "white")
+
+    # 合約：closed＝用完（綠）；否則看到期日
+    k_tones, k_days = [], []
+    for k in contracts:
+        if k["status"] == "closed":
+            k_tones.append("green")
+        else:
+            t, d = _tone_by_deadline(_pdate(k["end_date"]))
+            k_tones.append(t)
+            if d is not None:
+                k_days.append(d)
+    kt = _worst(k_tones)
+    add("contract", kt, min(k_days) if (k_days and kt in ("orange", "red")) else None)
+
+    # 請購：closed＝用完（綠）；其餘（pending/ordered/arrived）＝白
+    add("purchase", _worst(["green" if q["status"] == "closed" else "white" for q in purchases]))
+
+    # 付款：closed＝付畢（綠）；期程已過未付＝紅、當月＝橘、未來＝白
+    pay_tones, pay_days = [], []
+    for p in payments:
+        t, d = _month_tone(p["payment_month"], done=(p["status"] == "closed"))
+        pay_tones.append(t)
+        if d is not None and t in ("orange", "red"):
+            pay_days.append(d)
+    payt = _worst(pay_tones)
+    add("payment", payt, min(pay_days) if pay_days else None)
+
+    # 發票：verified＝核銷畢（綠）；否則依期程：已過＝紅、當月＝橘、未來＝白
+    inv_tones, inv_days = [], []
+    for p in payments:
+        t, d = _month_tone(p["payment_month"], done=(p["invoice_status"] == "verified"))
+        inv_tones.append(t)
+        if d is not None and t in ("orange", "red"):
+            inv_days.append(d)
+    invt = _worst(inv_tones)
+    add("invoice", invt, min(inv_days) if inv_days else None)
+
+    urgency = min(days_pool) if days_pool else None
+    return stages, urgency
+
+
+def _case_block(stages: list[dict[str, Any]]) -> dict[str, str]:
+    """目前卡點 pill：取最嚴重的非綠階段，組文字。全綠＝完成。"""
+    if not stages:
+        return {"text": "尚未建立流程", "tone": "white"}
+    non_green = [s for s in stages if s["tone"] != "green"]
+    if not non_green:
+        return {"text": "完成", "tone": "green"}
+    worst = max(non_green, key=lambda s: _TONE_RANK[s["tone"]])
+    suffix = {"red": "已逾期", "orange": "待處理·近期限", "white": "處理中"}[worst["tone"]]
+    return {"text": f"{worst['label']}{suffix}", "tone": worst["tone"]}
+
+
+def case_progress_overview() -> dict[str, Any]:
+    """案件線性進度圖＋處理優先矩陣的資料：每案八階段燈號、卡點、金額、急迫度、矩陣落點。"""
+    scope = _owner_scope.get()
+    items: list[dict[str, Any]] = []
+    with connect() as conn:
+        if scope is not None:
+            cases = conn.execute(
+                "SELECT * FROM cases WHERE owner = ? AND status <> 'disabled' ORDER BY id DESC",
+                (scope,)).fetchall()
+        else:
+            cases = conn.execute(
+                "SELECT * FROM cases WHERE status <> 'disabled' ORDER BY id DESC").fetchall()
+        for c in cases:
+            cid = c["id"]
+            budgets = conn.execute("SELECT * FROM budgets WHERE case_id=? AND status<>'disabled'", (cid,)).fetchall()
+            projects = conn.execute("SELECT * FROM projects WHERE case_id=? AND status<>'disabled'", (cid,)).fetchall()
+            signoffs = conn.execute("SELECT * FROM signoffs WHERE case_id=? AND status<>'disabled'", (cid,)).fetchall()
+            contracts = conn.execute("SELECT * FROM contracts WHERE case_id=? AND status<>'disabled'", (cid,)).fetchall()
+            purchases = conn.execute("SELECT * FROM purchases WHERE case_id=? AND status<>'disabled'", (cid,)).fetchall()
+            payments = conn.execute(
+                "SELECT p.* FROM payments p JOIN contracts k ON k.id=p.contract_id "
+                "WHERE k.case_id=? AND p.status<>'disabled'", (cid,)).fetchall()
+
+            stages, urgency = _case_stage_lights(c, budgets, projects, signoffs, contracts, purchases, payments)
+            block = _case_block(stages)
+            # 金額：優先用案件金額，退回合約總額、預算總額
+            amount = float(c["amount"] or 0) or sum(k["amount"] for k in contracts) or sum(b["amount"] for b in budgets)
+            high = amount >= _AMOUNT_HIGH
+            worst_tone = block["tone"]
+            urgent = worst_tone in ("orange", "red")
+            # 象限：金額×急迫度；高金額卡在人工確認(核准/簽呈白燈、無期限)→主管確認
+            if high and urgent:
+                quadrant, reason = "now", "金額高·期限近"
+            elif high and not urgent:
+                quadrant, reason = "confirm", "金額高·待確認"
+            elif not high and urgent:
+                quadrant, reason = "week", "期限近"
+            else:
+                quadrant, reason = "plan", "可安排"
+            # 落點：x 越右越急、y 越上金額越高
+            x = {"red": 82, "orange": 64, "white": 42, "green": 22}[worst_tone]
+            ratio = min(amount / _AMOUNT_HIGH, 1.0) if amount > 0 else 0
+            y = round(78 - ratio * 54)  # 高金額→靠上(小 top%)
+            items.append({
+                "case_id": cid,
+                "case_code": c["case_code"],
+                "title": c["title"],
+                "owner": c["owner"] or "",
+                "fiscal_year": c["fiscal_year"] if "fiscal_year" in c.keys() else "",
+                "seq": c["seq"] if "seq" in c.keys() else 0,
+                "amount": amount,
+                "stages": stages,
+                "block": block,
+                "urgency_days": urgency,
+                "matrix": {"quadrant": quadrant, "reason": reason, "x": x, "y": y},
+            })
+    return {"items": items}

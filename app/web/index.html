@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-37" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-38" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -138,6 +138,8 @@
               <div class="tabs" aria-label="案件管理頁籤">
                 <button class="tab active" type="button" data-case-tab="list">案件清單</button>
                 <button class="tab" type="button" data-case-tab="dashboard">主管儀表板</button>
+                <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
+                <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
               </div>
             </div>
             <div class="status-pills">
@@ -228,6 +230,50 @@
                 <h2>未歸戶付款 <span id="orphan-payments-count" class="badge danger" hidden></span><span class="help" data-tip="這些付款所屬的合約沒有掛案件，CIO 追不到來源；請到合約補上關聯案件。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <ul class="note-list" id="orphan-payments-list"></ul>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="progress" hidden>
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>線性進度圖<span class="help" data-tip="每案只顯示用得到的階段。燈號：🟢完成 ⚪還沒輪到 🟠東西到了/快逾期待處理 🔴已逾期。系統依案件關聯資料自動判定，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <div class="toolbar">
+                  <span class="muted" id="progress-source">資料來源：案件關聯（預算/專案/簽呈/核准/合約/請購/付款/發票），系統自動推導</span>
+                </div>
+              </div>
+              <div class="case-legend" aria-label="燈號說明">
+                <span class="case-legend-item"><span class="case-dot green"></span>完成</span>
+                <span class="case-legend-item"><span class="case-dot white"></span>還沒輪到</span>
+                <span class="case-legend-item"><span class="case-dot orange"></span>快逾期待處理</span>
+                <span class="case-legend-item"><span class="case-dot red"></span>已逾期</span>
+              </div>
+              <div class="case-progress-list" id="case-progress-list"></div>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="matrix" hidden>
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>處理優先矩陣<span class="help" data-tip="橫軸=急迫度（距最近期限），縱軸=金額/影響。象限：立即處理／主管確認／本週處理／可安排。系統自動落點，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <span class="muted">來源：案件金額 × 最近期限；金額 ≥ 1000 萬歸「金額高」</span>
+              </div>
+              <div class="case-matrix" id="case-matrix" aria-label="處理優先矩陣">
+                <span class="matrix-axis y-high">金額 / 影響高</span>
+                <span class="matrix-axis y-low">金額低</span>
+                <span class="matrix-axis x-soon">期限近 →</span>
+                <span class="matrix-label confirm">主管確認</span>
+                <span class="matrix-label now">立即處理</span>
+                <span class="matrix-label plan">可安排</span>
+                <span class="matrix-label week">本週處理</span>
+              </div>
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr><th>項次</th><th>案件</th><th>金額</th><th>待確認天數</th><th>矩陣位置</th><th>目前卡點</th></tr>
+                  </thead>
+                  <tbody id="case-matrix-body"></tbody>
+                </table>
+              </div>
             </section>
           </section>
 
@@ -837,6 +883,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-37"></script>
+    <script src="/static/app.js?v=v0-9-38"></script>
   </body>
 </html>
