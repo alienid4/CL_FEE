@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-52" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-53" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -790,6 +790,9 @@
             <input name="category" placeholder="類別（可在系統管理後台維護選項）" list="opt-budget-categories" />
             <datalist id="opt-budget-categories"></datalist>
             <input name="unit_name" placeholder="單位名稱" />
+            <input name="expense_detail" placeholder="費用內容（例：開放系統平台主機APT防護）" />
+            <input name="fill_dept" placeholder="填寫部門" />
+            <input name="estimator" placeholder="預估人員" />
             <input name="fiscal_year" placeholder="年度，例如 2026" />
             <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
             <select name="alloc_method" title="分攤方法">
@@ -891,6 +894,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-52"></script>
+    <script src="/static/app.js?v=v0-9-53"></script>
   </body>
 </html>

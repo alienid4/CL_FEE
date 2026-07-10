@@ -26,6 +26,7 @@ from app.store import (
     backfill_status,
     backup_database,
     budget_annual_comparison,
+    set_budget_periods,
     set_budget_year_note,
     case_360,
     case_progress_overview,
@@ -230,6 +231,9 @@ class BudgetIn(BaseModel):
     budget_code: str = Field(min_length=1)
     category: str = ""
     unit_name: str = ""
+    expense_detail: str = ""
+    fill_dept: str = ""
+    estimator: str = ""
     fiscal_year: str = ""
     amount: float = 0
     status: str = "active"
@@ -244,6 +248,9 @@ class BudgetPatch(BaseModel):
     budget_code: str | None = Field(default=None, min_length=1)
     category: str | None = None
     unit_name: str | None = None
+    expense_detail: str | None = None
+    fill_dept: str | None = None
+    estimator: str | None = None
     fiscal_year: str | None = None
     amount: float | None = None
     status: str | None = None
@@ -258,6 +265,16 @@ class BudgetPatch(BaseModel):
 class BudgetYearNoteIn(BaseModel):
     fiscal_year: str = Field(min_length=1)
     note: str = ""
+
+
+class BudgetPeriodRow(BaseModel):
+    fiscal_year: str = ""
+    period: str = ""
+    amount: float = 0
+
+
+class BudgetPeriodsIn(BaseModel):
+    periods: list[BudgetPeriodRow] = Field(default_factory=list)
 
 
 class UnitVariant(BaseModel):
@@ -511,7 +528,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.52 · 2026-07-10 · 年度費用表%獨立成欄+可排序+去除cell內註解"
+BACKEND_BUILD = "v0.9.53 · 2026-07-10 · L3-2 承辦編輯(預算metadata+年度費用逐年逐期填)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1257,6 +1274,14 @@ def create_app() -> FastAPI:
         # 主管/助理寫每年備註
         try:
             return ok(set_budget_year_note(budget_id, payload.fiscal_year, payload.note))
+        except LookupError:
+            raise HTTPException(status_code=404, detail="預算項目不存在")
+
+    @app.put("/api/budgets/{budget_id}/periods")
+    def budget_periods_save(budget_id: int, payload: BudgetPeriodsIn) -> dict[str, Any]:
+        # 承辦編輯：整批取代年度費用明細
+        try:
+            return ok(set_budget_periods(budget_id, [r.model_dump() for r in payload.periods]))
         except LookupError:
             raise HTTPException(status_code=404, detail="預算項目不存在")
 

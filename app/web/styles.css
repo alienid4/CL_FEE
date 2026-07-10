@@ -1527,6 +1527,10 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .budget-note-input:focus { background: var(--surface); border-color: var(--accent); outline: none; }
 .budget-note-input.saved { border-color: var(--ok); }
 .budget-note-input.save-failed { border-color: var(--danger); }
+.pe-year { width: 84px; }
+.pe-amt { width: 110px; text-align: right; }
+.pe-year, .pe-amt { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); font-size: .82rem; box-sizing: border-box; }
+.pe-year:focus, .pe-amt:focus { background: var(--surface); border-color: var(--accent); outline: none; }
 
 /* Excel 來源勾稽：清單 📎 標記 */
 .source-tag { cursor: help; font-size: .85em; opacity: .75; }

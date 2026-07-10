@@ -2950,6 +2950,29 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
     }
 
 
+def set_budget_periods(budget_id: int, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """整批取代某預算的年度費用明細（budget_periods）。rows: [{fiscal_year, period, amount}]，空年度/期間略過。"""
+    clean = []
+    for r in rows:
+        fy = str(r.get("fiscal_year") or "").strip()
+        period = str(r.get("period") or "").strip()
+        if not fy or not period:
+            continue
+        try:
+            amt = float(r.get("amount") or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+        clean.append((fy, period, amt))
+    with connect() as conn:
+        get_row(conn, "budgets", budget_id)  # 不存在會 raise LookupError
+        conn.execute("DELETE FROM budget_periods WHERE budget_id = ?", (budget_id,))
+        for fy, period, amt in clean:
+            conn.execute(
+                "INSERT INTO budget_periods (budget_id, fiscal_year, period, amount) VALUES (?, ?, ?, ?)",
+                (budget_id, fy, period, amt))
+    return {"budget_id": budget_id, "count": len(clean)}
+
+
 def set_budget_year_note(budget_id: int, fiscal_year: str, note: str) -> dict[str, Any]:
     """寫入/更新某預算某年度的備註（一預算一年一筆，upsert）。"""
     with connect() as conn:

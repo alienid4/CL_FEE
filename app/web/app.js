@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.52 · 2026-07-10 · 年度費用表%獨立成欄+可排序+去除cell內註解";
+const BUILD_TAG = "v0.9.53 · 2026-07-10 · L3-2 承辦編輯(預算metadata+年度費用逐年逐期填)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -236,7 +236,8 @@ const resourceConfig = {
   budget: {
     plural: "budgets", idAttr: "budget-id", idField: "budgetId", api: "/api/budgets",
     navCount: "nav-count-budgets", navLabel: "預算",
-    fields: ["budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
+    fields: ["budget_code", "category", "unit_name", "expense_detail", "fill_dept", "estimator",
+             "fiscal_year", "amount", "status", "case_id", "note",
              "alloc_method", "alloc_category_kind", "alloc_category"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
@@ -511,11 +512,42 @@ document.querySelector("#matrix-filters")?.addEventListener("click", (event) => 
 // ── L3 預算年度費用比較（唯讀衍生）：全年度/年增差異由後端算；% 全部獨立成欄、無 inline 註解 ──
 let annualData = null;
 let annualSort = { col: null, dir: "asc" };
+let annualEditMode = false;
+
+// 承辦編輯模式：逐年逐期填金額（budget_periods 整批取代）
+function budgetPeriodRowHtml(periods, y) {
+  return `<tr class="pe-row">`
+    + `<td><input class="pe-year" type="text" value="${escapeHtml(y ? y.fiscal_year : "")}" placeholder="年度" /></td>`
+    + periods.map((p) => `<td class="num"><input class="pe-amt" data-period="${escapeHtml(p)}" type="number" step="1" value="${y ? (y.periods[p] ?? 0) : 0}" /></td>`).join("")
+    + `<td><button type="button" class="secondary btn-sm pe-remove" title="刪這一年">✕</button></td></tr>`;
+}
+function renderBudgetAnnualEditor(data) {
+  const el = document.querySelector("#budget-annual");
+  const b = data.budget || {};
+  const periods = (data.periods && data.periods.length) ? data.periods : ["1-9月", "10-12月"];
+  el.dataset.budgetId = b.id;
+  el.dataset.periods = JSON.stringify(periods);
+  const head = `<tr><th>年度</th>${periods.map((p) => `<th class="num">${escapeHtml(p)}</th>`).join("")}<th></th></tr>`;
+  const rows = (data.years || []).length
+    ? data.years.map((y) => budgetPeriodRowHtml(periods, y)).join("")
+    : budgetPeriodRowHtml(periods, null);
+  el.innerHTML = `
+    <div class="section-heading compact"><h3>編輯年度費用明細 <span class="muted">— ${escapeHtml(b.category || "")}</span></h3>
+      <div class="toolbar">
+        <button type="button" class="secondary btn-sm" id="pe-add">＋ 新增年度</button>
+        <button type="button" class="btn-sm" id="pe-save">儲存明細</button>
+        <button type="button" class="secondary btn-sm" id="pe-cancel">取消</button>
+      </div></div>
+    <div class="table-shell"><table class="grid-table budget-annual-table"><thead>${head}</thead><tbody id="pe-body">${rows}</tbody></table></div>
+    <p class="muted" id="pe-status">逐年逐期填金額，可＋新增年度；儲存＝整批取代這個預算的年度明細。</p>`;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
 
 function renderBudgetAnnual(data) {
   const el = document.querySelector("#budget-annual");
   if (!el) return;
   annualData = data;
+  if (annualEditMode) { renderBudgetAnnualEditor(data); return; }
   const b = data.budget || {};
   const periods = data.periods || [];
   const fmtN = (n) => (n == null ? "—" : Number(n).toLocaleString());
@@ -555,7 +587,10 @@ function renderBudgetAnnual(data) {
   el.dataset.budgetId = b.id;
   el.innerHTML = `
     <div class="section-heading compact"><h3>年度費用比較 <span class="muted">— ${escapeHtml(b.category || "")}</span></h3>
-      <button type="button" class="secondary btn-sm" id="budget-annual-close">收起</button></div>
+      <div class="toolbar">
+        <button type="button" class="secondary btn-sm" id="budget-annual-edit">編輯明細</button>
+        <button type="button" class="secondary btn-sm" id="budget-annual-close">收起</button>
+      </div></div>
     <div class="budget-annual-meta">
       <span>費用內容：${escapeHtml(b.expense_detail || "—")}</span>
       <span>填寫部門：${escapeHtml(b.fill_dept || "—")}</span>
@@ -576,18 +611,64 @@ document.querySelector("#budgets")?.addEventListener("click", async (event) => {
     if (el) el.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
   }
 });
-document.querySelector("#budget-annual")?.addEventListener("click", (event) => {
+async function saveBudgetPeriods() {
+  const el = document.querySelector("#budget-annual");
+  const budgetId = el.dataset.budgetId;
+  const status = document.querySelector("#pe-status");
+  const rows = [];
+  el.querySelectorAll(".pe-row").forEach((tr) => {
+    const year = tr.querySelector(".pe-year").value.trim();
+    if (!year) return;
+    tr.querySelectorAll(".pe-amt").forEach((inp) => {
+      rows.push({ fiscal_year: year, period: inp.getAttribute("data-period"), amount: Number(inp.value) || 0 });
+    });
+  });
+  if (status) status.textContent = "儲存中…";
+  try {
+    await api(`/api/budgets/${budgetId}/periods`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ periods: rows }),
+    });
+    const data = (await api(`/api/budgets/${budgetId}/annual`)).data;
+    annualEditMode = false;
+    renderBudgetAnnual(data);
+  } catch (error) {
+    if (status) status.textContent = `儲存失敗：${error.message}`;
+  }
+}
+
+document.querySelector("#budget-annual")?.addEventListener("click", async (event) => {
+  const el = document.querySelector("#budget-annual");
   if (event.target.closest("#budget-annual-close")) {
-    const el = document.querySelector("#budget-annual");
     el.innerHTML = "";
     delete el.dataset.budgetId;
-    annualData = null;
-    annualSort = { col: null, dir: "asc" };
+    annualData = null; annualSort = { col: null, dir: "asc" }; annualEditMode = false;
     return;
   }
-  // 點欄名排序（年度費用表也可排序）
+  // 進編輯模式
+  if (event.target.closest("#budget-annual-edit") && annualData) {
+    annualEditMode = true; renderBudgetAnnual(annualData); return;
+  }
+  // 取消編輯：重讀丟棄未存
+  if (event.target.closest("#pe-cancel")) {
+    annualEditMode = false;
+    try { renderBudgetAnnual((await api(`/api/budgets/${el.dataset.budgetId}/annual`)).data); } catch (_e) { /* ignore */ }
+    return;
+  }
+  // 新增一年
+  if (event.target.closest("#pe-add")) {
+    const periods = JSON.parse(el.dataset.periods || "[]");
+    document.querySelector("#pe-body")?.insertAdjacentHTML("beforeend", budgetPeriodRowHtml(periods, null));
+    return;
+  }
+  // 刪一年（列）
+  if (event.target.closest(".pe-remove")) {
+    event.target.closest(".pe-row")?.remove(); return;
+  }
+  // 儲存明細
+  if (event.target.closest("#pe-save")) { saveBudgetPeriods(); return; }
+  // 點欄名排序（檢視模式）
   const th = event.target.closest("th[data-annual-sort]");
-  if (th && annualData) {
+  if (th && annualData && !annualEditMode) {
     const col = th.getAttribute("data-annual-sort");
     annualSort = annualSort.col === col ? { col, dir: annualSort.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" };
     renderBudgetAnnual(annualData);
