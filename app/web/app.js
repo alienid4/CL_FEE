@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.61 · 2026-07-10 · 修刪除圖示紅底蓋掉圖示的問題";
+const BUILD_TAG = "v0.9.62 · 2026-07-10 · 預算列加共同費用連結(與年度費用並排)+移面板冗餘鈕";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -250,6 +250,7 @@ const resourceConfig = {
       { label: "單位／年度", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.unit_name))}｜${escapeHtml(valueOrDash(i.fiscal_year))}</span>` },
       { label: "狀態", cell: (i) => statusChip(i.status) },
       { label: "年度費用", cell: (i) => `<button type="button" class="secondary btn-sm" data-annual="${i.id}">比較</button>` },
+      { label: "共同費用", cell: (i) => `<button type="button" class="secondary btn-sm" data-alloc-view="${i.id}">分攤</button>` },
     ],
   },
   project: {
@@ -590,7 +591,6 @@ function renderBudgetAnnual(data) {
   el.innerHTML = `
     <div class="section-heading compact"><h3>年度費用比較 <span class="muted">— ${escapeHtml(b.category || "")}</span></h3>
       <div class="toolbar">
-        <button type="button" class="secondary btn-sm" id="budget-annual-alloc-btn">部門分攤</button>
         <button type="button" class="secondary btn-sm" id="budget-annual-edit">編輯明細</button>
         <button type="button" class="secondary btn-sm" id="budget-annual-close">收起</button>
       </div></div>
@@ -603,6 +603,11 @@ function renderBudgetAnnual(data) {
   el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 // 階段 1 歸戶：沒系統編號的預算，點「＋歸戶」→ 就地選案件 → 掛上即有系統編號
+// 列上「共同費用/分攤」連結：就地開分攤（跟「年度費用/比較」並排，另一條路是 資料管理›費用分攤）
+document.querySelector("#budgets")?.addEventListener("click", (event) => {
+  const view = event.target.closest("[data-alloc-view]");
+  if (view) { loadBudgetAllocations(view.getAttribute("data-alloc-view"), "#budget-annual-alloc"); return; }
+});
 document.querySelector("#budgets")?.addEventListener("click", (event) => {
   const assign = event.target.closest("[data-assign-case]");
   if (!assign) return;
@@ -668,10 +673,6 @@ document.querySelector("#budget-annual")?.addEventListener("click", async (event
     const allocBox = document.querySelector("#budget-annual-alloc");
     if (allocBox) allocBox.innerHTML = "";
     return;
-  }
-  // 部門分攤：就地開完整編輯（分攤方法/重算/尾數承擔），不用跳資料管理
-  if (event.target.closest("#budget-annual-alloc-btn") && el.dataset.budgetId) {
-    loadBudgetAllocations(el.dataset.budgetId, "#budget-annual-alloc"); return;
   }
   // 進編輯模式
   if (event.target.closest("#budget-annual-edit") && annualData) {
