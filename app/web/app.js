@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.43 · 2026-07-10 · 矩陣真散佈+案件管理置頂+進度總表落後排前";
+const BUILD_TAG = "v0.9.44 · 2026-07-10 · 案件表可排序+移除重複匯入匯出鈕";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1228,6 +1228,7 @@ document.addEventListener("click", (event) => {
   const th = event.target.closest("th.sortable");
   if (!th) return;
   const type = th.getAttribute("data-sort-type");
+  if (!type) return;  // CIO 案件表也用 sortable 樣式但走另一套（data-cio-col），這裡略過
   const col = Number(th.getAttribute("data-col-index"));
   const st = resourceSort[type];
   resourceSort[type] = (st && st.col === col) ? { col, dir: st.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" };
@@ -1614,10 +1615,26 @@ async function loadTodo() {
     : `<li><small class="muted">目前沒有需處理的案件。</small></li>`;
 }
 
+let cioSort = { field: null, dir: "asc" };
 function renderCioTable() {
   if (!cioCasesBody) return;
-  cioCasesBody.innerHTML = caseCache.length
-    ? caseCache
+  let rows = [...caseCache];
+  if (cioSort.field) {
+    const f = cioSort.field;
+    rows.sort((a, b) => {
+      let r;
+      if (f === "amount") {
+        r = (Number(a.amount) || 0) - (Number(b.amount) || 0);
+      } else {
+        const pick = (x) => (f === "status" ? (STATUS_LABELS[x.status] || x.status || "") : String(x[f] || ""));
+        const va = pick(a), vb = pick(b);
+        r = (!va || !vb) ? (va ? 1 : 0) - (vb ? 1 : 0) : va.localeCompare(vb, "zh-Hant");
+      }
+      return cioSort.dir === "desc" ? -r : r;
+    });
+  }
+  cioCasesBody.innerHTML = rows.length
+    ? rows
         .map(
           (c, i) => `
             <tr data-case-id="${c.id}">
@@ -1634,7 +1651,24 @@ function renderCioTable() {
         )
         .join("")
     : `<tr><td colspan="9" class="muted">目前沒有案件資料。</td></tr>`;
+  // 更新表頭排序箭頭（表頭是靜態 HTML，只更箭頭）
+  document.querySelectorAll("#cio-cases-table th[data-cio-col]").forEach((th) => {
+    const f = th.getAttribute("data-cio-col");
+    const base = th.getAttribute("data-label") || th.textContent.replace(/[▲▼\s]+$/, "");
+    th.setAttribute("data-label", base);
+    th.innerHTML = base + (cioSort.field === f ? (cioSort.dir === "asc" ? " ▲" : " ▼") : "");
+  });
 }
+// CIO 案件表點欄名排序（由快取重繪，不重打 API）
+document.addEventListener("click", (event) => {
+  const th = event.target.closest("#cio-cases-table th[data-cio-col]");
+  if (!th) return;
+  const field = th.getAttribute("data-cio-col");
+  cioSort = cioSort.field === field
+    ? { field, dir: cioSort.dir === "asc" ? "desc" : "asc" }
+    : { field, dir: "asc" };
+  renderCioTable();
+});
 
 async function loadMonthly() {
   if (!monthlyBody) return;
@@ -2206,13 +2240,7 @@ document.querySelector("#pending-approvals-list")?.addEventListener("click", asy
   await refresh();
 });
 
-document.querySelector("#export-cases")?.addEventListener("click", () => {
-  window.location.href = "/api/cases.csv";
-});
-
-document.querySelector("#goto-import")?.addEventListener("click", () => {
-  navigateToPanel("data-review");  // 匯入工作區在「資料檢核」（現收在資料管理後台）
-});
+// 案件清單的匯入/匯出按鈕已移除（統一在「資料管理 › 匯入／匯出」），故不再綁 handler。
 
 async function projXlsx(commit) {
   const file = document.querySelector("#proj-xlsx-file")?.files?.[0];

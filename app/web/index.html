@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-43" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-44" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -152,24 +152,20 @@
           <section class="case-tab-panel active" data-case-panel="list">
             <section class="watch-list">
             <div class="section-heading compact">
-              <h2>本月需要 CIO 看一眼</h2>
-              <div class="toolbar">
-                <button type="button" class="secondary" id="goto-import">匯入 Excel</button>
-                <button type="button" id="export-cases">匯出目前表格</button>
-              </div>
+              <h2>本月需要 CIO 看一眼<span class="help" data-tip="點欄名可排序（再點一次反向）。匯入／匯出請到左側「資料管理 › 匯入／匯出」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
             </div>
             <div class="table-shell">
-              <table>
+              <table id="cio-cases-table">
                 <thead>
                   <tr>
                     <th>項次</th>
-                    <th>案件編號</th>
-                    <th>案件名稱</th>
-                    <th>狀態</th>
-                    <th>金額</th>
-                    <th>負責人</th>
-                    <th>備註</th>
-                    <th>下一步</th>
+                    <th class="sortable" data-cio-col="case_code" title="點欄名可排序">案件編號</th>
+                    <th class="sortable" data-cio-col="title" title="點欄名可排序">案件名稱</th>
+                    <th class="sortable" data-cio-col="status" title="點欄名可排序">狀態</th>
+                    <th class="sortable" data-cio-col="amount" title="點欄名可排序">金額</th>
+                    <th class="sortable" data-cio-col="owner" title="點欄名可排序">負責人</th>
+                    <th class="sortable" data-cio-col="note" title="點欄名可排序">備註</th>
+                    <th class="sortable" data-cio-col="next_step" title="點欄名可排序">下一步</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -893,6 +889,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-43"></script>
+    <script src="/static/app.js?v=v0-9-44"></script>
   </body>
 </html>
