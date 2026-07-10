@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.66 · 2026-07-11 · CIO「自上次查看以來」變動提醒";
+const BUILD_TAG = "v0.9.67 · 2026-07-11 · 一條龍新案精靈(規劃→簽呈→請購→合約→付款)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3822,6 +3822,110 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
     el.textContent = `失敗：${error.message}`;
   }
 });
+
+// 一條龍新案精靈：checkbox 開關各步驟必填欄位＋顯示/隱藏；付款需先勾④合約才能勾選。
+// 用 data-wizard-step 範圍讀值，不用 FormData(form) 整支表單讀——多個步驟共用同樣的
+// name（amount/note/vendor_name…），FormData.get() 只會拿到第一個，會互相蓋掉。
+(() => {
+  const wizardForm = document.querySelector("#wizard-form");
+  if (!wizardForm) return;
+  const contractToggle = wizardForm.querySelector('[data-wizard-toggle="contract"]');
+  const paymentToggle = wizardForm.querySelector('[data-wizard-toggle="payment"]');
+  const REQUIRED_BY_STEP = {
+    signoff: ["signoff_code", "subject"],
+    purchase: ["purchase_code", "item_name"],
+    contract: ["contract_code", "contract_name"],
+    payment: ["payment_month", "payment_amount"],
+  };
+
+  function stepScope(step) {
+    return wizardForm.querySelector(`[data-wizard-step="${step}"]`);
+  }
+  function setStepEnabled(step, on) {
+    const scope = stepScope(step);
+    const body = scope?.querySelector(".wizard-step-body");
+    if (body) body.hidden = !on;
+    for (const name of REQUIRED_BY_STEP[step] || []) {
+      const el = scope?.querySelector(`[name="${name}"]`);
+      if (el) el.required = on;
+    }
+  }
+  function readStep(step, fields) {
+    const scope = stepScope(step);
+    if (!scope) return {};
+    const out = {};
+    for (const f of fields) {
+      const el = scope.querySelector(`[name="${f}"]`);
+      out[f] = el ? el.value.trim() : "";
+    }
+    return out;
+  }
+  const num = (v) => (v === "" || v == null ? 0 : Number(v));
+
+  for (const toggle of wizardForm.querySelectorAll("[data-wizard-toggle]")) {
+    toggle.addEventListener("change", () => {
+      const step = toggle.getAttribute("data-wizard-toggle");
+      setStepEnabled(step, toggle.checked);
+      if (step === "contract") {
+        if (!toggle.checked && paymentToggle) {
+          paymentToggle.checked = false;
+          paymentToggle.disabled = true;
+          setStepEnabled("payment", false);
+        } else if (toggle.checked && paymentToggle) {
+          paymentToggle.disabled = false;
+        }
+      }
+    });
+  }
+
+  wizardForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const statusEl = document.querySelector("#wizard-status");
+    const resultEl = document.querySelector("#wizard-result");
+    const c = readStep("case", ["case_code", "title", "owner", "amount", "fiscal_year", "note", "next_step", "due_date"]);
+    const body = {
+      case: {
+        case_code: c.case_code, title: c.title, owner: c.owner, amount: num(c.amount),
+        fiscal_year: c.fiscal_year, note: c.note, next_step: c.next_step, due_date: c.due_date,
+      },
+    };
+    if (wizardForm.querySelector('[data-wizard-toggle="signoff"]').checked) {
+      const s = readStep("signoff", ["signoff_code", "subject", "applicant", "amount", "sign_date", "note"]);
+      body.signoff = { signoff_code: s.signoff_code, subject: s.subject, applicant: s.applicant, amount: num(s.amount), sign_date: s.sign_date, note: s.note };
+    }
+    if (wizardForm.querySelector('[data-wizard-toggle="purchase"]').checked) {
+      const p = readStep("purchase", ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "note"]);
+      body.purchase = { purchase_code: p.purchase_code, item_name: p.item_name, vendor_name: p.vendor_name, quantity: num(p.quantity), amount: num(p.amount), note: p.note };
+    }
+    if (contractToggle.checked) {
+      const k = readStep("contract", ["contract_code", "contract_name", "vendor_name", "amount", "end_date"]);
+      body.contract = { contract_code: k.contract_code, contract_name: k.contract_name, vendor_name: k.vendor_name, amount: num(k.amount), end_date: k.end_date };
+    }
+    if (paymentToggle.checked) {
+      const pay = readStep("payment", ["payment_month", "payment_amount", "item", "net_amount", "tax_amount"]);
+      body.payment = { payment_month: pay.payment_month, payment_amount: num(pay.payment_amount), item: pay.item, net_amount: num(pay.net_amount), tax_amount: num(pay.tax_amount) };
+    }
+
+    if (statusEl) statusEl.textContent = "送出中…";
+    if (resultEl) resultEl.innerHTML = "";
+    try {
+      const created = (await api("/api/case-wizard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).data || {};
+      if (statusEl) statusEl.textContent = "全部建立成功！";
+      const lines = [`案件 ${escapeHtml(created.case.case_code)}（案號 ${escapeHtml(caseNumber(created.case) || "—")}）`];
+      if (created.signoff) lines.push(`簽呈 ${escapeHtml(created.signoff.signoff_code)}`);
+      if (created.purchase) lines.push(`請購 ${escapeHtml(created.purchase.purchase_code)}`);
+      if (created.contract) lines.push(`合約 ${escapeHtml(created.contract.contract_code)}`);
+      if (created.payment) lines.push(`付款 ${escapeHtml(created.payment.settle_no || "")}（${escapeHtml(created.payment.payment_month)}）`);
+      if (resultEl) resultEl.innerHTML = `<div class="callout">${lines.join("<br/>")}</div>`;
+      wizardForm.reset();
+      for (const step of ["signoff", "purchase", "contract", "payment"]) setStepEnabled(step, false);
+      if (paymentToggle) paymentToggle.disabled = true;
+      await refresh();
+    } catch (error) {
+      if (statusEl) statusEl.textContent = `失敗：${error.message}`;
+    }
+  });
+})();
 
 loadLoginOptions();
 initializeSession().catch((error) => {

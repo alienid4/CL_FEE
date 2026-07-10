@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-66" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-67" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -141,6 +141,7 @@
                 <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
                 <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
                 <button class="tab" type="button" data-case-tab="portfolio">進度總表</button>
+                <button class="tab" type="button" data-case-tab="wizard">一條龍新案</button>
               </div>
             </div>
             <div class="status-pills">
@@ -320,6 +321,77 @@
               <div id="pf-groups" class="pf-groups"></div>
               <div id="pf-subs" class="pf-subs"></div>
               <div id="pf-view"></div>
+            </section>
+          </section>
+
+          <section class="case-tab-panel" data-case-panel="wizard" hidden>
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>一條龍新案精靈<span class="help" data-tip="一次填完規劃→簽呈→請購→合約→付款，送出後系統自動把後面幾步串上新案的系統編號（付款則串新合約）。簽呈/請購/合約/付款都可跳過，只有「案件」必填。整批一次寫入：任一步驟失敗（例如編號重複），前面已建的一併回滾，不會留下半成品，修正後可整批重送。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <form id="wizard-form" class="wizard-form">
+                <fieldset class="wizard-step" data-wizard-step="case">
+                  <legend>① 案件（必填）</legend>
+                  <input name="case_code" placeholder="案件編號 *" required />
+                  <input name="title" placeholder="案件名稱 *" required />
+                  <input name="owner" placeholder="負責人" />
+                  <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+                  <input name="fiscal_year" placeholder="所屬年度（空＝作業年度）" inputmode="numeric" maxlength="4" />
+                  <input name="note" placeholder="備註" />
+                  <input name="next_step" placeholder="下一步" />
+                  <input name="due_date" placeholder="預計完成日 YYYY-MM-DD" />
+                </fieldset>
+
+                <fieldset class="wizard-step" data-wizard-step="signoff">
+                  <legend><label><input type="checkbox" data-wizard-toggle="signoff" /> ② 簽呈（可跳過）</label></legend>
+                  <div class="wizard-step-body" hidden>
+                    <input name="signoff_code" placeholder="簽呈編號 *" />
+                    <input name="subject" placeholder="主旨 *" />
+                    <input name="applicant" placeholder="申請人" />
+                    <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+                    <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
+                    <input name="note" placeholder="備註" />
+                  </div>
+                </fieldset>
+
+                <fieldset class="wizard-step" data-wizard-step="purchase">
+                  <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ③ 請購（可跳過）</label></legend>
+                  <div class="wizard-step-body" hidden>
+                    <input name="purchase_code" placeholder="請購編號 *" />
+                    <input name="item_name" placeholder="品項 *" />
+                    <input name="vendor_name" placeholder="廠商" />
+                    <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
+                    <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+                    <input name="note" placeholder="備註" />
+                  </div>
+                </fieldset>
+
+                <fieldset class="wizard-step" data-wizard-step="contract">
+                  <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ④ 合約（可跳過）</label></legend>
+                  <div class="wizard-step-body" hidden>
+                    <input name="contract_code" placeholder="合約編號 *" />
+                    <input name="contract_name" placeholder="合約名稱 *" />
+                    <input name="vendor_name" placeholder="廠商" />
+                    <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+                    <input name="end_date" placeholder="到期日 YYYY-MM-DD" />
+                  </div>
+                </fieldset>
+
+                <fieldset class="wizard-step" data-wizard-step="payment">
+                  <legend><label><input type="checkbox" data-wizard-toggle="payment" disabled /> ⑤ 付款（可跳過，需先勾④合約）</label></legend>
+                  <div class="wizard-step-body" hidden>
+                    <input name="payment_month" placeholder="核銷月份 2026-07 *" pattern="\d{4}-\d{2}" />
+                    <input name="payment_amount" placeholder="含稅/核銷金額 *" type="number" min="0" step="1" />
+                    <input name="item" placeholder="核銷項目" />
+                    <input name="net_amount" placeholder="未稅金額" type="number" min="0" step="1" />
+                    <input name="tax_amount" placeholder="營業稅" type="number" min="0" step="1" />
+                  </div>
+                </fieldset>
+
+                <button type="submit">一次送出</button>
+                <span class="muted" id="wizard-status" role="status" aria-live="polite"></span>
+              </form>
+              <div id="wizard-result"></div>
             </section>
           </section>
 
@@ -932,6 +1004,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-66"></script>
+    <script src="/static/app.js?v=v0-9-67"></script>
   </body>
 </html>

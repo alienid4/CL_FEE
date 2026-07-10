@@ -474,7 +474,8 @@ def get_working_year() -> str:
 SETTLE_PREFIX = "Settle"
 
 
-def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """insert_row 的核心邏輯，吃外部傳入的連線——供需要跨表單一交易的呼叫方使用（如 create_case_wizard）。"""
     scope = _owner_scope.get()
     if table == "cases":
         payload = {**payload, "created_by": _current_actor.get()}  # 記錄建立者，供雙人複核擋自己核自己
@@ -487,33 +488,76 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     if not fields:
         raise ValueError("No valid fields supplied.")
     validate_status_fields(table, fields)
+    if table == "cases":
+        nxt = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
+            (fields.get("fiscal_year", ""),)).fetchone()["n"]
+        fields = {**fields, "seq": nxt}  # 案件年度流水號（四位尾碼＝案件身分證）
+    if table == "payments" and not str(fields.get("settle_no") or "").strip():
+        # 核銷編號自動發號：年度取核銷月份，流水號只計自動發的(settle_seq>0)，避免匯入真號污染
+        pm = str(fields.get("payment_month") or "").strip()
+        year = pm[:4] if len(pm) >= 4 and pm[:4].isdigit() else get_working_year()
+        nseq = conn.execute(
+            "SELECT COALESCE(MAX(settle_seq), 0) + 1 AS n FROM payments "
+            "WHERE substr(payment_month, 1, 4) = ? AND settle_seq > 0",
+            (year,)).fetchone()["n"]
+        fields = {**fields, "settle_seq": nseq,
+                  "settle_no": f"{SETTLE_PREFIX}-{year}-{nseq:04d}"}
+    columns = ", ".join(fields)
+    placeholders = ", ".join("?" for _ in fields)
+    _validate_fks(conn, fields)
+    cursor = conn.execute(
+        f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+        list(fields.values()),
+    )
+    row_id = cursor.lastrowid
+    row = get_row(conn, table, row_id)
+    write_audit_log(conn, table, row_id, "create", None, row)
+    return row
+
+
+def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     with connect() as conn:
-        if table == "cases":
-            nxt = conn.execute(
-                "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
-                (fields.get("fiscal_year", ""),)).fetchone()["n"]
-            fields = {**fields, "seq": nxt}  # 案件年度流水號（四位尾碼＝案件身分證）
-        if table == "payments" and not str(fields.get("settle_no") or "").strip():
-            # 核銷編號自動發號：年度取核銷月份，流水號只計自動發的(settle_seq>0)，避免匯入真號污染
-            pm = str(fields.get("payment_month") or "").strip()
-            year = pm[:4] if len(pm) >= 4 and pm[:4].isdigit() else get_working_year()
-            nseq = conn.execute(
-                "SELECT COALESCE(MAX(settle_seq), 0) + 1 AS n FROM payments "
-                "WHERE substr(payment_month, 1, 4) = ? AND settle_seq > 0",
-                (year,)).fetchone()["n"]
-            fields = {**fields, "settle_seq": nseq,
-                      "settle_no": f"{SETTLE_PREFIX}-{year}-{nseq:04d}"}
-        columns = ", ".join(fields)
-        placeholders = ", ".join("?" for _ in fields)
-        _validate_fks(conn, fields)
-        cursor = conn.execute(
-            f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
-            list(fields.values()),
-        )
-        row_id = cursor.lastrowid
-        row = get_row(conn, table, row_id)
-        write_audit_log(conn, table, row_id, "create", None, row)
-        return row
+        return _insert_row(conn, table, payload)
+
+
+def create_case_wizard(
+    case: dict[str, Any],
+    signoff: dict[str, Any] | None,
+    purchase: dict[str, Any] | None,
+    contract: dict[str, Any] | None,
+    payment: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """一條龍新案精靈：一次送出，依序建案件→(可選)簽呈/請購/合約→(可選)付款，全部自動帶上新案的
+    case_id（付款則帶新合約的 contract_id）。單一交易：任一步驟失敗，前面已建的一併回滾、什麼都不留下，
+    使用者修正後可整批重送，不會卡在「半成功」的狀態。"""
+    with connect() as conn:
+        case_row = _insert_row(conn, "cases", case)
+        case_id = case_row["id"]
+
+        signoff_row = None
+        if signoff is not None:
+            signoff_row = _insert_row(conn, "signoffs", {**signoff, "case_id": case_id})
+
+        purchase_row = None
+        if purchase is not None:
+            purchase_row = _insert_row(conn, "purchases", {**purchase, "case_id": case_id})
+
+        contract_row = None
+        if contract is not None:
+            contract_row = _insert_row(conn, "contracts", {**contract, "case_id": case_id})
+
+        payment_row = None
+        if payment is not None:
+            payment_row = _insert_row(conn, "payments", {**payment, "contract_id": contract_row["id"]})
+
+    return {
+        "case": case_row,
+        "signoff": signoff_row,
+        "purchase": purchase_row,
+        "contract": contract_row,
+        "payment": payment_row,
+    }
 
 
 def allowed_fields() -> dict[str, set[str]]:

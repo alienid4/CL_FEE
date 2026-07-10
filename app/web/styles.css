@@ -1160,6 +1160,15 @@ input:focus, select:focus, textarea:focus {
 .resource-form, #case-form, .import-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .resource-form input, .resource-form select, #case-form input, #case-form select { flex: 1 1 160px; min-width: 140px; }
 
+/* 一條龍新案精靈：每步一個 fieldset，legend 上放checkbox當「跳過此步」開關 */
+.wizard-form { display: flex; flex-direction: column; gap: 12px; }
+.wizard-step { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px 14px; }
+.wizard-step legend { padding: 0 6px; font-weight: 700; }
+.wizard-step legend label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 700; }
+.wizard-step:first-child legend { color: var(--accent-2); }
+.wizard-step-body { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.wizard-step-body input { flex: 1 1 160px; min-width: 140px; }
+
 /* 表格 */
 .table-shell { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: auto; }
 table { border-collapse: collapse; width: 100%; }

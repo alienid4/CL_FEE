@@ -6,6 +6,7 @@ import io
 import os
 from pathlib import Path
 import secrets
+import sqlite3
 import subprocess
 import time
 from typing import Any
@@ -13,7 +14,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.dev_console import console_status, run_console_command
 from app.notify import send_digests, send_test
@@ -89,6 +90,7 @@ from app.store import (
     list_audit_logs,
     list_rows,
     cio_changes_since_last_view,
+    create_case_wizard,
     monthly_spending_summary,
     unit_budget_vs_actual,
     vendor_amount_summary,
@@ -444,6 +446,77 @@ class PurchasePatch(BaseModel):
     note: str | None = None
 
 
+class CaseWizardCaseIn(BaseModel):
+    case_code: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    owner: str = ""
+    amount: float = 0
+    fiscal_year: str = ""
+    note: str = ""
+    next_step: str = ""
+    due_date: str = ""
+
+
+class CaseWizardSignoffIn(BaseModel):
+    signoff_code: str = Field(min_length=1)
+    subject: str = Field(min_length=1)
+    applicant: str = ""
+    amount: float = 0
+    sign_date: str = ""
+    note: str = ""
+
+
+class CaseWizardPurchaseIn(BaseModel):
+    purchase_code: str = Field(min_length=1)
+    item_name: str = Field(min_length=1)
+    vendor_name: str = ""
+    quantity: float = 0
+    amount: float = 0
+    note: str = ""
+
+
+class CaseWizardContractIn(BaseModel):
+    contract_code: str = Field(min_length=1)
+    contract_name: str = Field(min_length=1)
+    vendor_name: str = ""
+    amount: float | None = 0
+    end_date: str = ""
+
+    @field_validator("amount")
+    @classmethod
+    def _amount_default(cls, v: float | None) -> float:
+        return 0.0 if v is None else v
+
+
+class CaseWizardPaymentIn(BaseModel):
+    payment_month: str = Field(pattern=r"^\d{4}-\d{2}$")
+    payment_amount: float
+    item: str = ""
+    net_amount: float | None = 0
+    tax_amount: float | None = 0
+
+    @field_validator("net_amount", "tax_amount")
+    @classmethod
+    def _amount_default(cls, v: float | None) -> float:
+        return 0.0 if v is None else v
+
+
+class CaseWizardIn(BaseModel):
+    """一條龍新案精靈：單頁多步驟表單一次送出。簽呈/請購/合約/付款皆可跳過(None)；
+    付款要掛在合約下，若填了付款卻沒填合約，直接擋在驗證層（不用等寫進資料庫才發現）。"""
+    case: CaseWizardCaseIn
+    signoff: CaseWizardSignoffIn | None = None
+    purchase: CaseWizardPurchaseIn | None = None
+    contract: CaseWizardContractIn | None = None
+    payment: CaseWizardPaymentIn | None = None
+
+    @model_validator(mode="after")
+    def _payment_needs_contract(self) -> "CaseWizardIn":
+        if self.payment is not None and self.contract is None:
+            raise ValueError("付款步驟需要先填合約（付款要掛在合約下）")
+        return self
+
+
 class ImportBatchIn(BaseModel):
     source_name: str = Field(min_length=1)
     status: str = "created"
@@ -537,7 +610,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.66 · 2026-07-11 · CIO「自上次查看以來」變動提醒"
+BACKEND_BUILD = "v0.9.67 · 2026-07-11 · 一條龍新案精靈(規劃→簽呈→請購→合約→付款)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1192,6 +1265,23 @@ def create_app() -> FastAPI:
         if payload.status == "approved":
             raise HTTPException(status_code=422, detail="案件需經雙人複核核准，不能直接建立為『已核准』。")
         return handle_create("cases", payload.model_dump())
+
+    @app.post("/api/case-wizard", status_code=201)
+    def case_wizard(payload: CaseWizardIn) -> dict[str, Any]:
+        # 單一交易：任一步驟寫入失敗（含案號/合約號撞號），前面已建的一併回滾，什麼都不留下。
+        try:
+            result = create_case_wizard(
+                case=payload.case.model_dump(),
+                signoff=payload.signoff.model_dump() if payload.signoff else None,
+                purchase=payload.purchase.model_dump() if payload.purchase else None,
+                contract=payload.contract.model_dump() if payload.contract else None,
+                payment=payload.payment.model_dump() if payload.payment else None,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=422, detail=f"編號重複或關聯資料不存在：{exc}") from exc
+        return ok(result)
 
     @app.get("/api/cases")
     def cases(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
