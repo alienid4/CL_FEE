@@ -407,6 +407,8 @@ def initialize_database() -> None:
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
             ensure_column(conn, "payments", col, "TEXT NOT NULL DEFAULT ''")
+        # 核銷編號流水號：核銷各年獨立遞增，組成「英文前綴-年度-四位流水號」
+        ensure_column(conn, "payments", "settle_seq", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "net_amount", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "tax_amount", "REAL NOT NULL DEFAULT 0")
 
@@ -440,6 +442,10 @@ def get_working_year() -> str:
     return str(datetime.date.today().year)
 
 
+# 核銷編號前綴：組成「Settle-年度-四位流水號」（對應欄位 settle_no，一眼對得上核銷）
+SETTLE_PREFIX = "Settle"
+
+
 def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
     scope = _owner_scope.get()
     if table == "cases":
@@ -459,6 +465,16 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
                 "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
                 (fields.get("fiscal_year", ""),)).fetchone()["n"]
             fields = {**fields, "seq": nxt}  # 案件年度流水號（四位尾碼＝案件身分證）
+        if table == "payments" and not str(fields.get("settle_no") or "").strip():
+            # 核銷編號自動發號：年度取核銷月份，流水號只計自動發的(settle_seq>0)，避免匯入真號污染
+            pm = str(fields.get("payment_month") or "").strip()
+            year = pm[:4] if len(pm) >= 4 and pm[:4].isdigit() else get_working_year()
+            nseq = conn.execute(
+                "SELECT COALESCE(MAX(settle_seq), 0) + 1 AS n FROM payments "
+                "WHERE substr(payment_month, 1, 4) = ? AND settle_seq > 0",
+                (year,)).fetchone()["n"]
+            fields = {**fields, "settle_seq": nseq,
+                      "settle_no": f"{SETTLE_PREFIX}-{year}-{nseq:04d}"}
         columns = ", ".join(fields)
         placeholders = ", ".join("?" for _ in fields)
         _validate_fks(conn, fields)
@@ -478,7 +494,8 @@ def allowed_fields() -> dict[str, set[str]]:
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
-                     "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount"},
+                     "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount",
+                     "settle_seq"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
                     "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category"},
