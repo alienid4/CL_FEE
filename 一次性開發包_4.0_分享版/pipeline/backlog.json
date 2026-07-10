@@ -1,0 +1,3 @@
+[
+  { "id": "S1", "desc": "（換成你的第一個切片）", "done_when": "checks 全 PASS", "status": "todo", "attempts": 0 }
+]
