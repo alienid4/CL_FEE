@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-47" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-48" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -262,11 +262,7 @@
             <section class="watch-list">
               <div class="section-heading compact">
                 <h2>處理優先矩陣<span class="help" data-tip="只放「需要盯」的案子：預設濾掉已完成與還沒開始，讓主管專注緊急、可能掉鏈子的。橫軸=急迫度，縱軸=金額/影響。系統自動落點，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-                <div class="matrix-filters">
-                  <label><input type="checkbox" id="matrix-show-done" /> 顯示已完成</label>
-                  <label><input type="checkbox" id="matrix-show-notstarted" /> 顯示未開始</label>
-                  <span class="muted" id="matrix-count"></span>
-                </div>
+                <div class="matrix-filters" id="matrix-filters" role="group" aria-label="依狀態分類選要看的"></div>
               </div>
               <div class="case-matrix" id="case-matrix" aria-label="處理優先矩陣">
                 <span class="matrix-axis y-high">金額 / 影響高</span>
@@ -894,6 +890,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-47"></script>
+    <script src="/static/app.js?v=v0-9-48"></script>
   </body>
 </html>

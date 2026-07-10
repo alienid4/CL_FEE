@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.47 · 2026-07-10 · 進度圖固定7圈+灰燈(不適用)、矩陣過濾已完成/未開始";
+const BUILD_TAG = "v0.9.48 · 2026-07-10 · 矩陣改狀態分類篩選(進行中/已完成/未開始可自選)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -408,6 +408,13 @@ function activateCaseTab(tabName) {
 // ── 線性進度圖／處理優先矩陣：讀 /api/cases/progress，系統自動推導、唯讀 ──
 const TONE_LABEL = { green: "完成", white: "還沒輪到", orange: "快逾期待處理", red: "已逾期", na: "不適用" };
 let lastProgressItems = [];  // 快取最近一次進度資料，供矩陣過濾器不重打 API 重繪
+// 矩陣依狀態分類：可自由選要看哪一類（單看或組合看）
+const PHASE_META = [
+  { key: "active", label: "進行中／有風險" },
+  { key: "done", label: "已完成" },
+  { key: "not_started", label: "未開始" },
+];
+let matrixPhaseFilter = new Set(["active"]);  // 預設看進行中；點分類 chip 可切換
 const QUAD_LABEL = { now: "立即處理", confirm: "主管確認", week: "本週處理", plan: "可安排" };
 const QUAD_RANK = { now: 0, week: 1, confirm: 2, plan: 3 };
 
@@ -433,16 +440,17 @@ function renderProgressRow(it) {
 function renderMatrix(allItems) {
   const box = document.querySelector("#case-matrix");
   const body = document.querySelector("#case-matrix-body");
-  // 過濾：預設只留「需要盯」的（進行中/有風險），已完成、還沒開始要勾選才顯示
-  const showDone = document.querySelector("#matrix-show-done")?.checked;
-  const showNotStarted = document.querySelector("#matrix-show-notstarted")?.checked;
-  const items = allItems.filter((it) =>
-    it.phase === "active" || (it.phase === "done" && showDone) || (it.phase === "not_started" && showNotStarted));
-  const countEl = document.querySelector("#matrix-count");
-  if (countEl) {
-    const hidden = allItems.length - items.length;
-    countEl.textContent = hidden > 0 ? `顯示 ${items.length} 件，隱藏 ${hidden} 件（已完成/未開始）` : `顯示 ${items.length} 件`;
+  // 依狀態分類：render chips（各帶件數），只顯示被選分類的案子
+  const counts = { active: 0, done: 0, not_started: 0 };
+  allItems.forEach((it) => { counts[it.phase] = (counts[it.phase] || 0) + 1; });
+  if (matrixPhaseFilter.size === 0) matrixPhaseFilter = new Set(["active"]);
+  const filtersEl = document.querySelector("#matrix-filters");
+  if (filtersEl) {
+    filtersEl.innerHTML = PHASE_META.map((p) =>
+      `<button type="button" class="phase-chip${matrixPhaseFilter.has(p.key) ? " active" : ""}" data-phase="${p.key}">`
+      + `${p.label} <span class="phase-chip-count">${counts[p.key] || 0}</span></button>`).join("");
   }
+  const items = allItems.filter((it) => matrixPhaseFilter.has(it.phase));
   if (box) {
     box.querySelectorAll(".matrix-item").forEach((n) => n.remove());
     // 真散佈：直接落在 (x,y)＝金額×急迫度的座標，位置反映數值，不排排站
@@ -488,9 +496,15 @@ async function loadCaseProgress() {
     if (listEl) listEl.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
   }
 }
-// 矩陣過濾器：勾選變更就用快取重繪（不重打 API）
-["#matrix-show-done", "#matrix-show-notstarted"].forEach((sel) => {
-  document.querySelector(sel)?.addEventListener("change", () => renderMatrix(lastProgressItems));
+// 矩陣分類 chip：點一下切換該分類的顯示（至少留一類），用快取重繪不重打 API
+document.querySelector("#matrix-filters")?.addEventListener("click", (event) => {
+  const chip = event.target.closest(".phase-chip");
+  if (!chip) return;
+  const p = chip.getAttribute("data-phase");
+  if (matrixPhaseFilter.has(p)) matrixPhaseFilter.delete(p);
+  else matrixPhaseFilter.add(p);
+  if (matrixPhaseFilter.size === 0) matrixPhaseFilter.add(p);  // 不允許全空，留住剛點的
+  renderMatrix(lastProgressItems);
 });
 
 // 後台「資料管理」底下的工具面板（沒有各自的側欄卡片，改由資料管理頁的磚塊開啟）
