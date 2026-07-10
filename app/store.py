@@ -2471,34 +2471,52 @@ def search_records(query: str) -> list[dict[str, Any]]:
     pattern = f"%{query}%"
     scope = _owner_scope.get()
     results: list[dict[str, Any]] = []
+    # 每列：(型別, 表, 代號欄, 標題欄, 明細欄, [額外可搜欄], 回案件的 JOIN, 系統編號前綴)
+    # JOIN 回案件後，把「年度-流水號 尾碼／年-流水號／前綴-年-流水號」也納入比對，
+    # 才搜得到前端即時組出來、DB 沒存的系統編號（搜 0003 能一次撈齊同案各階段）。
+    entities = [
+        ("case", "cases", "case_code", "title", "owner", ["note", "next_step"], "", None),
+        ("contract", "contracts", "contract_code", "contract_name", "vendor_name", [],
+         "LEFT JOIN cases c ON c.id = t.case_id", "Contract"),
+        ("document", "documents", "file_name", "document_type", "source_note", [],
+         "LEFT JOIN cases c ON c.id = t.case_id", None),
+        ("budget", "budgets", "budget_code", "category", "unit_name", ["note"],
+         "LEFT JOIN cases c ON c.id = t.case_id", "Budget"),
+        ("project", "projects", "project_code", "project_name", "source", ["owner", "necessity", "note"],
+         "LEFT JOIN cases c ON c.id = t.case_id", "Project"),
+        ("signoff", "signoffs", "signoff_code", "subject", "applicant", ["note"],
+         "LEFT JOIN cases c ON c.id = t.case_id", "Sign"),
+        ("purchase", "purchases", "purchase_code", "item_name", "vendor_name", ["note"],
+         "LEFT JOIN cases c ON c.id = t.case_id", "Purchase"),
+        ("payment", "payments", "settle_no", "item", "vendor", ["ref_no", "period"],
+         "LEFT JOIN contracts k ON k.id = t.contract_id LEFT JOIN cases c ON c.id = k.case_id", "Pay"),
+    ]
     with connect() as conn:
-        # 每列：(表, 顯示代號欄, 顯示標題欄, 顯示明細欄, [額外可搜欄位…])
-        # 額外欄位讓「負責人/廠商/備註」也搜得到（先前專案漏了 owner，搜負責人找不到即此故）。
-        for table, fields in {
-            "case": ("cases", "case_code", "title", "owner", ["note", "next_step"]),
-            "contract": ("contracts", "contract_code", "contract_name", "vendor_name", []),
-            "document": ("documents", "file_name", "document_type", "source_note", []),
-            "budget": ("budgets", "budget_code", "category", "unit_name", ["note"]),
-            "project": ("projects", "project_code", "project_name", "source", ["owner", "necessity", "note"]),
-            "signoff": ("signoffs", "signoff_code", "subject", "applicant", ["note"]),
-            "purchase": ("purchases", "purchase_code", "item_name", "vendor_name", ["note"]),
-        }.items():
-            source, code_field, title_field, extra_field, more_fields = fields
+        for typ, source, code_field, title_field, extra_field, more_fields, join, prefix in entities:
+            cref = "t" if source == "cases" else "c"  # 案件本身的年/流水號在自己身上
             search_fields = [code_field, title_field, extra_field, *more_fields]
-            where_or = " OR ".join(f"{f} LIKE ?" for f in search_fields)
-            sql = (
-                f"SELECT id, {code_field} AS code, {title_field} AS title, {extra_field} AS detail "
-                f"FROM {source} WHERE ({where_or})"
-            )
+            ors = [f"t.{f} LIKE ?" for f in search_fields]
             params: list[Any] = [pattern] * len(search_fields)
+            # 系統編號比對：四位尾碼、年-尾碼、（有前綴者）前綴-年-尾碼
+            ors.append(f"printf('%04d', {cref}.seq) LIKE ?")
+            params.append(pattern)
+            ors.append(f"({cref}.fiscal_year || '-' || printf('%04d', {cref}.seq)) LIKE ?")
+            params.append(pattern)
+            if prefix:
+                ors.append(f"('{prefix}-' || {cref}.fiscal_year || '-' || printf('%04d', {cref}.seq)) LIKE ?")
+                params.append(pattern)
+            sql = (
+                f"SELECT t.id AS id, t.{code_field} AS code, t.{title_field} AS title, "
+                f"t.{extra_field} AS detail FROM {source} t {join} WHERE ({' OR '.join(ors)})"
+            )
             if scope is not None:
                 sw, sp = _scope_where(source, scope)
                 if sw:
                     sql += f" AND {sw}"
                     params += sp
-            sql += " ORDER BY id DESC LIMIT 50"
+            sql += " ORDER BY t.id DESC LIMIT 50"
             rows = conn.execute(sql, params).fetchall()
-            results.extend({"type": table, **row} for row in rows)
+            results.extend({"type": typ, **row} for row in rows)
     return results
 
 

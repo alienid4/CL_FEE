@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.44 · 2026-07-10 · 案件表可排序+移除重複匯入匯出鈕";
+const BUILD_TAG = "v0.9.45 · 2026-07-10 · 全文搜尋補系統編號+納入付款(核銷)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3278,7 +3278,7 @@ const globalSearch = document.querySelector("#global-search");
 const searchResults = document.querySelector("#search-results");      // 側欄小提示
 const searchPanel = document.querySelector("#search-panel");           // 中間大結果區
 const searchResultsMain = document.querySelector("#search-results-main");
-const SEARCH_LABEL = { case: "案件", contract: "合約", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購" };
+const SEARCH_LABEL = { case: "案件", contract: "合約", payment: "付款", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購" };
 // 每種類型 → 對應模組 nav + 開啟該筆的動作（開編輯表單、顯示細節）
 const SEARCH_NAV = {
   case: { href: "#cases-module", open: (id) => startEdit(id) },
