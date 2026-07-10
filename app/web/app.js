@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.35 · 2026-07-10 · 名稱分群補子序列(少林科技)";
+const BUILD_TAG = "v0.9.36 · 2026-07-10 · 表格排序+付款系統編號";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -204,7 +204,9 @@ const resourceConfig = {
     numberFields: ["contract_id", "payment_amount", "net_amount", "tax_amount"],
     canDisable: true,
     columns: [
-      { label: "核銷項目", cell: (i) => `<strong>${escapeHtml(valueOrDash(i.item) === "-" ? valueOrDash(i.payment_month) : i.item)}</strong>` },
+      { label: "系統編號", cell: (i) => systemCodeCellPayment(i) },
+      { label: "核銷編號", cell: (i) => `<strong>${escapeHtml(valueOrDash(i.settle_no))}</strong>` },
+      { label: "核銷項目", cell: (i) => escapeHtml(valueOrDash(i.item) === "-" ? valueOrDash(i.payment_month) : i.item) },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor))}</span>` },
       { label: "期間", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.payment_month))}${i.period ? "｜" + escapeHtml(i.period) : ""}</span>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.payment_amount)} 元` },
@@ -338,6 +340,11 @@ function systemCodeCell(prefix, caseId) {
   const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
   const n = caseNumber(c);
   return n ? `<strong>${escapeHtml(prefix + "-" + n)}</strong>` : `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
+}
+// 付款經「合約」再回溯到案件（付款掛合約、合約掛案件）
+function systemCodeCellPayment(payment) {
+  const k = (resourceCaches.contract || []).find((x) => String(x.id) === String(payment.contract_id));
+  return systemCodeCell(SYS_PREFIX.payment, k ? k.case_id : null);
 }
 
 // 簽呈附件參照：是網址就做成可點連結（新視窗），否則顯示 📎＋文字（如檔案路徑）
@@ -1080,12 +1087,43 @@ async function loadResource(type) {
 }
 
 // 表格化：一列一筆、欄位對齊，像 Excel 一樣掃視
+// 每個表格的排序狀態：{col: 欄索引, dir: "asc"|"desc"}
+const resourceSort = {};
+const _sortProbe = document.createElement("div");
+function cellText(type, item, colIdx) {
+  _sortProbe.innerHTML = resourceConfig[type].columns[colIdx].cell(item);
+  return (_sortProbe.textContent || "").trim();
+}
+// 只由「純數字＋千分位/元/%/空白/負號」組成才當數字比，否則字串比（中文用 localeCompare）
+function looksNumeric(s) { return /\d/.test(s) && /^[0-9.,\s元%+-]+$/.test(s); }
+function sortItems(type, items) {
+  const st = resourceSort[type];
+  if (!st) return items;
+  const arr = [...items];
+  arr.sort((a, b) => {
+    const va = cellText(type, a, st.col), vb = cellText(type, b, st.col);
+    let r;
+    if (looksNumeric(va) && looksNumeric(vb)) {
+      r = (parseFloat(va.replace(/[^0-9.-]/g, "")) || 0) - (parseFloat(vb.replace(/[^0-9.-]/g, "")) || 0);
+    } else if (!va || !vb) {
+      r = (va ? 1 : 0) - (vb ? 1 : 0);  // 空值排最後
+    } else {
+      r = va.localeCompare(vb, "zh-Hant");
+    }
+    return st.dir === "desc" ? -r : r;
+  });
+  return arr;
+}
 function renderResourceTable(type, items) {
   const config = resourceConfig[type];
+  const st = resourceSort[type];
   const head = config.columns
-    .map((c) => `<th${c.cls ? ` class="${c.cls}"` : ""}>${c.label}</th>`)
+    .map((c, i) => {
+      const arrow = st && st.col === i ? (st.dir === "asc" ? " ▲" : " ▼") : "";
+      return `<th class="sortable${c.cls ? " " + c.cls : ""}" data-sort-type="${type}" data-col-index="${i}" title="點欄名可排序">${c.label}${arrow}</th>`;
+    })
     .join("");
-  const body = items.map((item) => renderResourceRow(type, item)).join("");
+  const body = sortItems(type, items).map((item) => renderResourceRow(type, item)).join("");
   return `
     <div class="grid-scroll">
       <table class="grid-table">
@@ -1095,6 +1133,19 @@ function renderResourceTable(type, items) {
     </div>
   `;
 }
+// 點欄名排序（切換 asc/desc），由快取重繪、不重打 API
+document.addEventListener("click", (event) => {
+  const th = event.target.closest("th.sortable");
+  if (!th) return;
+  const type = th.getAttribute("data-sort-type");
+  const col = Number(th.getAttribute("data-col-index"));
+  const st = resourceSort[type];
+  resourceSort[type] = (st && st.col === col) ? { col, dir: st.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" };
+  if (resourceLists[type] && resourceCaches[type]) {
+    resourceLists[type].innerHTML = resourceCaches[type].length
+      ? renderResourceTable(type, resourceCaches[type]) : emptyList(resourceConfig[type].plural);
+  }
+});
 
 function renderResourceRow(type, item) {
   const config = resourceConfig[type];

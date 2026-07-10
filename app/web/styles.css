@@ -1504,3 +1504,7 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 /* 作業年度提示條 */
 .working-year-bar { font-size: .82rem; color: var(--ink-2); background: var(--surface-2); border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .working-year-bar strong { color: var(--accent-2); }
+
+/* 表格欄名可排序 */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { background: var(--surface); text-decoration: underline; }
