@@ -18,6 +18,21 @@ PORT = 8011
 BASE = f"http://127.0.0.1:{PORT}"
 
 
+def login(page, username, password):
+    """登入頁角色欄現為下拉選單（非文字輸入），選項由 /api/auth/options 非同步載入。"""
+    page.wait_for_selector("#login-role option", state="attached", timeout=10000)
+    page.select_option("#login-role", username)
+    if page.is_visible("#login-pass-wrap"):
+        page.fill('#login-form input[name="password"]', password)
+    page.click('#login-form button[type="submit"]')
+    page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+
+
+def logout(page):
+    page.click("#logout" if page.query_selector("#logout") else "text=登出")
+    page.wait_for_selector("#login-form", state="visible", timeout=10000)
+
+
 def main() -> int:
     for f in (DB,):
         try:
@@ -57,13 +72,12 @@ def main() -> int:
 
             # 1) 登入 ap02（主管）
             page.goto(BASE + "/")
-            page.fill('#login-form input[name="username"]', "ap02")
-            page.fill('#login-form input[name="password"]', "e2e-pass")
-            page.click('#login-form button[type="submit"]')
-            page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+            login(page, "ap02", "e2e-pass")
             results.append(("登入 ap02 並保持登入", True))
 
-            # 2) 新增案件（審核中 + 下一步 + 備註）
+            # 2) 新增案件（審核中 + 下一步 + 備註）：表單平常收合，先點「＋ 新增」展開
+            page.click('[data-form-toggle="case-form"]')
+            page.wait_for_timeout(200)
             page.fill('#case-form input[name="case_code"]', "E2E-001")
             page.fill('#case-form input[name="title"]', "E2E 測試案")
             page.select_option('#case-form select[name="status"]', "reviewing")
@@ -83,6 +97,8 @@ def main() -> int:
             page.click('a.module-card[href="#contracts-module"]')
             page.wait_for_timeout(400)
             results.append(("合約模組已無假表(CON-2026-0001)", "CON-2026-0001" not in page.content()))
+            page.click('[data-form-toggle="contract-form"]')
+            page.wait_for_timeout(200)
             page.fill('#contract-form input[name="contract_code"]', "E2E-CON-1")
             page.fill('#contract-form input[name="contract_name"]', "E2E 合約")
             page.click('#contract-form button[type="submit"]')
@@ -93,6 +109,8 @@ def main() -> int:
             page.click('a.module-card[href="#budget"]')
             page.wait_for_timeout(400)
             results.append(("預算模組已啟用(非尚未啟用)", not page.is_visible("#module-unbuilt")))
+            page.click('[data-form-toggle="budget-form"]')
+            page.wait_for_timeout(200)
             page.fill('#budget-form input[name="budget_code"]', "E2E-BUD-1")
             page.fill('#budget-form input[name="category"]', "基礎建設")
             page.fill('#budget-form input[name="amount"]', "26742000")
@@ -116,6 +134,20 @@ def main() -> int:
             page.wait_for_timeout(500)
             results.append(("匯入的案件進入清單(CASE-SAMPLE-001)", "CASE-SAMPLE-001" in page.inner_text("#cio-cases-body")))
 
+            # 3.66) CSV 匯出：資料管理 → 匯入／匯出 → 下載案件 CSV，驗證真的觸發下載且內容含剛建的案件
+            page.click('a.module-card[href="#data-admin"]')
+            page.wait_for_timeout(300)
+            page.click('.admin-tile[data-open-panel="io-center"]')
+            page.wait_for_timeout(400)
+            with page.expect_download() as dl_info:
+                page.click('[data-export="/api/cases.csv"]')
+            download = dl_info.value
+            results.append(("匯出 CSV 觸發下載且檔名正確", download.suggested_filename == "cases.csv"))
+            csv_path = download.path()
+            csv_text = csv_path.read_text(encoding="utf-8-sig") if csv_path else ""
+            results.append(("匯出的 CSV 含剛建立的案件", "E2E-001" in csv_text))
+            results.append(("匯出的 CSV 含正確表頭", "案件編號" in csv_text))
+
             # 3.7) 示範資料：主管在主管儀表板可一鍵載入（DEMO- 標示）
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)
@@ -133,25 +165,80 @@ def main() -> int:
             # 側欄全文搜尋（接了 /api/search）：搜 DEMO 有結果
             page.fill("#global-search", "DEMO")
             page.wait_for_timeout(600)
-            results.append(("全文搜尋有結果", "DEMO-" in page.inner_text("#search-results")))
+            results.append(("全文搜尋有結果", "DEMO-" in page.inner_text("#search-results-main")))
             page.fill("#global-search", "")
             page.click('button[data-case-tab="list"]')
             page.wait_for_timeout(600)
             results.append(("示範案件進入案件清單(DEMO-)", "DEMO-" in page.inner_text("#cio-cases-body")))
 
-            # 3.8) 雙人複核：ap02 送出 E2E-001 → 待複核；建立者不能自己核；ap04 核准 → 已核准
+            # 3.75) 未歸戶付款：合約 E2E-CON-1 沒關聯案件，替它建一筆付款 → 主管儀表板「未歸戶付款」面板要看得到
+            contract_id = page.evaluate(
+                """async () => {
+                    const r = await fetch('/api/contracts');
+                    const d = await r.json();
+                    const c = (d.data || []).find(x => x.contract_code === 'E2E-CON-1');
+                    return c ? c.id : null;
+                }"""
+            )
+            results.append(("取得未關聯案件的合約 ID(E2E-CON-1)", contract_id is not None))
+            page.click('a.module-card[href="#payments-module"]')
+            page.wait_for_timeout(300)
+            page.click('[data-form-toggle="payment-form"]')
+            page.wait_for_timeout(200)
+            page.fill('#payment-form input[name="contract_id"]', str(contract_id))
+            page.fill('#payment-form input[name="payment_month"]', "2026-08")
+            page.fill('#payment-form input[name="payment_amount"]', "1000")
+            page.click('#payment-form button[type="submit"]')
+            page.wait_for_timeout(700)
+            page.click('a.module-card[href="#cases-module"]')
+            page.wait_for_timeout(300)
+            page.click('button[data-case-tab="dashboard"]')
+            page.wait_for_timeout(400)
+            results.append(("未歸戶付款面板出現", page.is_visible("#orphan-payments")))
+            results.append(("未歸戶付款徽章顯示筆數", page.is_visible("#orphan-payments-count")))
+            results.append(("未歸戶付款列出無案合約", "E2E-CON-1" in page.inner_text("#orphan-payments-list")))
+
+            # 3.76) 催辦通知按鈕：點「產生催辦通知」→ 站內預覽出現內容（未設 SMTP，只預覽不真寄）
+            page.click("#notify-reminders")
+            page.wait_for_timeout(600)
+            results.append(("催辦通知按鈕產生預覽內容", len(page.inner_text("#notify-preview").strip()) > 0))
+            page.click('button[data-case-tab="list"]')
+            page.wait_for_timeout(300)
+
+            # 3.8) 待我複核佇列（主管儀表板小面板）：ap03 建案送出 → ap02 在面板核准（非案件列核准鈕）
+            logout(page)
+            login(page, "ap03", "e2e-pass")
+            page.click('[data-form-toggle="case-form"]')
+            page.wait_for_timeout(200)
+            page.fill('#case-form input[name="case_code"]', "E2E-Q1")
+            page.fill('#case-form input[name="title"]', "待複核佇列測試")
+            page.click("#submit-case")
+            page.wait_for_timeout(700)
+            q1 = page.locator("#cases .row", has_text="E2E-Q1")
+            q1.get_by_role("button", name="送出複核").click()
+            page.wait_for_timeout(600)
+            logout(page)
+            login(page, "ap02", "e2e-pass")
+            page.click('button[data-case-tab="dashboard"]')
+            page.wait_for_timeout(400)
+            results.append(("待我複核佇列出現他人送出的案件", "E2E-Q1" in page.inner_text("#pending-approvals-list")))
+            results.append(("待我複核徽章顯示筆數", page.is_visible("#pending-approvals-count")))
+            page.locator("#pending-approvals-list li", has_text="E2E-Q1").get_by_role("button", name="核准").click()
+            page.wait_for_timeout(700)
+            results.append(("面板核准後從待複核佇列移除", "E2E-Q1" not in page.inner_text("#pending-approvals-list")))
+            page.click('button[data-case-tab="list"]')
+            page.wait_for_timeout(400)
+            results.append(("面板核准後案件狀態為已核准", "已核准" in page.locator("#cases .row", has_text="E2E-Q1").inner_text()))
+
+            # 3.9) 雙人複核（案件列按鈕路徑）：ap02 送出 E2E-001 → 待複核；建立者不能自己核；ap04 核准 → 已核准
             row = page.locator("#cases .row", has_text="E2E-001")
             row.get_by_role("button", name="送出複核").click()
             page.wait_for_timeout(600)
             row = page.locator("#cases .row", has_text="E2E-001")
             results.append(("送出後狀態為待複核", "待複核" in row.inner_text()))
             results.append(("建立者看不到自己案件的核准鈕", row.get_by_role("button", name="核准").count() == 0))
-            page.click("#logout" if page.query_selector("#logout") else "text=登出")
-            page.wait_for_selector("#login-form", state="visible", timeout=10000)
-            page.fill('#login-form input[name="username"]', "ap04")
-            page.fill('#login-form input[name="password"]', "e2e-pass")
-            page.click('#login-form button[type="submit"]')
-            page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+            logout(page)
+            login(page, "ap04", "e2e-pass")
             page.wait_for_timeout(500)
             row4 = page.locator("#cases .row", has_text="E2E-001")
             row4.get_by_role("button", name="核准").click()
@@ -161,12 +248,8 @@ def main() -> int:
             # 4) 換 CIO（極簡）：只看到決策總覽，其他模組與建案表單完全隱藏
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)
-            page.click("#logout" if page.query_selector("#logout") else "text=登出")
-            page.wait_for_selector("#login-form", state="visible", timeout=10000)
-            page.fill('#login-form input[name="username"]', "ap01")
-            page.fill('#login-form input[name="password"]', "e2e-pass")
-            page.click('#login-form button[type="submit"]')
-            page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+            logout(page)
+            login(page, "ap01", "e2e-pass")
             page.wait_for_timeout(500)
             results.append(("CIO 看得到決策總覽", page.is_visible('a.module-card[href="#cio-overview"]')))
             results.append(("CIO 看不到合約模組(完全隱藏)", not page.is_visible('a.module-card[href="#contracts-module"]')))
@@ -178,12 +261,8 @@ def main() -> int:
             results.append(("CIO 看板有預算外卡片", "下月預算外" in page.inner_text("#cio-metrics")))
 
             # 5) 系統管理後台：admin 登入 → 見系統管理 → 存 SMTP 設定 → 持久
-            page.click("#logout" if page.query_selector("#logout") else "text=登出")
-            page.wait_for_selector("#login-form", state="visible", timeout=10000)
-            page.fill('#login-form input[name="username"]', "admin")
-            page.fill('#login-form input[name="password"]', "e2e-pass")
-            page.click('#login-form button[type="submit"]')
-            page.wait_for_selector("#app-shell", state="visible", timeout=10000)
+            logout(page)
+            login(page, "admin", "e2e-pass")
             page.wait_for_timeout(500)
             results.append(("admin 看得到系統管理", page.is_visible('a.module-card[href="#admin-console"]')))
             results.append(("admin 落在系統管理面板", page.is_visible("#admin-console")))
@@ -202,7 +281,10 @@ def main() -> int:
             results.append(("新增帳號出現在清單", "e2euser" in page.inner_text("#admin-users-body")))
             results.append(("備份按鈕存在", page.is_visible("#admin-backup")))
 
-            browser.close()
+            try:
+                browser.close()
+            except Exception as exc:
+                print(f"(browser.close 警告，不影響結果判定: {exc})")
 
         print("=" * 44)
         for name, ok in results:

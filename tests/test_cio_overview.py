@@ -109,6 +109,24 @@ def test_cio_sees_only_overview_module(tmp_path):
         assert me["default_module"] == "cio-overview"
 
 
+def test_overview_export_xlsx(tmp_path):
+    with _client(tmp_path) as client:
+        cid = _seed_case_with_next_month_payment(client, "XLS-1", "ap03", 12345)
+        _submit_and_approve(client, cid)
+        r = client.get("/api/reports/cio-overview.xlsx")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        assert r.headers["content-disposition"] == "attachment; filename=cio-overview.xlsx"
+        import io as _io
+
+        import openpyxl
+        wb = openpyxl.load_workbook(_io.BytesIO(r.content))
+        assert wb.sheetnames == ["資金總覽", "未來六個月現金流預測", "下月要出的款明細"]
+        detail_rows = list(wb["下月要出的款明細"].iter_rows(values_only=True))
+        assert detail_rows[0][0] == "案件編號"
+        assert any(row[0] == "XLS-1" for row in detail_rows[1:])
+
+
 def test_overview_scoped_for_handler(tmp_path):
     with _client(tmp_path) as client:  # ap02
         mine = _seed_case_with_next_month_payment(client, "MINE-03", "ap03", 1000000)

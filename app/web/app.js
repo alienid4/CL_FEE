@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.63 · 2026-07-11 · 單位別預算vs實付彙總報表(主管視角)";
+const BUILD_TAG = "v0.9.66 · 2026-07-11 · CIO「自上次查看以來」變動提醒";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1997,6 +1997,39 @@ document.querySelector("#unit-bva-year")?.addEventListener("change", (event) => 
   loadUnitBva();
 });
 
+// 廠商別 合約金額 vs 實付：不分年度（合約金額是存續期間總額，非逐年概念）。
+async function loadVendorAmt() {
+  const body = document.querySelector("#vendor-amt-body");
+  if (!body) return;
+  const data = (await api("/api/reports/vendor-amount-summary")).data || {};
+  const fmt = (n) => Number(n || 0).toLocaleString();
+  const rows = data.rows || [];
+  const lines = rows.map((r) => {
+    const usage = r.usage_pct == null ? "—" : `${r.usage_pct}%`;
+    const over = r.over ? ' <span class="badge danger">超支</span>' : "";
+    return `<tr${r.over ? ' class="over-budget"' : ""}>
+      <td>${escapeHtml(r.vendor)}</td>
+      <td class="num">${fmt(r.contract_amount)}</td>
+      <td class="num">${fmt(r.paid)}</td>
+      <td class="num">${fmt(r.pending)}</td>
+      <td class="num">${fmt(r.remaining)}</td>
+      <td class="num">${usage}${over}</td>
+    </tr>`;
+  });
+  const t = data.totals || {};
+  if (rows.length) {
+    lines.push(`<tr class="total-row">
+      <td>合計</td>
+      <td class="num">${fmt(t.contract_amount)}</td>
+      <td class="num">${fmt(t.paid)}</td>
+      <td class="num">${fmt(t.pending)}</td>
+      <td class="num">${fmt(t.remaining)}</td>
+      <td class="num">${t.contract_amount ? `${Math.round((t.paid / t.contract_amount) * 100)}%` : "—"}</td>
+    </tr>`);
+  }
+  body.innerHTML = lines.join("") || `<tr><td colspan="6" class="muted">目前沒有合約或付款資料。</td></tr>`;
+}
+
 async function loadExpiring() {
   const el = document.querySelector("#expiring-list");
   if (!el) return;
@@ -2117,6 +2150,30 @@ async function loadCioOverview() {
           .join("")
       : `<tr><td colspan="6" class="muted">下月沒有排定要出的款。</td></tr>`;
   }
+  if (currentUser && currentUser.role_code === "cio") await loadCioChanges();
+}
+
+// CIO「自上次查看以來」變動提醒：查看即視為已讀，下次只顯示這之後的變動。
+async function loadCioChanges() {
+  const el = document.querySelector("#cio-changes-banner");
+  if (!el) return;
+  const d = (await api("/api/reports/cio-changes-since-last-view")).data || {};
+  if (d.first_visit) {
+    el.hidden = false;
+    el.textContent = "首次查看決策總覽：之後這裡會顯示「自上次查看以來」的變動摘要。";
+    return;
+  }
+  const changes = d.changes || [];
+  if (!changes.length) {
+    el.hidden = false;
+    el.textContent = `自上次查看（${escapeHtml(d.since)}）以來，沒有新變動。`;
+    return;
+  }
+  const parts = changes
+    .slice(0, 8)
+    .map((c) => `${escapeHtml(c.table_label)}${escapeHtml(c.action_label)} ${c.count} 筆`);
+  el.hidden = false;
+  el.innerHTML = `<strong>自上次查看（${escapeHtml(d.since)}）以來共 ${d.total_count} 筆變動：</strong>${parts.join("、")}`;
 }
 
 async function loadCioDrill(caseId) {
@@ -2337,7 +2394,7 @@ async function refresh() {
   await Promise.all([
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
-    loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadExpiring(), loadCioOverview(), loadReminders(),
+    loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadVendorAmt(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
     loadPortfolio(), loadUnitConflicts(), loadCaseOptions(), loadWorkingYear(),
   ]);

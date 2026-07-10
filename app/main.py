@@ -88,8 +88,10 @@ from app.store import (
     list_import_rows,
     list_audit_logs,
     list_rows,
+    cio_changes_since_last_view,
     monthly_spending_summary,
     unit_budget_vs_actual,
+    vendor_amount_summary,
     preflight_import_batch_confirm,
     preview_import_mapping,
     search_records,
@@ -186,8 +188,14 @@ class PaymentIn(BaseModel):
     approval_level: str = ""
     owner: str = ""
     owner_email: str = ""
-    net_amount: float = 0
-    tax_amount: float = 0
+    net_amount: float | None = 0
+    tax_amount: float | None = 0
+
+    @field_validator("net_amount", "tax_amount")
+    @classmethod
+    def _amount_default(cls, v: float | None) -> float:
+        # 前端金額留空會送 null；視為 0，避免使用者不填未稅/稅額就存不進去（同 ContractIn 慣例）
+        return 0.0 if v is None else v
 
 
 class PaymentPatch(BaseModel):
@@ -529,7 +537,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.63 · 2026-07-11 · 單位別預算vs實付彙總報表(主管視角)"
+BACKEND_BUILD = "v0.9.66 · 2026-07-11 · CIO「自上次查看以來」變動提醒"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -876,9 +884,67 @@ def create_app() -> FastAPI:
     def cio_overview_report() -> dict[str, Any]:
         return ok(cio_overview())
 
+    @app.get("/api/reports/cio-changes-since-last-view")
+    def cio_changes_report() -> dict[str, Any]:
+        # 讀取本身即視為「已讀」，下次查看只顯示這之後的變動（見 store 函式說明）。
+        return ok(cio_changes_since_last_view())
+
     @app.get("/api/reports/unit-budget-vs-actual")
     def unit_budget_vs_actual_report(year: int | None = None) -> dict[str, Any]:
         return ok(unit_budget_vs_actual(year))
+
+    @app.get("/api/reports/vendor-amount-summary")
+    def vendor_amount_summary_report() -> dict[str, Any]:
+        return ok(vendor_amount_summary())
+
+    @app.get("/api/reports/cio-overview.xlsx", include_in_schema=False)
+    def cio_overview_export_xlsx() -> Response:
+        import openpyxl
+        from openpyxl.styles import Font
+
+        data = cio_overview()
+        wb = openpyxl.Workbook()
+        bold = Font(bold=True)
+
+        ws1 = wb.active
+        ws1.title = "資金總覽"
+        ws1.append(["項目", "數值"])
+        ws1["A1"].font = bold
+        ws1["B1"].font = bold
+        ws1.append(["本月", data["this_month"]])
+        ws1.append(["本月應付總額", data["this_month_total"]])
+        ws1.append(["下月", data["next_month"]])
+        ws1.append(["下月應付總額", data["next_month_total"]])
+        ws1.append(["要準備的資金（尚未結案）", data["funds_to_prepare"]])
+        ws1.append(["下月預算外金額", data["unplanned_next_month"]])
+        ws1.append(["下月超支案件數", data["overspent_count"]])
+
+        ws2 = wb.create_sheet("未來六個月現金流預測")
+        ws2.append(["月份", "應付總額"])
+        for c in ("A1", "B1"):
+            ws2[c].font = bold
+        for f in data["forecast"]:
+            ws2.append([f["month"], f["total"]])
+
+        ws3 = wb.create_sheet("下月要出的款明細")
+        headers = ["案件編號", "案件名稱", "負責人", "合約編號", "核銷月份", "金額", "狀態", "預算外", "超支"]
+        ws3.append(headers)
+        for c in range(1, len(headers) + 1):
+            ws3.cell(row=1, column=c).font = bold
+        for r in data["upcoming_next_month"]:
+            ws3.append([
+                r["case_code"], r["case_title"], r.get("owner", ""), r.get("contract_code", ""),
+                r["payment_month"], r["payment_amount"], r["status"],
+                "是" if r["unplanned"] else "否", "是" if r["overspent"] else "否",
+            ])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=cio-overview.xlsx"},
+        )
 
     @app.get("/api/reports/reminders")
     def reminders() -> dict[str, Any]:

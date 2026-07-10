@@ -2353,6 +2353,66 @@ def unit_budget_vs_actual(fiscal_year: int | None = None) -> dict[str, Any]:
     }
 
 
+def vendor_amount_summary() -> dict[str, Any]:
+    """廠商別金額彙總（給主管看跟哪家廠商往來金額最大、有沒有實付超過合約金額）。
+
+    - 合約金額＝contracts.amount 依 vendor_name 加總（排除停用）。
+    - 實付＝該廠商名下所有合約的付款加總；已付=status='closed'、待付=其餘。
+    - 合約沒填廠商的併入「（未填廠商）」，不像單位別報表那樣需要跨表歸戶，
+      這裡合約本身就帶 vendor_name，故不設「未歸戶」桶。
+    - 不分年度：合約本身無所屬年度欄位，金額是合約存續期間的總額，不是逐年概念。
+    回傳 rows（依合約金額大→小）＋totals。
+    """
+    UNFILLED = "（未填廠商）"
+    with connect() as conn:
+        contract_rows = conn.execute(
+            "SELECT id, vendor_name, amount FROM contracts WHERE status <> 'disabled'"
+        ).fetchall()
+        contract_vendor: dict[int, str] = {}
+        amount_by_vendor: dict[str, float] = {}
+        for r in contract_rows:
+            vendor = (r["vendor_name"] or "").strip() or UNFILLED
+            contract_vendor[r["id"]] = vendor
+            amount_by_vendor[vendor] = amount_by_vendor.get(vendor, 0.0) + (r["amount"] or 0)
+
+        paid_by_vendor: dict[str, float] = {}
+        pending_by_vendor: dict[str, float] = {}
+        for r in conn.execute(
+            "SELECT p.contract_id AS contract_id, p.payment_amount AS amt, p.status AS st "
+            "FROM payments p JOIN contracts k ON k.id = p.contract_id WHERE k.status <> 'disabled'"
+        ):
+            vendor = contract_vendor.get(r["contract_id"])
+            if vendor is None:
+                continue
+            amt = r["amt"] or 0
+            target = paid_by_vendor if r["st"] == "closed" else pending_by_vendor
+            target[vendor] = target.get(vendor, 0.0) + amt
+
+    vendors = set(amount_by_vendor) | set(paid_by_vendor) | set(pending_by_vendor)
+    rows: list[dict[str, Any]] = []
+    for v in vendors:
+        contract_amount = amount_by_vendor.get(v, 0.0)
+        paid = paid_by_vendor.get(v, 0.0)
+        pending = pending_by_vendor.get(v, 0.0)
+        rows.append({
+            "vendor": v,
+            "contract_amount": contract_amount,
+            "paid": paid,
+            "pending": pending,
+            "remaining": contract_amount - paid,
+            "usage_pct": round(paid / contract_amount * 100, 1) if contract_amount else None,
+            "over": contract_amount > 0 and paid > contract_amount,
+        })
+    rows.sort(key=lambda x: (-(x["contract_amount"] or 0), x["vendor"]))
+    totals = {
+        "contract_amount": sum(amount_by_vendor.values()),
+        "paid": sum(paid_by_vendor.values()),
+        "pending": sum(pending_by_vendor.values()),
+    }
+    totals["remaining"] = totals["contract_amount"] - totals["paid"]
+    return {"rows": rows, "totals": totals}
+
+
 def cases_needing_attention() -> list[dict[str, Any]]:
     """需處理案件：未作廢，且(審核中 或 有填下一步)。承辦只看自己的。"""
     scope = _owner_scope.get()
@@ -2565,6 +2625,73 @@ def cio_overview() -> dict[str, Any]:
         "overspent_count": overspent_count,       # 下月清單中超支案件數
         "forecast": forecast,                     # 未來 6 個月現金流
         "upcoming_next_month": upcoming,
+    }
+
+
+CHANGE_TABLE_LABEL = {
+    "cases": "案件", "contracts": "合約", "payments": "付款", "budgets": "預算",
+    "projects": "專案", "signoffs": "簽呈", "purchases": "請購", "documents": "文件",
+}
+CHANGE_ACTION_LABEL = {
+    "create": "新增", "update": "更新", "disable": "停用", "delete": "刪除",
+    "submit": "送出複核", "approve": "核准", "import": "匯入新增", "import-update": "匯入更新",
+}
+
+
+def cio_changes_since_last_view() -> dict[str, Any]:
+    """CIO「自上次查看以來」變動摘要：查看即視為已讀，下次再顯示這之後的變動。
+
+    以 audit_logs 為準（涵蓋所有模組的 create/update/disable/delete/submit/approve/匯入），
+    比逐表比對 created_at 準確——能抓到「既有資料被改動」，不只新增的筆數。
+    游標用 audit_logs.id（嚴格遞增）而非時間字串：時間字串只到秒，兩次查看之間若
+    有動作跟「標記已讀」落在同一秒會被 `created_at > since` 漏掉；id 不會有這問題。
+    每個帳號各自記自己的上次查看進度（settings 表 cio_last_seen_id/cio_last_seen_at:{actor} 鍵）。
+    """
+    actor = _current_actor.get()
+    id_key = f"cio_last_seen_id:{actor}"
+    at_key = f"cio_last_seen_at:{actor}"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with connect() as conn:
+        current_max_id = conn.execute("SELECT COALESCE(MAX(id), 0) AS m FROM audit_logs").fetchone()["m"]
+        prev = conn.execute("SELECT value FROM settings WHERE key = ?", (id_key,)).fetchone()
+        prev_at = conn.execute("SELECT value FROM settings WHERE key = ?", (at_key,)).fetchone()
+
+        def _mark_seen() -> None:
+            for k, v in ((id_key, str(current_max_id)), (at_key, now)):
+                conn.execute(
+                    "INSERT INTO settings(key, value) VALUES(?, ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP",
+                    (k, v),
+                )
+
+        if not prev or not str(prev["value"]).strip():
+            _mark_seen()
+            return {"first_visit": True, "since": None, "changes": [], "total_count": 0}
+
+        since_id = int(prev["value"])
+        since = prev_at["value"] if prev_at else None
+        rows = conn.execute(
+            "SELECT table_name, action, COUNT(*) AS c FROM audit_logs "
+            "WHERE id > ? GROUP BY table_name, action ORDER BY c DESC",
+            (since_id,),
+        ).fetchall()
+        _mark_seen()
+
+    changes = [
+        {
+            "table": r["table_name"],
+            "table_label": CHANGE_TABLE_LABEL.get(r["table_name"], r["table_name"]),
+            "action": r["action"],
+            "action_label": CHANGE_ACTION_LABEL.get(r["action"], r["action"]),
+            "count": r["c"],
+        }
+        for r in rows
+    ]
+    return {
+        "first_visit": False,
+        "since": since,
+        "changes": changes,
+        "total_count": sum(c["count"] for c in changes),
     }
 
 

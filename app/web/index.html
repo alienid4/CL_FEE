@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-63" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-66" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -232,6 +232,19 @@
                 </table>
               </div>
             </section>
+            <section class="watch-list" id="vendor-amt" aria-label="廠商別金額彙總">
+              <div class="section-heading compact">
+                <h2>廠商別 合約金額 vs 實付<span class="help" data-tip="各廠商合約金額對比實際付款（依合約直接歸戶，不經案件）。已付＝已結案付款、待付＝其餘。使用率＝已付÷合約金額，>100% 標紅（實付超過合約金額）。合約沒填廠商的併入「（未填廠商）」。不分年度：合約金額是存續期間總額。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr><th>廠商</th><th class="num">合約金額</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
+                  </thead>
+                  <tbody id="vendor-amt-body"></tbody>
+                </table>
+              </div>
+            </section>
             <section class="watch-list" aria-label="expiring contracts">
               <div class="section-heading compact">
                 <h2>合約續約提醒<span class="help" data-tip="列出 90 天內到期或已過期的合約。" role="button" tabindex="0" aria-label="說明">?</span></h2>
@@ -387,7 +400,9 @@
               <div>
                 <p class="breadcrumb">決策總覽<span class="help" data-tip="大方向資金與下月要出的款；點任一列可逐層追查到承辦、合約、付款明細。" role="button" tabindex="0" aria-label="說明">?</span></p>
               </div>
+              <button type="button" class="secondary btn-sm" data-export="/api/reports/cio-overview.xlsx" title="下載資金總覽/現金流預測/下月明細，供留存或會議簡報">下載整合報表 (Excel)</button>
             </div>
+            <div id="cio-changes-banner" class="callout" hidden></div>
             <section class="metrics" id="cio-metrics" aria-label="資金看板"></section>
             <section id="cio-charts" class="chart-row" aria-label="資金圖表"></section>
             <section class="watch-list" aria-label="下月要出的款">
@@ -917,6 +932,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-63"></script>
+    <script src="/static/app.js?v=v0-9-66"></script>
   </body>
 </html>
