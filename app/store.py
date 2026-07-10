@@ -403,6 +403,9 @@ def initialize_database() -> None:
         # 系統編號：案件領「所屬年度＋四位流水號」，各階段共用此尾碼做跨階段勾稽
         ensure_column(conn, "cases", "fiscal_year", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "seq", "INTEGER NOT NULL DEFAULT 0")
+        # Excel 來源勾稽：記匯入來源檔＋原始列號，清單顯示 📎 讓人回 Excel 核對
+        ensure_column(conn, "cases", "source_file", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "source_row", "INTEGER NOT NULL DEFAULT 0")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -490,7 +493,7 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def allowed_fields() -> dict[str, set[str]]:
     return {
-        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq"},
+        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
@@ -787,6 +790,9 @@ def confirm_import_batch_cases_write(
                 continue
             fields = {k: record[k] for k in ("case_code", "title", "owner", "amount") if k in record}
             fields["created_by"] = actor
+            # Excel 來源勾稽：把來源檔名＋原始列號寫在案件上，供清單 📎 指回 Excel
+            fields["source_file"] = str(batch.get("source_name") or "").strip()
+            fields["source_row"] = int(item.get("row_number") or 0)
             columns = ", ".join(fields)
             placeholders = ", ".join("?" for _ in fields)
             cursor = conn.execute(

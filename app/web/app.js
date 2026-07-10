@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.39 · 2026-07-10 · 舊資料補號(系統編號/核銷編號,冪等)";
+const BUILD_TAG = "v0.9.40 · 2026-07-10 · Excel來源勾稽(案件記來源檔+列號,清單📎)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1053,6 +1053,15 @@ async function loadDashboard() {
   setText("#nav-count-payments", `付款 ${data.counts.payments}`);
 }
 
+// Excel 來源勾稽：匯入的案件有記來源檔＋列號時顯示 📎，滑過看「來源檔｜第N列」，提醒回 Excel 核對
+function sourceTag(item) {
+  const file = String((item && item.source_file) || "").trim();
+  if (!file) return "";
+  const row = Number((item && item.source_row) || 0);
+  const loc = row ? `${file}｜第 ${row} 列` : file;
+  return ` <span class="source-tag" title="Excel 來源：${escapeHtml(loc)}（回原檔核對）" role="img" aria-label="Excel 來源 ${escapeHtml(loc)}">📎</span>`;
+}
+
 async function loadCases() {
   const payload = await api("/api/cases");
   caseCache = payload.data;
@@ -1062,7 +1071,7 @@ async function loadCases() {
           (item) => `
             <article class="row" data-case-id="${item.id}">
               <span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span>
-              <strong>${escapeHtml(item.case_code)}</strong>
+              <strong>${escapeHtml(item.case_code)}${sourceTag(item)}</strong>
               <span>${escapeHtml(item.title)}</span>
               <span class="muted">${escapeHtml(item.owner || "未指派")}</span>
               <span class="badge ${item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : ""}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>
@@ -1609,7 +1618,7 @@ function renderCioTable() {
           (c, i) => `
             <tr data-case-id="${c.id}">
               <td>${i + 1}</td>
-              <td>${escapeHtml(c.case_code)}</td>
+              <td>${escapeHtml(c.case_code)}${sourceTag(c)}</td>
               <td>${escapeHtml(c.title)}</td>
               <td><span class="badge ${c.status === "reviewing" || c.status === "pending_review" ? "warn" : c.status === "disabled" ? "neutral" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span></td>
               <td>${Number(c.amount || 0).toLocaleString()}</td>

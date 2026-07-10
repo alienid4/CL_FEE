@@ -1509,6 +1509,10 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { background: var(--surface); text-decoration: underline; }
 
+/* Excel 來源勾稽：清單 📎 標記 */
+.source-tag { cursor: help; font-size: .85em; opacity: .75; }
+.source-tag:hover { opacity: 1; }
+
 /* ── 線性進度圖：四色燈號（綠完成/白未到/橘快逾期/紅逾期） ── */
 .case-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; }
 .case-dot.green { background: var(--ok); }

@@ -40,8 +40,14 @@ def test_formal_write_creates_and_records_provenance(tmp_path):
         ]
         r = _write(client, bid, confirmed)
         assert r.status_code == 200 and r.json()["data"]["created_count"] == 2
-        codes = {c["case_code"] for c in client.get("/api/cases").json()["data"]}
+        rows = client.get("/api/cases").json()["data"]
+        codes = {c["case_code"] for c in rows}
         assert {"IMP-1", "IMP-2"} <= codes
+        # Excel 來源勾稽：每筆案件記了來源檔＋原始列號（清單 📎 用）
+        by_code = {c["case_code"]: c for c in rows}
+        assert by_code["IMP-1"]["source_file"] == "cases.csv"
+        assert by_code["IMP-1"]["source_row"] == 1
+        assert by_code["IMP-2"]["source_row"] == 2
         # 稽核有 import 動作，且記了批次來源
         logs = client.get("/api/audit-logs", params={"table_name": "cases", "action": "import"}).json()["data"]
         assert len(logs) == 2
