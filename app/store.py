@@ -1107,7 +1107,8 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
             fields: dict[str, str] = {}
             content = person = ""
             amount_col: int | None = None
-            for r in rows:
+            header_row_idx: int | None = None
+            for ridx, r in enumerate(rows):
                 for i, cell in enumerate(r):
                     key = norm(cell).rstrip("：:")
                     if key in label_map and label_map[key] not in fields:
@@ -1118,6 +1119,7 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
                         person = value_right(r, i)
                     if norm(cell) == "全年度費用":
                         amount_col = i
+                        header_row_idx = ridx
 
             amount = 0.0
             fiscal_year = ""
@@ -1176,14 +1178,36 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
                         "share_pct": round(amt / amount * 100, 2) if amount else 0.0,
                     })
 
-            note = "；".join(x for x in [content, (f"預估人員：{person}" if person else "")] if x)
+            # 年度×期間明細（budget_periods）：從表頭列找期間欄（含「月」且是範圍），逐年抓金額
+            periods_out: list[dict[str, Any]] = []
+            if header_row_idx is not None:
+                hdr = rows[header_row_idx]
+                period_cols = [(norm(c).replace("份", "").strip(), j)
+                               for j, c in enumerate(hdr)
+                               if "月" in norm(c) and "-" in norm(c) and (amount_col is None or j < amount_col)]
+                year_col = (period_cols[0][1] - 1) if period_cols else None
+                if period_cols and year_col is not None and year_col >= 0:
+                    for r in rows[header_row_idx + 1:]:
+                        yr = norm(r[year_col]) if year_col < len(r) else ""
+                        if not (yr.endswith("年度") and any(ch.isdigit() for ch in yr)):
+                            continue
+                        yr_clean = yr.replace("年度", "").strip()
+                        for lab, col in period_cols:
+                            try:
+                                amt = round(float(r[col]), 2) if (col < len(r) and r[col] is not None) else 0.0
+                            except (TypeError, ValueError):
+                                amt = 0.0
+                            periods_out.append({"fiscal_year": yr_clean, "period": lab, "amount": amt})
+
             out.append({
                 "budget_code": norm(sheet)[:60] or f"預算-{len(out) + 1}",
                 "category": fields.get("category", ""),
                 "unit_name": fields.get("unit_name", ""),
+                "expense_detail": content,
+                "estimator": person,
                 "fiscal_year": fiscal_year,
                 "amount": amount,
-                "note": note,
+                "periods": periods_out,
                 "allocations": allocations,
             })
     finally:
@@ -1203,6 +1227,7 @@ def commit_budgets_import(records: list[dict[str, Any]], source_file: str = "") 
         created: list[str] = []
         updated: list[str] = []
         alloc_written = 0
+        periods_written = 0
         for rec in records:
             code = str(rec.get("budget_code", "")).strip()
             if not code:
@@ -1247,8 +1272,25 @@ def commit_budgets_import(records: list[dict[str, Any]], source_file: str = "") 
                     if ucode:
                         seen[ucode] = c2.lastrowid
                 alloc_written += 1
+            # 年度費用明細（budget_periods）：整批取代這個預算的
+            if "periods" in rec:
+                conn.execute("DELETE FROM budget_periods WHERE budget_id = ?", (rid,))
+                for pr in rec.get("periods", []):
+                    fy = str(pr.get("fiscal_year") or "").strip()
+                    period = str(pr.get("period") or "").strip()
+                    if not fy or not period:
+                        continue
+                    try:
+                        amt = float(pr.get("amount") or 0)
+                    except (TypeError, ValueError):
+                        amt = 0.0
+                    conn.execute(
+                        "INSERT INTO budget_periods (budget_id, fiscal_year, period, amount) VALUES (?, ?, ?, ?)",
+                        (rid, fy, period, amt))
+                    periods_written += 1
         return {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
-                "allocations_count": alloc_written, "created": created, "updated": updated}
+                "allocations_count": alloc_written, "periods_count": periods_written,
+                "created": created, "updated": updated}
 
 
 def list_budget_allocations(budget_id: int) -> list[dict[str, Any]]:

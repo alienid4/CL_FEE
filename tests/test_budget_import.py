@@ -43,6 +43,10 @@ def test_preview_then_commit_real_budgets(tmp_path):
         assert len(rows) == prev["count"]
         assert any(r["amount"] > 0 for r in rows)        # 金額有抓到
         assert any(r["unit_name"] for r in rows)         # 填寫部門有抓到
+        # L3：年度費用明細（budget_periods）也一起匯入，年度費用比較算得出來
+        assert res.get("periods_count", 0) >= 1
+        annual = client.get(f"/api/budgets/{rows[0]['id']}/annual").json()["data"]
+        assert len(annual["years"]) >= 1 and annual["periods"]  # 有年度、有期間欄
 
         # 再匯一次：同名更新、不重複
         res2 = client.post("/api/budgets/import-xlsx?commit=true", content=data).json()["data"]

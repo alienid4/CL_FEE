@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.53 · 2026-07-10 · L3-2 承辦編輯(預算metadata+年度費用逐年逐期填)";
+const BUILD_TAG = "v0.9.54 · 2026-07-10 · L3-3 預算Excel匯入擴充(年度費用明細+費用內容/人員)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
