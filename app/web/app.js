@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.59 · 2026-07-10 · 系統編號階段2-3：名稱歸納延伸到預算+匯入導引清洗歸戶";
+const BUILD_TAG = "v0.9.60 · 2026-07-10 · 列操作圖示改內嵌SVG(跨平台一致)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1497,15 +1497,20 @@ function renderResourceRow(type, item) {
   return `<tr data-${config.idAttr}="${item.id}">${cells}<td class="col-actions">${renderRowMenu(config, item)}</td></tr>`;
 }
 
+// 一鍵圖示鈕用內嵌 SVG（不吃字型、跨平台一致）；stroke=currentColor 會吃 .icon-btn 顏色
+const ICON_EDIT = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13l-3.5.5L3 10z"/><path d="M9.5 3.5l3 3"/></svg>`;
+const ICON_DISABLE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><line x1="4.1" y1="4.1" x2="11.9" y2="11.9" stroke-linecap="round"/></svg>`;
+const ICON_DELETE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.2h10.4M6 4.2V2.6h4v1.6M5 4.2l.5 9h5l.5-9"/></svg>`;
+
 // 編輯／停用／刪除＝一排圖示鈕（一鍵，不用點兩次）；hover 顯示文字
 function renderRowMenu(config, item) {
   const disableButton = config.canDisable
-    ? `<button type="button" class="icon-btn" data-action="disable" data-resource-id="${item.id}" title="停用" aria-label="停用">⊘</button>`
+    ? `<button type="button" class="icon-btn" data-action="disable" data-resource-id="${item.id}" title="停用" aria-label="停用">${ICON_DISABLE}</button>`
     : "";
   return `<span class="row-actions">
-    <button type="button" class="icon-btn" data-action="edit" data-resource-id="${item.id}" title="編輯" aria-label="編輯">✏</button>
+    <button type="button" class="icon-btn" data-action="edit" data-resource-id="${item.id}" title="編輯" aria-label="編輯">${ICON_EDIT}</button>
     ${disableButton}
-    <button type="button" class="icon-btn danger" data-action="delete" data-resource-id="${item.id}" title="刪除" aria-label="刪除">🗑</button>
+    <button type="button" class="icon-btn danger" data-action="delete" data-resource-id="${item.id}" title="刪除" aria-label="刪除">${ICON_DELETE}</button>
   </span>`;
 }
 
