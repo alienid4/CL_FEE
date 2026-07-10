@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.58 · 2026-07-10 · 系統編號階段1：預算就地歸戶到案即發號";
+const BUILD_TAG = "v0.9.59 · 2026-07-10 · 系統編號階段2-3：名稱歸納延伸到預算+匯入導引清洗歸戶";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2529,7 +2529,8 @@ async function budgetXlsx(commit, ids) {
   try {
     const res = (await api(`/api/budgets/import-xlsx?commit=${commit}&filename=${encodeURIComponent(file.name)}`, { method: "POST", body: file })).data || {};
     if (commit) {
-      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`;
+      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆。`
+        + `下一步：未歸戶的預算點各列「＋歸戶」發號；疑似重複名稱到「資料管理›名稱歸納›預算項目」清洗。`;
       await refresh();
     } else {
       const names = (res.sample || []).slice(0, 3).map((s) => s.budget_code).join("、");

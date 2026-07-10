@@ -1702,8 +1702,9 @@ NAME_SOURCES: dict[str, list[tuple[str, str]]] = {
     "case": [("cases", "title")],
     "project": [("projects", "project_name")],
     "vendor": [("contracts", "vendor_name"), ("payments", "vendor"), ("purchases", "vendor_name")],
+    "budget": [("budgets", "budget_code")],   # 費用項目名：同一實體不同寫法（端點APT防護 vs …授權暨維護）先歸一
 }
-NAME_KIND_LABEL = {"case": "案件名稱", "project": "專案名稱", "vendor": "廠商名稱"}
+NAME_KIND_LABEL = {"case": "案件名稱", "project": "專案名稱", "vendor": "廠商名稱", "budget": "預算項目"}
 
 
 def _name_alias_map(conn, kind: str) -> dict[str, str]:
