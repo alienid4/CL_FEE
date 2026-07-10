@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.57 · 2026-07-10 · 列操作改圖示鈕(一鍵)+刪除/停用加確認";
+const BUILD_TAG = "v0.9.58 · 2026-07-10 · 系統編號階段1：預算就地歸戶到案即發號";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -241,7 +241,9 @@ const resourceConfig = {
              "alloc_method", "alloc_category_kind", "alloc_category"],
     numberFields: ["amount", "case_id"], canDisable: true,
     columns: [
-      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.budget, i.case_id) },
+      { label: "系統編號", cell: (i) => i.case_id
+          ? systemCodeCell(SYS_PREFIX.budget, i.case_id)
+          : `<button type="button" class="btn-sm" data-assign-case="${i.id}" title="歸戶到案件才會有系統編號">＋歸戶</button>` },
       { label: "預算編號", cell: (i) => `<strong>${escapeHtml(i.budget_code)}</strong>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
       { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
@@ -600,6 +602,26 @@ function renderBudgetAnnual(data) {
     <div class="table-shell"><table class="grid-table budget-annual-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
+// 階段 1 歸戶：沒系統編號的預算，點「＋歸戶」→ 就地選案件 → 掛上即有系統編號
+document.querySelector("#budgets")?.addEventListener("click", (event) => {
+  const assign = event.target.closest("[data-assign-case]");
+  if (!assign) return;
+  const id = assign.getAttribute("data-assign-case");
+  const opts = `<option value="">選案件…</option>`
+    + (caseCache || []).map((c) => `<option value="${c.id}">${escapeHtml(c.case_code)}｜${escapeHtml(c.title || "")}</option>`).join("");
+  assign.outerHTML = `<select class="btn-sm" data-assign-case-select="${id}">${opts}</select>`;
+});
+document.querySelector("#budgets")?.addEventListener("change", async (event) => {
+  const sel = event.target.closest("[data-assign-case-select]");
+  if (!sel || !sel.value) return;
+  try {
+    await api(`/api/budgets/${sel.getAttribute("data-assign-case-select")}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ case_id: Number(sel.value) }),
+    });
+    await loadResource("budget");  // 重載→系統編號就出現
+  } catch (error) { window.alert(`歸戶失敗：${error.message}`); }
+});
+
 // 點預算列的「比較」→ 讀衍生資料展開；收起清空
 document.querySelector("#budgets")?.addEventListener("click", async (event) => {
   const btn = event.target.closest("[data-annual]");
