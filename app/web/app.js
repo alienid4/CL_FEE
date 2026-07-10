@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.48 · 2026-07-10 · 矩陣改狀態分類篩選(進行中/已完成/未開始可自選)";
+const BUILD_TAG = "v0.9.49 · 2026-07-10 · L3-1 預算年度費用比較(全年度/年增差異,唯讀檢視)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -246,6 +246,7 @@ const resourceConfig = {
       { label: "分類", cell: (i) => escapeHtml(valueOrDash(i.category)) },
       { label: "單位／年度", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.unit_name))}｜${escapeHtml(valueOrDash(i.fiscal_year))}</span>` },
       { label: "狀態", cell: (i) => statusChip(i.status) },
+      { label: "年度費用", cell: (i) => `<button type="button" class="secondary btn-sm" data-annual="${i.id}">比較</button>` },
     ],
   },
   project: {
@@ -505,6 +506,56 @@ document.querySelector("#matrix-filters")?.addEventListener("click", (event) => 
   else matrixPhaseFilter.add(p);
   if (matrixPhaseFilter.size === 0) matrixPhaseFilter.add(p);  // 不允許全空，留住剛點的
   renderMatrix(lastProgressItems);
+});
+
+// ── L3 預算年度費用比較（唯讀衍生）：全年度/年增差異由後端算，#DIV/0! 改語意標示 ──
+function renderBudgetAnnual(data) {
+  const el = document.querySelector("#budget-annual");
+  if (!el) return;
+  const b = data.budget || {};
+  const periods = data.periods || [];
+  const years = data.years || [];
+  const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString());
+  const diffCell = (y) => {
+    if (y.diff == null) return `<span class="muted">${escapeHtml(y.diff_note || "—")}</span>`;
+    const sign = y.diff > 0 ? "+" : "";
+    const cls = y.diff > 0 ? "up" : y.diff < 0 ? "down" : "";
+    const tail = y.diff_pct != null
+      ? `（${y.diff_pct > 0 ? "+" : ""}${y.diff_pct}%）`
+      : (y.diff_note ? `（${escapeHtml(y.diff_note)}）` : "");
+    return `<span class="budget-diff ${cls}">${sign}${fmt(y.diff)} <small>${tail}</small></span>`;
+  };
+  const head = `<tr><th>年度</th>${periods.map((p) => `<th class="num">${escapeHtml(p)}</th>`).join("")}<th class="num">全年度費用</th><th>費用差異</th></tr>`;
+  const body = years.length
+    ? years.map((y) => `<tr><td>${escapeHtml(y.fiscal_year)} 年</td>`
+        + periods.map((p) => `<td class="num">${fmt(y.periods[p])}</td>`).join("")
+        + `<td class="num"><b>${fmt(y.annual_total)}</b></td><td>${diffCell(y)}</td></tr>`).join("")
+    : `<tr><td colspan="${periods.length + 3}" class="muted">尚無年度費用明細（後續由匯入／編輯建立）。</td></tr>`;
+  el.innerHTML = `
+    <div class="section-heading compact"><h3>年度費用比較 <span class="muted">— ${escapeHtml(b.category || "")}</span></h3>
+      <button type="button" class="secondary btn-sm" id="budget-annual-close">收起</button></div>
+    <div class="budget-annual-meta">
+      <span>費用內容：${escapeHtml(b.expense_detail || "—")}</span>
+      <span>填寫部門：${escapeHtml(b.fill_dept || "—")}</span>
+      <span>預估人員：${escapeHtml(b.estimator || "—")}</span>
+    </div>
+    <div class="table-shell"><table class="grid-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+// 點預算列的「比較」→ 讀衍生資料展開；收起清空
+document.querySelector("#budgets")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-annual]");
+  if (!btn) return;
+  try {
+    const data = (await api(`/api/budgets/${btn.getAttribute("data-annual")}/annual`)).data;
+    renderBudgetAnnual(data);
+  } catch (error) {
+    const el = document.querySelector("#budget-annual");
+    if (el) el.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+});
+document.querySelector("#budget-annual")?.addEventListener("click", (event) => {
+  if (event.target.closest("#budget-annual-close")) document.querySelector("#budget-annual").innerHTML = "";
 });
 
 // 後台「資料管理」底下的工具面板（沒有各自的側欄卡片，改由資料管理頁的磚塊開啟）

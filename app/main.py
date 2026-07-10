@@ -25,6 +25,7 @@ from app.store import (
     backfill_all_numbers,
     backfill_status,
     backup_database,
+    budget_annual_comparison,
     case_360,
     case_progress_overview,
     cases_needing_attention,
@@ -504,7 +505,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.48 · 2026-07-10 · 矩陣改狀態分類篩選(進行中/已完成/未開始可自選)"
+BACKEND_BUILD = "v0.9.49 · 2026-07-10 · L3-1 預算年度費用比較(全年度/年增差異,唯讀檢視)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1236,6 +1237,14 @@ def create_app() -> FastAPI:
     @app.get("/api/budgets")
     def budgets(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
         return ok(list_rows("budgets", limit))
+
+    @app.get("/api/budgets/{budget_id}/annual")
+    def budget_annual(budget_id: int) -> dict[str, Any]:
+        # L3 年度費用比較（唯讀衍生）
+        try:
+            return ok(budget_annual_comparison(budget_id))
+        except LookupError:
+            raise HTTPException(status_code=404, detail="預算項目不存在")
 
     @app.patch("/api/budgets/{budget_id}")
     def update_budget(budget_id: int, payload: BudgetPatch) -> dict[str, Any]:

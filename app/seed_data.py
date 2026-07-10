@@ -85,6 +85,12 @@ def clear_demo_data() -> dict[str, int]:
         removed["payments"] = cur.rowcount
         cur = conn.execute("DELETE FROM contracts WHERE contract_code LIKE ?", (DEMO_PREFIX + "%",))
         removed["contracts"] = cur.rowcount
+        cur = conn.execute(
+            "DELETE FROM budget_periods WHERE budget_id IN "
+            "(SELECT id FROM budgets WHERE budget_code LIKE ?)", (DEMO_PREFIX + "%",))
+        removed["budget_periods"] = cur.rowcount
+        cur = conn.execute("DELETE FROM budgets WHERE budget_code LIKE ?", (DEMO_PREFIX + "%",))
+        removed["budgets"] = cur.rowcount
         cur = conn.execute("DELETE FROM cases WHERE case_code LIKE ?", (DEMO_PREFIX + "%",))
         removed["cases"] = cur.rowcount
     return removed
@@ -125,11 +131,36 @@ def load_demo_data() -> dict[str, int]:
             "contract_id": contract_ids[contract_idx],
         })
 
+    # L3 年度費用比較示範（比照真實 Excel：114 空、115 有值、116 續增）
+    bud_id = store.insert_row("budgets", {
+        "budget_code": DEMO_PREFIX + "BUD-ANNUAL",
+        "category": "［測試］修繕維護費-資訊",
+        "expense_detail": "開放系統平台主機APT防護系統",
+        "unit_name": "資訊管理處",
+        "fill_dept": "資訊管理處",
+        "estimator": "林○○",
+        "fiscal_year": "115",
+        "amount": 878616,
+        "case_id": case_ids[0],
+    })["id"]
+    _periods = [
+        ("114", "1-9月", 0), ("114", "10-12月", 0),
+        ("115", "1-9月", 658962), ("115", "10-12月", 219654),
+        ("116", "1-9月", 700000), ("116", "10-12月", 250000),
+    ]
+    with store.connect() as conn:
+        for fy, period, amt in _periods:
+            conn.execute(
+                "INSERT INTO budget_periods (budget_id, fiscal_year, period, amount) VALUES (?, ?, ?, ?)",
+                (bud_id, fy, period, amt))
+
     return {
         "cases": len(_CASES),
         "contracts": len(_CONTRACTS),
         "payments": len(_PAYMENTS) + 1,  # 含動態的下月付款
         "documents": len(_DOCUMENTS),
+        "budgets": 1,
+        "budget_periods": len(_periods),
     }
 
 

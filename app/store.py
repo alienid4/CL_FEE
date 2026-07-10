@@ -234,6 +234,17 @@ CREATE TABLE IF NOT EXISTS budget_allocations (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 年度費用明細（L3）：一個預算項目在「某年度×某期間」的金額；
+-- 全年度＝同年各期間加總、費用差異＝與相鄰前一年比，皆讀取時動態算、不存死。
+CREATE TABLE IF NOT EXISTS budget_periods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    budget_id INTEGER NOT NULL,
+    fiscal_year TEXT NOT NULL DEFAULT '',
+    period TEXT NOT NULL DEFAULT '',
+    amount REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS unit_headcounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     unit_code TEXT NOT NULL DEFAULT '',
@@ -395,6 +406,10 @@ def initialize_database() -> None:
         ensure_column(conn, "budgets", "alloc_method", "TEXT NOT NULL DEFAULT 'fixed'")
         ensure_column(conn, "budgets", "alloc_category_kind", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "budgets", "alloc_category", "TEXT NOT NULL DEFAULT ''")
+        # 預算項目 metadata（L3）：對齊 Excel 的「費用內容／填寫部門／預估人員」
+        ensure_column(conn, "budgets", "expense_detail", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "budgets", "fill_dept", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "budgets", "estimator", "TEXT NOT NULL DEFAULT ''")
         # 記匯入來源檔名，讓單位撞名清單能指回是哪個 Excel（人類追資料來源）
         ensure_column(conn, "budget_allocations", "source_file", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "unit_headcounts", "source_file", "TEXT NOT NULL DEFAULT ''")
@@ -501,7 +516,8 @@ def allowed_fields() -> dict[str, set[str]]:
                      "settle_seq"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
-                    "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category"},
+                    "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category",
+                    "expense_detail", "fill_dept", "estimator"},
         "unit_headcounts": {"unit_code", "unit_name", "headcount", "source_file"},
         "category_shares": {"category", "unit_code", "unit_name", "share_pct", "source_file"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
@@ -2854,3 +2870,57 @@ def backfill_all_numbers() -> dict[str, int]:
     cases_filled = backfill_case_numbers()
     settle_filled = backfill_settle_numbers()
     return {"cases_filled": cases_filled, "settle_filled": settle_filled}
+
+
+# ── L3 預算年度費用比較：全年度／年增差異皆讀取時動態算（不存死），#DIV/0! 改語意標示 ──
+def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
+    """某預算項目的年度費用比較：各年度期間金額、全年度加總、與相鄰前一年的費用差異。"""
+    with connect() as conn:
+        budget = get_row(conn, "budgets", budget_id)  # 不存在會 raise LookupError
+        rows = conn.execute(
+            "SELECT fiscal_year, period, amount FROM budget_periods WHERE budget_id = ? "
+            "ORDER BY fiscal_year, id", (budget_id,)).fetchall()
+    periods: list[str] = []          # 期間依出現順序（例：1-9月 / 10-12月）
+    by_year: dict[str, dict[str, float]] = {}
+    for r in rows:
+        p = str(r["period"] or "").strip()
+        if p and p not in periods:
+            periods.append(p)
+        y = str(r["fiscal_year"] or "").strip()
+        by_year.setdefault(y, {})
+        by_year[y][p] = by_year[y].get(p, 0.0) + float(r["amount"] or 0)
+    years_out = []
+    prev_total = None
+    for y in sorted(by_year.keys()):
+        pmap = by_year[y]
+        total = sum(pmap.values())
+        if prev_total is None:
+            diff, diff_pct, note = None, None, "新增·無前期基準"
+        elif prev_total == 0:
+            diff, diff_pct, note = total, None, "前期為 0，僅顯示增額"   # 取代 Excel 的 #DIV/0!
+        else:
+            diff = total - prev_total
+            diff_pct = round(diff / prev_total * 100, 1)
+            note = ""
+        years_out.append({
+            "fiscal_year": y,
+            "periods": {p: pmap.get(p, 0.0) for p in periods},
+            "annual_total": total,
+            "diff": diff,
+            "diff_pct": diff_pct,
+            "diff_note": note,
+        })
+        prev_total = total
+    return {
+        "budget": {
+            "id": budget_id,
+            "budget_code": budget.get("budget_code", ""),
+            "category": budget.get("category", ""),          # 預算項目
+            "expense_detail": budget.get("expense_detail", ""),
+            "unit_name": budget.get("unit_name", ""),
+            "fill_dept": budget.get("fill_dept", ""),
+            "estimator": budget.get("estimator", ""),
+        },
+        "periods": periods,
+        "years": years_out,
+    }
