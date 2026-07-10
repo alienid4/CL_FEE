@@ -1515,7 +1515,7 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; min-height: auto; width: 28px; height: 26px; padding: 0; line-height: 1; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink-2); cursor: pointer; }
 .icon-btn svg { display: block; }
 .icon-btn:hover { background: var(--surface-2); border-color: var(--accent); }
-.icon-btn.danger { color: var(--danger); }
+.icon-btn.danger { color: var(--danger); background: var(--surface); border-color: var(--line); }
 .icon-btn.danger:hover { background: var(--danger-bg); border-color: var(--danger); }
 
 /* 預算模組內嵌匯入（就地匯入，不用跳資料管理） */
