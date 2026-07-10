@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-55" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-56" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -784,6 +784,13 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="budget" hidden>
+          <div class="budget-import-inline">
+            <span class="io-label">匯入 Excel</span>
+            <input type="file" id="bud-inline-file" accept=".xlsx" />
+            <button type="button" id="bud-inline-preview" class="secondary btn-sm">預覽</button>
+            <button type="button" id="bud-inline-commit" class="btn-sm" disabled>正式匯入</button>
+            <span class="muted" id="bud-inline-status" role="status" aria-live="polite">選「一、預算.xlsx」＝一次帶進費用項目＋年度費用＋部門分攤</span>
+          </div>
           <form id="budget-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="budget_code" placeholder="預算編號" required />
@@ -895,6 +902,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-55"></script>
+    <script src="/static/app.js?v=v0-9-56"></script>
   </body>
 </html>
