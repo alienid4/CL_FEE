@@ -2543,8 +2543,8 @@ def case_360(case_id: int) -> dict[str, Any]:
 # ── 案件線性進度圖／處理優先矩陣：由系統自動推導，唯讀（不手改、不匯入） ──
 # 四色燈：green=完成 white=還沒輪到 orange=東西到了/快逾期待處理 red=已逾期
 # 每案只顯示「用得到的階段」（查無關聯資料的階段不出現）
-_STAGE_ORDER = ["budget", "project", "signoff", "approval", "contract", "purchase", "payment", "invoice"]
-_STAGE_LABEL = {"budget": "預算", "project": "專案", "signoff": "簽呈", "approval": "核准",
+_STAGE_ORDER = ["budget", "project", "signoff", "contract", "purchase", "payment", "invoice"]
+_STAGE_LABEL = {"budget": "預算", "project": "專案", "signoff": "簽呈",
                 "contract": "合約", "purchase": "請購", "payment": "付款", "invoice": "發票"}
 _TONE_RANK = {"green": 0, "white": 1, "orange": 2, "red": 3}
 _ORANGE_WINDOW_DAYS = 7          # 距期限 7 天內＝橘燈（快逾期）
@@ -2636,13 +2636,6 @@ def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, 
         st = s["status"]
         s_tones.append("green" if st == "approved" else "red" if st == "rejected" else "white")
     add("signoff", _worst(s_tones))
-
-    # 核准＝案件複核狀態；進入送審後才顯示（草稿不列）
-    cstatus = case["status"]
-    if cstatus == "approved":
-        add("approval", "green")
-    elif cstatus in ("pending_review", "reviewing"):
-        add("approval", "white")
 
     # 合約：closed＝用完（綠）；否則看到期日
     k_tones, k_days = [], []
