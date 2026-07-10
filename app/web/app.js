@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.50 · 2026-07-10 · 年度費用比較收緊欄距+每年可編備註";
+const BUILD_TAG = "v0.9.51 · 2026-07-10 · 全站表格收緊+年度費用同期跨年%";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -527,9 +527,14 @@ function renderBudgetAnnual(data) {
   };
   const head = `<tr><th>年度</th>${periods.map((p) => `<th class="num">${escapeHtml(p)}</th>`).join("")}`
     + `<th class="num">全年度費用</th><th>費用差異</th><th class="note-col">備註</th></tr>`;
+  const periodCell = (y, p) => {
+    const pct = y.period_diff_pct ? y.period_diff_pct[p] : null;   // 與前一年同期的差異%
+    const badge = pct == null ? "" : ` <small class="period-diff ${pct > 0 ? "up" : pct < 0 ? "down" : ""}">${pct > 0 ? "+" : ""}${pct}%</small>`;
+    return `<td class="num">${fmt(y.periods[p])}${badge}</td>`;
+  };
   const body = years.length
     ? years.map((y) => `<tr><td>${escapeHtml(y.fiscal_year)} 年</td>`
-        + periods.map((p) => `<td class="num">${fmt(y.periods[p])}</td>`).join("")
+        + periods.map((p) => periodCell(y, p)).join("")
         + `<td class="num"><b>${fmt(y.annual_total)}</b></td><td>${diffCell(y)}</td>`
         + `<td class="note-col"><input type="text" class="budget-note-input" data-year="${escapeHtml(y.fiscal_year)}" value="${escapeHtml(y.note || "")}" placeholder="可填差異說明／決策註記…" /></td></tr>`).join("")
     : `<tr><td colspan="${periods.length + 4}" class="muted">尚無年度費用明細（後續由匯入／編輯建立）。</td></tr>`;

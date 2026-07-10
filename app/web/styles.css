@@ -1255,15 +1255,16 @@ a, .link { color: var(--accent-2); }
 
 /* ===== 模組清單改成 Excel 式表格 ===== */
 .grid-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
-.grid-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+/* 表格收緊（全站通用）：欄位縮到內容寬、剩餘留白集中在右邊而非散在欄與欄之間，盡量一畫面看完 */
+.grid-table { width: auto; border-collapse: collapse; font-size: .82rem; }
 .grid-table thead th {
   position: sticky; top: 0; z-index: 1;
   background: var(--accent-weak); color: var(--ok);
   text-align: left; font-weight: 700; white-space: nowrap;
-  padding: 9px 12px; border-bottom: 1px solid var(--line-2);
+  padding: 6px 10px; border-bottom: 1px solid var(--line-2);
 }
 .grid-table tbody td {
-  padding: 8px 12px; border-bottom: 1px solid var(--line);
+  padding: 5px 10px; border-bottom: 1px solid var(--line);
   vertical-align: middle; color: var(--ink-2);
 }
 .grid-table tbody tr:last-child td { border-bottom: 0; }
@@ -1515,8 +1516,12 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .budget-diff.up { color: var(--danger); }      /* 費用增加＝紅（花更多） */
 .budget-diff.down { color: var(--ok); }         /* 費用減少＝綠 */
 .budget-diff small { opacity: .75; }
-/* 收緊欄距：數值欄縮到內容寬、備註欄吃掉右邊留白（解決稀落感） */
-.budget-annual-table th, .budget-annual-table td { white-space: nowrap; width: 1%; padding: 8px 14px; }
+.period-diff { font-weight: 600; }             /* 同期跨年差異% */
+.period-diff.up { color: var(--danger); }
+.period-diff.down { color: var(--ok); }
+/* 年度費用比較表：滿版、數值欄縮到內容寬、備註欄吃掉右邊留白（把留白留給備註） */
+.budget-annual-table { width: 100%; }
+.budget-annual-table th, .budget-annual-table td { white-space: nowrap; width: 1%; padding: 6px 12px; }
 .budget-annual-table th.note-col, .budget-annual-table td.note-col { width: 100%; white-space: normal; }
 .budget-note-input { width: 100%; min-width: 180px; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); font-size: .82rem; }
 .budget-note-input:focus { background: var(--surface); border-color: var(--accent); outline: none; }

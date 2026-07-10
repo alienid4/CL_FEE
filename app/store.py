@@ -2903,6 +2903,7 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
         by_year[y][p] = by_year[y].get(p, 0.0) + float(r["amount"] or 0)
     years_out = []
     prev_total = None
+    prev_pmap: dict[str, float] | None = None
     for y in sorted(by_year.keys()):
         pmap = by_year[y]
         total = sum(pmap.values())
@@ -2914,9 +2915,18 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
             diff = total - prev_total
             diff_pct = round(diff / prev_total * 100, 1)
             note = ""
+        # 各期間 vs 前一年同期的差異%（例：115 的 1-9月 → 116 的 1-9月 差多少%）
+        period_diff_pct: dict[str, float | None] = {}
+        for p in periods:
+            if prev_pmap is None:
+                period_diff_pct[p] = None
+            else:
+                pv = prev_pmap.get(p, 0.0)
+                period_diff_pct[p] = round((pmap.get(p, 0.0) - pv) / pv * 100, 1) if pv else None
         years_out.append({
             "fiscal_year": y,
             "periods": {p: pmap.get(p, 0.0) for p in periods},
+            "period_diff_pct": period_diff_pct,
             "annual_total": total,
             "diff": diff,
             "diff_pct": diff_pct,
@@ -2924,6 +2934,7 @@ def budget_annual_comparison(budget_id: int) -> dict[str, Any]:
             "note": notes.get(y, ""),   # 主管/助理可編輯的備註
         })
         prev_total = total
+        prev_pmap = pmap
     return {
         "budget": {
             "id": budget_id,
