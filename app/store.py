@@ -2747,3 +2747,64 @@ def case_progress_overview() -> dict[str, Any]:
                 "matrix": {"quadrant": quadrant, "reason": reason, "x": x, "y": y},
             })
     return {"items": items}
+
+
+# ── Step 3：舊資料補號（系統編號要件 fiscal_year+seq、核銷編號 settle_no）──
+# 冪等：只補「缺號」的列，已有號的不動；由管理員手動觸發（先 preview 後正式）。
+def backfill_status() -> dict[str, int]:
+    """回報還有多少舊資料缺號。"""
+    with connect() as conn:
+        cases_missing = conn.execute(
+            "SELECT COUNT(*) n FROM cases WHERE status <> 'disabled' "
+            "AND (COALESCE(fiscal_year,'')='' OR COALESCE(seq,0)=0)").fetchone()["n"]
+        settle_missing = conn.execute(
+            "SELECT COUNT(*) n FROM payments WHERE status <> 'disabled' "
+            "AND COALESCE(settle_no,'')=''").fetchone()["n"]
+    return {"cases_missing": cases_missing, "settle_missing": settle_missing}
+
+
+def backfill_case_numbers() -> int:
+    """回填舊案件的系統編號要件：缺 fiscal_year 用 created_at 年度、缺 seq 於該年度續號。"""
+    filled = 0
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, fiscal_year, seq, created_at FROM cases "
+            "WHERE status <> 'disabled' AND (COALESCE(fiscal_year,'')='' OR COALESCE(seq,0)=0) "
+            "ORDER BY created_at, id").fetchall()
+        for r in rows:
+            fy = str(r["fiscal_year"] or "").strip()
+            if not fy:
+                created = str(r["created_at"] or "")
+                fy = created[:4] if created[:4].isdigit() else get_working_year()
+            nxt = conn.execute(
+                "SELECT COALESCE(MAX(seq),0)+1 n FROM cases WHERE fiscal_year=?", (fy,)).fetchone()["n"]
+            conn.execute("UPDATE cases SET fiscal_year=?, seq=? WHERE id=?", (fy, nxt, r["id"]))
+            filled += 1
+    return filled
+
+
+def backfill_settle_numbers() -> int:
+    """回填舊付款的核銷編號：年度取核銷月份，於該年度續號（沿用自動發號規則）。"""
+    filled = 0
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, payment_month FROM payments "
+            "WHERE status <> 'disabled' AND COALESCE(settle_no,'')='' "
+            "ORDER BY payment_month, id").fetchall()
+        for r in rows:
+            pm = str(r["payment_month"] or "").strip()
+            year = pm[:4] if (len(pm) >= 4 and pm[:4].isdigit()) else get_working_year()
+            nxt = conn.execute(
+                "SELECT COALESCE(MAX(settle_seq),0)+1 n FROM payments "
+                "WHERE substr(payment_month,1,4)=? AND settle_seq>0", (year,)).fetchone()["n"]
+            conn.execute("UPDATE payments SET settle_seq=?, settle_no=? WHERE id=?",
+                         (nxt, f"{SETTLE_PREFIX}-{year}-{nxt:04d}", r["id"]))
+            filled += 1
+    return filled
+
+
+def backfill_all_numbers() -> dict[str, int]:
+    """一次補齊案件系統編號與付款核銷編號，回報各補幾筆。"""
+    cases_filled = backfill_case_numbers()
+    settle_filled = backfill_settle_numbers()
+    return {"cases_filled": cases_filled, "settle_filled": settle_filled}

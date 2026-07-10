@@ -22,6 +22,8 @@ from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
     approve_case,
+    backfill_all_numbers,
+    backfill_status,
     backup_database,
     case_360,
     case_progress_overview,
@@ -502,7 +504,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.38 · 2026-07-10 · 線性進度圖+處理優先矩陣(系統自動推導)"
+BACKEND_BUILD = "v0.9.39 · 2026-07-10 · 舊資料補號(系統編號/核銷編號,冪等)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -982,6 +984,15 @@ def create_app() -> FastAPI:
     @app.post("/api/dev-console/demo-data/clear")
     def demo_data_clear() -> dict[str, Any]:
         return ok(clear_demo_data())
+
+    # Step 3 舊資料補號：只補缺號、冪等；掛 dev-console（承辦擋、CIO 唯讀擋）。
+    @app.get("/api/dev-console/backfill/status")
+    def backfill_numbers_status() -> dict[str, Any]:
+        return ok(backfill_status())
+
+    @app.post("/api/dev-console/backfill/run")
+    def backfill_numbers_run() -> dict[str, Any]:
+        return ok(backfill_all_numbers())
 
     @app.get("/api/audit-logs")
     def audit_logs(

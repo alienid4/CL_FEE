@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.38 · 2026-07-10 · 線性進度圖+處理優先矩陣(系統自動推導)";
+const BUILD_TAG = "v0.9.39 · 2026-07-10 · 舊資料補號(系統編號/核銷編號,冪等)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -49,6 +49,9 @@ const demoControls = document.querySelector("#demo-controls");
 const demoSeed = document.querySelector("#demo-seed");
 const demoClear = document.querySelector("#demo-clear");
 const demoStatus = document.querySelector("#demo-status");
+const backfillControls = document.querySelector("#backfill-controls");
+const backfillRun = document.querySelector("#backfill-run");
+const backfillStatusEl = document.querySelector("#backfill-status");
 const setText = (sel, txt) => { const el = document.querySelector(sel); if (el) el.textContent = txt; };
 const formTitle = document.querySelector("#form-title");
 const submitCase = document.querySelector("#submit-case");
@@ -534,6 +537,11 @@ function applyRoleVisibility(user) {
   // 示範資料工具只給主管/助理（有 edit）；CIO 唯讀、承辦被後端擋，也不顯示。
   if (demoControls) {
     demoControls.hidden = user.role_code !== "manager_assistant";
+  }
+  // 舊資料補號同樣只給主管/助理；顯示時載入「還缺幾筆」。
+  if (backfillControls) {
+    backfillControls.hidden = user.role_code !== "manager_assistant";
+    if (!backfillControls.hidden) loadBackfillStatus();
   }
   const visibleCards = moduleCards.filter((card) => !card.hidden);
   const defaultCard =
@@ -3180,6 +3188,38 @@ async function runDemo(action) {
 }
 demoSeed?.addEventListener("click", () => runDemo("load"));
 demoClear?.addEventListener("click", () => runDemo("clear"));
+
+async function loadBackfillStatus() {
+  if (!backfillStatusEl) return;
+  try {
+    const res = await api("/api/dev-console/backfill/status");
+    const d = res.data || {};
+    const total = (Number(d.cases_missing) || 0) + (Number(d.settle_missing) || 0);
+    backfillStatusEl.textContent = total
+      ? `待補：案件系統編號 ${d.cases_missing} 筆、付款核銷編號 ${d.settle_missing} 筆`
+      : "全部已有編號，無需補號。";
+  } catch (error) {
+    backfillStatusEl.textContent = `狀態載入失敗：${error.message}`;
+  }
+}
+
+backfillRun?.addEventListener("click", async () => {
+  if (!window.confirm("將替缺號的舊資料補上系統編號／核銷編號（只補缺的、不覆蓋既有號）。確定執行？")) return;
+  backfillRun.disabled = true;
+  if (backfillStatusEl) backfillStatusEl.textContent = "補號中…";
+  try {
+    const res = await api("/api/dev-console/backfill/run", { method: "POST" });
+    const d = res.data || {};
+    if (backfillStatusEl) {
+      backfillStatusEl.textContent = `已補：案件 ${d.cases_filled || 0} 筆、付款 ${d.settle_filled || 0} 筆`;
+    }
+    await refresh();
+  } catch (error) {
+    if (backfillStatusEl) backfillStatusEl.textContent = `失敗：${error.message}`;
+  } finally {
+    backfillRun.disabled = false;
+  }
+});
 
 // 匯出 CSV 已集中到「匯入/匯出」專區（不再逐模組注入按鈕）。
 document.addEventListener("click", (event) => {

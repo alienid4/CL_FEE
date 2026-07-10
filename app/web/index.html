@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-38" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-39" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -188,6 +188,16 @@
                 <button type="button" id="demo-seed" class="secondary">載入示範資料</button>
                 <button type="button" id="demo-clear" class="secondary">清空示範資料</button>
                 <span class="muted" id="demo-status" role="status" aria-live="polite"></span>
+              </div>
+            </section>
+
+            <section class="watch-list" id="backfill-controls" aria-label="舊資料補號" hidden>
+              <div class="section-heading compact">
+                <h2>舊資料補號<span class="help" data-tip="替匯入前就存在、還沒有系統編號／核銷編號的舊資料補上號碼。只補缺號的、不覆蓋既有號，可重複執行。請先在預覽庫試跑、確認無誤再對正式庫執行。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <div class="demo-actions">
+                <button type="button" id="backfill-run" class="secondary">補齊系統編號／核銷編號</button>
+                <span class="muted" id="backfill-status" role="status" aria-live="polite"></span>
               </div>
             </section>
             <section class="metrics" id="metrics" aria-label="live system metrics"></section>
@@ -883,6 +893,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-38"></script>
+    <script src="/static/app.js?v=v0-9-39"></script>
   </body>
 </html>
