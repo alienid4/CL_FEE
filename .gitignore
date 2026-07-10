@@ -43,11 +43,23 @@ Thumbs.db
 DOC/
 *.pdf
 *.docx
+*.pptx
 *.xlsx
 *.xls
 *.xlsm
 *.csv
 *.tsv
+
+# 簡報二進位／圖檔／舊草稿：走 OneDrive，不進 git（只版控 PPT/*.md 文字稿）
+PPT/圖/
+PPT/_舊版草稿/
+
+# 自主迴圈（.project/loop.py）的揮發產出：報告是生成物、backlog 是執行時佇列
+.project/run_report.md
+.project/backlog.json
+
+# 根目錄舊檔歸檔：git 歷史已保留被刪原檔，備份不重複進版控
+archive/
 
 # Archives and generated bundles
 *.zip

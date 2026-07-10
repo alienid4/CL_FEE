@@ -1,0 +1,8 @@
+{
+  "max_rounds": 20,
+  "max_minutes": 60,
+  "max_fails_per_slice": 3,
+  "protect_branches": ["main", "master"],
+  "agent_cmd": "claude -p --permission-mode acceptEdits",
+  "agent_prompt_via": "stdin"
+}
