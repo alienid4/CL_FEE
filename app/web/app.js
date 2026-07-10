@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.56 · 2026-07-10 · 預算為單一入口(分攤就地編輯+內嵌匯入)";
+const BUILD_TAG = "v0.9.57 · 2026-07-10 · 列操作改圖示鈕(一鍵)+刪除/停用加確認";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1475,21 +1475,16 @@ function renderResourceRow(type, item) {
   return `<tr data-${config.idAttr}="${item.id}">${cells}<td class="col-actions">${renderRowMenu(config, item)}</td></tr>`;
 }
 
-// 編輯／停用／刪除收進單一下拉，省版面
+// 編輯／停用／刪除＝一排圖示鈕（一鍵，不用點兩次）；hover 顯示文字
 function renderRowMenu(config, item) {
   const disableButton = config.canDisable
-    ? `<button type="button" data-action="disable" data-resource-id="${item.id}">停用</button>`
+    ? `<button type="button" class="icon-btn" data-action="disable" data-resource-id="${item.id}" title="停用" aria-label="停用">⊘</button>`
     : "";
-  return `
-    <details class="row-menu">
-      <summary>操作 ▾</summary>
-      <div class="row-menu-pop">
-        <button type="button" data-action="edit" data-resource-id="${item.id}">編輯</button>
-        ${disableButton}
-        <button type="button" class="danger" data-action="delete" data-resource-id="${item.id}">刪除</button>
-      </div>
-    </details>
-  `;
+  return `<span class="row-actions">
+    <button type="button" class="icon-btn" data-action="edit" data-resource-id="${item.id}" title="編輯" aria-label="編輯">✏</button>
+    ${disableButton}
+    <button type="button" class="icon-btn danger" data-action="delete" data-resource-id="${item.id}" title="刪除" aria-label="刪除">🗑</button>
+  </span>`;
 }
 
 // 狀態小徽章：核准/使用中=綠、停用=灰、待複核/審核=橘
@@ -2398,10 +2393,15 @@ async function handleResourceAction(type, event) {
     await startResourceEdit(type, id);
     return;
   }
+  const item = (resourceCaches[type] || []).find((x) => String(x.id) === String(id));
+  const label = item ? (item.budget_code || item.contract_code || item.settle_no || item.project_code || item.signoff_code || item.purchase_code || item.file_name || item.category || `#${id}`) : `#${id}`;
   if (action === "disable") {
+    if (!window.confirm(`確定停用「${label}」？停用後不再出現在清單，可再啟用。`)) return;
     await api(`${config.api}/${id}/disable`, { method: "POST" });
   }
   if (action === "delete") {
+    if (!window.confirm(`確定刪除「${label}」？此動作無法復原。`)) return;
+    if (!window.confirm(`再次確認：真的要永久刪除「${label}」嗎？`)) return;
     await api(`${config.api}/${id}`, { method: "DELETE" });
   }
   resetResourceForm(type);
