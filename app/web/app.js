@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.51 · 2026-07-10 · 全站表格收緊+年度費用同期跨年%";
+const BUILD_TAG = "v0.9.52 · 2026-07-10 · 年度費用表%獨立成欄+可排序+去除cell內註解";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -508,36 +508,50 @@ document.querySelector("#matrix-filters")?.addEventListener("click", (event) => 
   renderMatrix(lastProgressItems);
 });
 
-// ── L3 預算年度費用比較（唯讀衍生）：全年度/年增差異由後端算，#DIV/0! 改語意標示 ──
+// ── L3 預算年度費用比較（唯讀衍生）：全年度/年增差異由後端算；% 全部獨立成欄、無 inline 註解 ──
+let annualData = null;
+let annualSort = { col: null, dir: "asc" };
+
 function renderBudgetAnnual(data) {
   const el = document.querySelector("#budget-annual");
   if (!el) return;
+  annualData = data;
   const b = data.budget || {};
   const periods = data.periods || [];
-  const years = data.years || [];
-  const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString());
-  const diffCell = (y) => {
-    if (y.diff == null) return `<span class="muted">${escapeHtml(y.diff_note || "—")}</span>`;
-    const sign = y.diff > 0 ? "+" : "";
-    const cls = y.diff > 0 ? "up" : y.diff < 0 ? "down" : "";
-    const tail = y.diff_pct != null
-      ? `（${y.diff_pct > 0 ? "+" : ""}${y.diff_pct}%）`
-      : (y.diff_note ? `（${escapeHtml(y.diff_note)}）` : "");
-    return `<span class="budget-diff ${cls}">${sign}${fmt(y.diff)} <small>${tail}</small></span>`;
-  };
-  const head = `<tr><th>年度</th>${periods.map((p) => `<th class="num">${escapeHtml(p)}</th>`).join("")}`
-    + `<th class="num">全年度費用</th><th>費用差異</th><th class="note-col">備註</th></tr>`;
-  const periodCell = (y, p) => {
-    const pct = y.period_diff_pct ? y.period_diff_pct[p] : null;   // 與前一年同期的差異%
-    const badge = pct == null ? "" : ` <small class="period-diff ${pct > 0 ? "up" : pct < 0 ? "down" : ""}">${pct > 0 ? "+" : ""}${pct}%</small>`;
-    return `<td class="num">${fmt(y.periods[p])}${badge}</td>`;
-  };
+  const fmtN = (n) => (n == null ? "—" : Number(n).toLocaleString());
+  const nOrNeg = (v) => (v == null ? -Infinity : Number(v));
+  const pctCell = (pct) => pct == null
+    ? `<span class="muted">—</span>`
+    : `<span class="period-diff ${pct > 0 ? "up" : pct < 0 ? "down" : ""}">${pct > 0 ? "+" : ""}${pct}%</span>`;
+  const diffAmtCell = (d) => d == null
+    ? `<span class="muted">—</span>`
+    : `<span class="budget-diff ${d > 0 ? "up" : d < 0 ? "down" : ""}">${d > 0 ? "+" : ""}${fmtN(d)}</span>`;
+  const noteCell = (y) => `<input type="text" class="budget-note-input" data-year="${escapeHtml(y.fiscal_year)}" value="${escapeHtml(y.note || "")}" placeholder="可填差異說明／決策註記…" />`;
+
+  // 欄位驅動：每個 % 都是獨立一欄（對齊），無 cell 內註解
+  const cols = [{ key: "fiscal_year", label: "年度", get: (y) => `${escapeHtml(y.fiscal_year)} 年`, sv: (y) => Number(y.fiscal_year) || 0 }];
+  periods.forEach((p) => {
+    cols.push({ key: `amt:${p}`, label: p, cls: "num", get: (y) => fmtN(y.periods[p]), sv: (y) => Number(y.periods[p]) || 0 });
+    cols.push({ key: `pct:${p}`, label: `${p} 增減%`, cls: "num", get: (y) => pctCell(y.period_diff_pct ? y.period_diff_pct[p] : null), sv: (y) => nOrNeg(y.period_diff_pct ? y.period_diff_pct[p] : null) });
+  });
+  cols.push({ key: "annual_total", label: "全年度費用", cls: "num", get: (y) => `<b>${fmtN(y.annual_total)}</b>`, sv: (y) => Number(y.annual_total) || 0 });
+  cols.push({ key: "diff", label: "費用差異", cls: "num", get: (y) => diffAmtCell(y.diff), sv: (y) => nOrNeg(y.diff) });
+  cols.push({ key: "diff_pct", label: "差異%", cls: "num", get: (y) => pctCell(y.diff_pct), sv: (y) => nOrNeg(y.diff_pct) });
+  cols.push({ key: "note", label: "備註", cls: "note-col", noSort: true, get: noteCell });
+
+  let years = [...(data.years || [])];
+  if (annualSort.col) {
+    const c = cols.find((x) => x.key === annualSort.col);
+    if (c) years.sort((r1, r2) => { const d = c.sv(r1) - c.sv(r2); return annualSort.dir === "desc" ? -d : d; });
+  }
+  const head = cols.map((c) => {
+    const arrow = annualSort.col === c.key ? (annualSort.dir === "asc" ? " ▲" : " ▼") : "";
+    const cls = [c.cls || "", c.noSort ? "" : "sortable"].filter(Boolean).join(" ");
+    return `<th class="${cls}"${c.noSort ? "" : ` data-annual-sort="${escapeHtml(c.key)}" title="點欄名可排序"`}>${escapeHtml(c.label)}${arrow}</th>`;
+  }).join("");
   const body = years.length
-    ? years.map((y) => `<tr><td>${escapeHtml(y.fiscal_year)} 年</td>`
-        + periods.map((p) => periodCell(y, p)).join("")
-        + `<td class="num"><b>${fmt(y.annual_total)}</b></td><td>${diffCell(y)}</td>`
-        + `<td class="note-col"><input type="text" class="budget-note-input" data-year="${escapeHtml(y.fiscal_year)}" value="${escapeHtml(y.note || "")}" placeholder="可填差異說明／決策註記…" /></td></tr>`).join("")
-    : `<tr><td colspan="${periods.length + 4}" class="muted">尚無年度費用明細（後續由匯入／編輯建立）。</td></tr>`;
+    ? years.map((y) => `<tr>${cols.map((c) => `<td class="${c.cls || ""}">${c.get(y)}</td>`).join("")}</tr>`).join("")
+    : `<tr><td colspan="${cols.length}" class="muted">尚無年度費用明細（後續由匯入／編輯建立）。</td></tr>`;
   el.dataset.budgetId = b.id;
   el.innerHTML = `
     <div class="section-heading compact"><h3>年度費用比較 <span class="muted">— ${escapeHtml(b.category || "")}</span></h3>
@@ -547,7 +561,7 @@ function renderBudgetAnnual(data) {
       <span>填寫部門：${escapeHtml(b.fill_dept || "—")}</span>
       <span>預估人員：${escapeHtml(b.estimator || "—")}</span>
     </div>
-    <div class="table-shell"><table class="grid-table budget-annual-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    <div class="table-shell"><table class="grid-table budget-annual-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
   el.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 // 點預算列的「比較」→ 讀衍生資料展開；收起清空
@@ -567,6 +581,16 @@ document.querySelector("#budget-annual")?.addEventListener("click", (event) => {
     const el = document.querySelector("#budget-annual");
     el.innerHTML = "";
     delete el.dataset.budgetId;
+    annualData = null;
+    annualSort = { col: null, dir: "asc" };
+    return;
+  }
+  // 點欄名排序（年度費用表也可排序）
+  const th = event.target.closest("th[data-annual-sort]");
+  if (th && annualData) {
+    const col = th.getAttribute("data-annual-sort");
+    annualSort = annualSort.col === col ? { col, dir: annualSort.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" };
+    renderBudgetAnnual(annualData);
   }
 });
 // 備註即時存：input 失焦/改動就 PUT（主管/助理可寫）
@@ -584,6 +608,9 @@ document.querySelector("#budget-annual")?.addEventListener("change", async (even
       body: JSON.stringify({ fiscal_year: input.getAttribute("data-year"), note: input.value }),
     });
     input.classList.add("saved");
+    // 同步到記憶體資料，之後排序重繪不會把剛存的備註洗掉
+    const yr = (annualData && annualData.years || []).find((y) => y.fiscal_year === input.getAttribute("data-year"));
+    if (yr) yr.note = input.value;
   } catch (error) {
     input.classList.add("save-failed");
     input.title = `存檔失敗：${error.message}`;
