@@ -1519,6 +1519,10 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .case-dot.white { background: var(--surface); border: 2px solid var(--line); }
 .case-dot.orange { background: var(--warn); }
 .case-dot.red { background: var(--danger); }
+.case-dot.na { background: #d8d5cf; }   /* 灰＝不適用（這案用不到此階段） */
+.case-step.na, .case-step[data-na] { opacity: .55; }
+.matrix-filters { display: flex; align-items: center; gap: 14px; font-size: .8rem; color: var(--ink-2); }
+.matrix-filters label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .case-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 14px; font-size: .76rem; color: var(--ink-2); }
 .case-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 

@@ -2559,12 +2559,12 @@ def case_360(case_id: int) -> dict[str, Any]:
 
 
 # ── 案件線性進度圖／處理優先矩陣：由系統自動推導，唯讀（不手改、不匯入） ──
-# 四色燈：green=完成 white=還沒輪到 orange=東西到了/快逾期待處理 red=已逾期
-# 每案只顯示「用得到的階段」（查無關聯資料的階段不出現）
+# 五色燈：green=完成 white=還沒輪到 orange=東西到了/快逾期待處理 red=已逾期 na=不適用(灰)
+# 一律畫 7 個階段；灰燈＝這案用不到（在「第一個有資料階段」之前又沒資料）
 _STAGE_ORDER = ["budget", "project", "signoff", "contract", "purchase", "payment", "invoice"]
 _STAGE_LABEL = {"budget": "預算", "project": "專案", "signoff": "簽呈",
                 "contract": "合約", "purchase": "請購", "payment": "付款", "invoice": "發票"}
-_TONE_RANK = {"green": 0, "white": 1, "orange": 2, "red": 3}
+_TONE_RANK = {"na": -1, "green": 0, "white": 1, "orange": 2, "red": 3}
 _ORANGE_WINDOW_DAYS = 7          # 距期限 7 天內＝橘燈（快逾期）
 _AMOUNT_HIGH = 10_000_000        # 金額 ≥ 1000 萬＝矩陣「金額/影響高」
 
@@ -2617,19 +2617,13 @@ def _month_tone(payment_month: str, *, done: bool):
 
 
 def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, payments):
-    """回傳 (stages, urgency_days)：stages 只含適用階段 [{key,label,tone,days}]。"""
-    stages: list[dict[str, Any]] = []
-    days_pool: list[int] = []
+    """回傳 (stages, urgency_days)：一律 7 個階段 [{key,label,tone,days}]。
+    有資料的階段照 綠/白/橘/紅 算；沒資料者：在「第一個有資料階段」之前＝灰(na,不適用)，之後＝白(還沒輪到)。
+    natural[key] = (自然燈 or None, 急迫天數)；None 代表這階段沒有任何關聯資料。"""
+    natural: dict[str, tuple[Any, Any]] = {}
 
-    def add(key, tone, days=None):
-        if tone is None:
-            return
-        stages.append({"key": key, "label": _STAGE_LABEL[key], "tone": tone, "days": days})
-        if days is not None and tone in ("orange", "red"):
-            days_pool.append(days)
-
-    # 預算：有非停用預算＝已編列（綠）；無＝不適用
-    add("budget", "green" if budgets else None)
+    # 預算：有非停用預算＝已編列（綠）
+    natural["budget"] = ("green", None) if budgets else (None, None)
 
     # 專案：completed/進度100＝綠；否則看 due_date/end_date
     p_tones, p_days = [], []
@@ -2646,14 +2640,12 @@ def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, 
             if d is not None:
                 p_days.append(d)
     pt = _worst(p_tones)
-    add("project", pt, min(p_days) if (p_days and pt in ("orange", "red")) else None)
+    natural["project"] = (pt, min(p_days) if (p_days and pt in ("orange", "red")) else None)
 
     # 簽呈：approved＝綠、rejected＝紅、其餘（草稿/送審）＝白
-    s_tones = []
-    for s in signoffs:
-        st = s["status"]
-        s_tones.append("green" if st == "approved" else "red" if st == "rejected" else "white")
-    add("signoff", _worst(s_tones))
+    s_tones = ["green" if s["status"] == "approved" else "red" if s["status"] == "rejected" else "white"
+               for s in signoffs]
+    natural["signoff"] = (_worst(s_tones), None)
 
     # 合約：closed＝用完（綠）；否則看到期日
     k_tones, k_days = [], []
@@ -2666,10 +2658,10 @@ def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, 
             if d is not None:
                 k_days.append(d)
     kt = _worst(k_tones)
-    add("contract", kt, min(k_days) if (k_days and kt in ("orange", "red")) else None)
+    natural["contract"] = (kt, min(k_days) if (k_days and kt in ("orange", "red")) else None)
 
     # 請購：closed＝用完（綠）；其餘（pending/ordered/arrived）＝白
-    add("purchase", _worst(["green" if q["status"] == "closed" else "white" for q in purchases]))
+    natural["purchase"] = (_worst(["green" if q["status"] == "closed" else "white" for q in purchases]), None)
 
     # 付款：closed＝付畢（綠）；期程已過未付＝紅、當月＝橘、未來＝白
     pay_tones, pay_days = [], []
@@ -2679,7 +2671,7 @@ def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, 
         if d is not None and t in ("orange", "red"):
             pay_days.append(d)
     payt = _worst(pay_tones)
-    add("payment", payt, min(pay_days) if pay_days else None)
+    natural["payment"] = (payt, min(pay_days) if pay_days else None)
 
     # 發票：verified＝核銷畢（綠）；否則依期程：已過＝紅、當月＝橘、未來＝白
     inv_tones, inv_days = [], []
@@ -2689,20 +2681,33 @@ def _case_stage_lights(case, budgets, projects, signoffs, contracts, purchases, 
         if d is not None and t in ("orange", "red"):
             inv_days.append(d)
     invt = _worst(inv_tones)
-    add("invoice", invt, min(inv_days) if inv_days else None)
+    natural["invoice"] = (invt, min(inv_days) if inv_days else None)
 
+    # 第一個有資料的階段；之前的空階段＝灰(不適用)、之後的空階段＝白(還沒輪到)
+    first_active = next((i for i, k in enumerate(_STAGE_ORDER) if natural[k][0] is not None), None)
+    stages: list[dict[str, Any]] = []
+    days_pool: list[int] = []
+    for i, key in enumerate(_STAGE_ORDER):
+        tone, days = natural[key]
+        if tone is None:
+            tone = "na" if (first_active is not None and i < first_active) else "white"
+            days = None
+        stages.append({"key": key, "label": _STAGE_LABEL[key], "tone": tone, "days": days})
+        if days is not None and tone in ("orange", "red"):
+            days_pool.append(days)
     urgency = min(days_pool) if days_pool else None
     return stages, urgency
 
 
 def _case_block(stages: list[dict[str, Any]]) -> dict[str, str]:
-    """目前卡點 pill：取最嚴重的非綠階段，組文字。全綠＝完成。"""
-    if not stages:
+    """目前卡點 pill：忽略灰燈(不適用)，取最嚴重的非綠階段。全（適用階段）綠＝完成。"""
+    applicable = [s for s in stages if s["tone"] != "na"]
+    if not applicable:
         return {"text": "尚未建立流程", "tone": "white"}
-    non_green = [s for s in stages if s["tone"] != "green"]
-    if not non_green:
+    active = [s for s in applicable if s["tone"] != "green"]
+    if not active:
         return {"text": "完成", "tone": "green"}
-    worst = max(non_green, key=lambda s: _TONE_RANK[s["tone"]])
+    worst = max(active, key=lambda s: _TONE_RANK[s["tone"]])
     suffix = {"red": "已逾期", "orange": "待處理·近期限", "white": "處理中"}[worst["tone"]]
     return {"text": f"{worst['label']}{suffix}", "tone": worst["tone"]}
 
@@ -2732,6 +2737,14 @@ def case_progress_overview() -> dict[str, Any]:
 
             stages, urgency = _case_stage_lights(c, budgets, projects, signoffs, contracts, purchases, payments)
             block = _case_block(stages)
+            # 階段別：done=全完成、not_started=還沒動(無綠也無急)、active=進行中/有風險（矩陣過濾用）
+            tones = [s["tone"] for s in stages]
+            if block["tone"] == "green":
+                phase = "done"
+            elif "green" not in tones and not any(t in ("orange", "red") for t in tones):
+                phase = "not_started"
+            else:
+                phase = "active"
             # 金額：優先用案件金額，退回合約總額、預算總額
             amount = float(c["amount"] or 0) or sum(k["amount"] for k in contracts) or sum(b["amount"] for b in budgets)
             high = amount >= _AMOUNT_HIGH
@@ -2775,6 +2788,7 @@ def case_progress_overview() -> dict[str, Any]:
                 "amount": amount,
                 "stages": stages,
                 "block": block,
+                "phase": phase,
                 "urgency_days": urgency,
                 "matrix": {"quadrant": quadrant, "reason": reason, "x": x, "y": y},
             })

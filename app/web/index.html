@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-46" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-47" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -252,6 +252,7 @@
                 <span class="case-legend-item"><span class="case-dot white"></span>還沒輪到</span>
                 <span class="case-legend-item"><span class="case-dot orange"></span>快逾期待處理</span>
                 <span class="case-legend-item"><span class="case-dot red"></span>已逾期</span>
+                <span class="case-legend-item"><span class="case-dot na"></span>不適用</span>
               </div>
               <div class="case-progress-list" id="case-progress-list"></div>
             </section>
@@ -260,8 +261,12 @@
           <section class="case-tab-panel" data-case-panel="matrix" hidden>
             <section class="watch-list">
               <div class="section-heading compact">
-                <h2>處理優先矩陣<span class="help" data-tip="橫軸=急迫度（距最近期限），縱軸=金額/影響。象限：立即處理／主管確認／本週處理／可安排。系統自動落點，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-                <span class="muted">來源：案件金額 × 最近期限；金額 ≥ 1000 萬歸「金額高」</span>
+                <h2>處理優先矩陣<span class="help" data-tip="只放「需要盯」的案子：預設濾掉已完成與還沒開始，讓主管專注緊急、可能掉鏈子的。橫軸=急迫度，縱軸=金額/影響。系統自動落點，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <div class="matrix-filters">
+                  <label><input type="checkbox" id="matrix-show-done" /> 顯示已完成</label>
+                  <label><input type="checkbox" id="matrix-show-notstarted" /> 顯示未開始</label>
+                  <span class="muted" id="matrix-count"></span>
+                </div>
               </div>
               <div class="case-matrix" id="case-matrix" aria-label="處理優先矩陣">
                 <span class="matrix-axis y-high">金額 / 影響高</span>
@@ -889,6 +894,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-46"></script>
+    <script src="/static/app.js?v=v0-9-47"></script>
   </body>
 </html>
