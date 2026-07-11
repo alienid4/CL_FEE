@@ -103,6 +103,7 @@ from app.store import (
     preview_import_mapping,
     search_records,
     set_current_actor,
+    set_owner_display_name,
     set_owner_scope,
     stage_import_rows,
     update_row,
@@ -639,7 +640,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.87 · 2026-07-11 · 修真bug：DB自建帳號登入後每個API都401(session驗證漏認)"
+BACKEND_BUILD = "v0.9.88 · 2026-07-11 · 專案改依負責人隔離(承辦只看列名到自己的)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -867,7 +868,9 @@ async def bind_actor(request: Request) -> None:
     username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
     set_current_actor(username or "anonymous")
     acct = get_account(username or "") or {}
-    set_owner_scope(username if acct.get("role_code") == "handler" else None)
+    is_handler = acct.get("role_code") == "handler"
+    set_owner_scope(username if is_handler else None)
+    set_owner_display_name(acct.get("display_name") if is_handler else None)
 
 
 def create_app() -> FastAPI:

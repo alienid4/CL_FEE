@@ -61,19 +61,27 @@ def test_case_link_optional_and_settable(tmp_path):
 
 
 def test_projects_purchases_signoffs_scoped_for_handler(tmp_path):
-    """請購/簽呈依案件歸屬隔離：承辦只看自己案件下的；專案與預算不隔離（全公司共享）。"""
+    """請購/簽呈依案件歸屬隔離：承辦只看自己案件下的；專案依「負責人」欄位隔離
+    （單一負責人只有那人看得到，「/」列多個共同負責人時名字有列到的都看得到）；
+    預算不隔離（全公司共享）。"""
     with _client(tmp_path, login=None) as client:
         from app import store
         mine = store.insert_row("cases", {"case_code": "SC-MINE", "title": "m", "owner": "ap03"})
         theirs = store.insert_row("cases", {"case_code": "SC-THEIRS", "title": "t", "owner": "ap02"})
-        for tbl, code_f, code in [("projects", "project_code", "PJ"), ("purchases", "purchase_code", "PO"), ("signoffs", "signoff_code", "SG")]:
-            store.insert_row(tbl, {code_f: f"{code}-MINE", **({"project_name": "n"} if tbl == "projects" else {"subject": "s"} if tbl == "signoffs" else {"item_name": "i"}), "case_id": mine["id"]})
-            store.insert_row(tbl, {code_f: f"{code}-THEIRS", **({"project_name": "n"} if tbl == "projects" else {"subject": "s"} if tbl == "signoffs" else {"item_name": "i"}), "case_id": theirs["id"]})
+        for tbl, code_f, code in [("purchases", "purchase_code", "PO"), ("signoffs", "signoff_code", "SG")]:
+            store.insert_row(tbl, {code_f: f"{code}-MINE", **({"subject": "s"} if tbl == "signoffs" else {"item_name": "i"}), "case_id": mine["id"]})
+            store.insert_row(tbl, {code_f: f"{code}-THEIRS", **({"subject": "s"} if tbl == "signoffs" else {"item_name": "i"}), "case_id": theirs["id"]})
+        # 專案不靠 case_id 隔離，靠「負責人」欄位：ap03 顯示名稱是「承辦」
+        store.insert_row("projects", {"project_code": "PJ-MINE", "project_name": "n", "owner": "承辦"})
+        store.insert_row("projects", {"project_code": "PJ-SHARED", "project_name": "n", "owner": "承辦/別人"})  # 共同負責人也看得到
+        store.insert_row("projects", {"project_code": "PJ-THEIRS", "project_name": "n", "owner": "別人"})
+        store.insert_row("projects", {"project_code": "PJ-NOOWNER", "project_name": "n"})  # 沒填負責人：誰都看不到
         store.insert_row("budgets", {"budget_code": "BUD-ORG"})  # 全公司預算
 
         client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         pj = [r["project_code"] for r in client.get("/api/projects").json()["data"]]
-        assert "PJ-MINE" in pj and "PJ-THEIRS" in pj  # 專案不隔離：承辦看得到全部（才能維護）
+        assert "PJ-MINE" in pj and "PJ-SHARED" in pj
+        assert "PJ-THEIRS" not in pj and "PJ-NOOWNER" not in pj
         po = [r["purchase_code"] for r in client.get("/api/purchases").json()["data"]]
         assert "PO-MINE" in po and "PO-THEIRS" not in po
         sg = [r["signoff_code"] for r in client.get("/api/signoffs").json()["data"]]

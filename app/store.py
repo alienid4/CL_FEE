@@ -21,11 +21,19 @@ def set_current_actor(actor: str) -> None:
 
 
 _owner_scope: ContextVar[str | None] = ContextVar("owner_scope", default=None)
+_owner_display_name: ContextVar[str | None] = ContextVar("owner_display_name", default=None)
 
 
 def set_owner_scope(scope: str | None) -> None:
     """設定資料列可視範圍：非 None(承辦帳號)時，只看 owner 屬此帳號的案件及其關聯資料。"""
     _owner_scope.set(scope)
+
+
+def set_owner_display_name(name: str | None) -> None:
+    """設定承辦者的顯示名稱（人名），供專案「依負責人隔離」比對用——專案 owner 欄存的是
+    人名（可能用「/」列多個共同負責人，如「陳昱杉/洪似妮」），不是登入帳號，跟案件的
+    owner=帳號 是不同比對基準，分開存。"""
+    _owner_display_name.set(name)
 
 
 def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
@@ -35,7 +43,7 @@ def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
         return "owner = ?", [scope]
     if table in ("contracts", "signoffs", "purchases"):
         # 這些靠 case_id 掛在案件上 → 依案件歸屬隔離（承辦只看自己案件下的）。
-        # 專案(projects)、預算(budgets) 不在此列：是全公司共享資料，不管誰負責、大家都看得到（含承辦，才能維護）。
+        # 預算(budgets) 不在此列：是全公司共享資料，不管誰負責、大家都看得到。
         return f"case_id IN ({owned})", [scope]
     if table == "payments":
         return f"contract_id IN (SELECT id FROM contracts WHERE case_id IN ({owned}))", [scope]
@@ -45,6 +53,16 @@ def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
             f"(SELECT id FROM contracts WHERE case_id IN ({owned})))",
             [scope, scope],
         )
+    if table == "projects":
+        # 專案依負責人隔離（使用者拍板）：一人負責只有那人看得到；「/」列多個共同負責人時，
+        # 名字有列在裡面的都看得到，沒列的看不到。用字串邊界比對（"/"+owner+"/" LIKE
+        # "%/name/%"）避免子字串誤判（如「王小明」誤配到「王小明志」）。
+        # 沒有顯示名稱（如內建示範帳號 ap01~04 的顯示名稱是角色而非真人名）就一律看不到，
+        # 而非退回看全部——符合「只有列進去的人才看得到」的規則。
+        name = _owner_display_name.get()
+        if not name:
+            return "0", []
+        return "('/' || owner || '/') LIKE ?", [f"%/{name}/%"]
     return "", []
 
 
