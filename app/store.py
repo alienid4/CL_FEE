@@ -2980,7 +2980,7 @@ def search_records(query: str) -> list[dict[str, Any]]:
                 item_sql += f" AND pr.id IN (SELECT id FROM projects WHERE {sw})"
                 item_params += sp
         item_sql += " ORDER BY i.id DESC LIMIT 50"
-        results.extend({"type": "project", **row} for row in conn.execute(item_sql, item_params).fetchall())
+        results.extend({"type": "project_item", **row} for row in conn.execute(item_sql, item_params).fetchall())
     return results
 
 

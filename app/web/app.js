@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.83 · 2026-07-11 · 全文搜尋補專案工作項目子項細節";
+const BUILD_TAG = "v0.9.84 · 2026-07-11 · 搜到專案子項時導去進度總表看細節(不再只開專案基本表單)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1929,6 +1929,23 @@ document.querySelector("#pf-view")?.addEventListener("submit", async (event) => 
     window.alert(`儲存失敗：${error.message}`);
   }
 });
+
+// 全文搜尋比對到專案「工作項」子項時，導去進度總表點開那個專案（子項細節在這裡才看得到，
+// 不是專案模組的基本編輯表單）——找到所屬組別/子分頁後設定 portfolioState 再重繪。
+async function openProjectItem(projectId) {
+  activateCaseTab("portfolio");
+  if (!portfolioGroups.length) await loadPortfolio();
+  for (let g = 0; g < portfolioGroups.length; g++) {
+    const idx = portfolioGroups[g].projects.findIndex((p) => String(p.id) === String(projectId));
+    if (idx >= 0) {
+      portfolioState.g = g;
+      portfolioState.s = idx;
+      renderPortfolio();
+      break;
+    }
+  }
+  document.querySelector("#pf-items")?.scrollIntoView({ block: "center", behavior: "smooth" });
+}
 
 async function loadPortfolio() {
   if (!document.querySelector("#pf-view")) return;
@@ -3930,7 +3947,7 @@ const searchScope = document.querySelector("#search-scope");           // 縮小
 const searchResults = document.querySelector("#search-results");      // 側欄小提示
 const searchPanel = document.querySelector("#search-panel");           // 中間大結果區
 const searchResultsMain = document.querySelector("#search-results-main");
-const SEARCH_LABEL = { case: "案件", contract: "合約", payment: "付款", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購" };
+const SEARCH_LABEL = { case: "案件", contract: "合約", payment: "付款", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購", project_item: "專案子項" };
 // 每種類型 → 對應模組 nav + 開啟該筆的動作（開編輯表單、顯示細節）
 const SEARCH_NAV = {
   case: { href: "#cases-module", open: (id) => startEdit(id) },
@@ -3941,6 +3958,7 @@ const SEARCH_NAV = {
   project: { href: "#projects", open: (id) => startResourceEdit("project", id) },
   signoff: { href: "#signoff", open: (id) => startResourceEdit("signoff", id) },
   purchase: { href: "#purchases", open: (id) => startResourceEdit("purchase", id) },
+  project_item: { href: "#cases-module", open: (id) => openProjectItem(id) },
 };
 let searchTimer = null;
 
@@ -3997,7 +4015,8 @@ function runGlobalSearch() {
     try {
       let rows = (await api(`/api/search?q=${encodeURIComponent(q)}`)).data || [];
       const scope = searchScope?.value;
-      if (scope) rows = rows.filter((r) => r.type === scope);  // 縮小範圍：只看選定的模組
+      // 縮小範圍：只看選定的模組；選「專案」時工作項子項(project_item)也算在內，概念上同一個模組
+      if (scope) rows = rows.filter((r) => r.type === scope || (scope === "project" && r.type === "project_item"));
       if (searchResults) { searchResults.hidden = false; searchResults.innerHTML = `<small class="muted">找到 ${rows.length} 筆，見中間結果 →</small>`; }
       renderSearchResults(rows, q);
     } catch (error) {
