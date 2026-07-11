@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.90 · 2026-07-11 · 專案名稱本身變連結(取代獨立查看按鈕)";
+const BUILD_TAG = "v0.9.91 · 2026-07-11 · 專案補「＋歸戶」(比照預算，補案件關聯才會亮進度圖)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -263,7 +263,9 @@ const resourceConfig = {
              "level", "progress_planned", "rag_status", "start_date", "end_date"],
     numberFields: ["progress", "progress_planned", "case_id"], canDisable: true,
     columns: [
-      { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.project, i.case_id) },
+      { label: "系統編號", cell: (i) => i.case_id
+          ? systemCodeCell(SYS_PREFIX.project, i.case_id)
+          : `<button type="button" class="btn-sm" data-assign-project-case="${i.id}" title="歸戶到案件才會有系統編號、也才會出現在案件的進度圖/矩陣">＋歸戶</button>` },
       { label: "編號", cell: (i) => `<strong>${escapeHtml(i.project_code)}</strong>` },
       { label: "專案名稱", cell: (i) => `<button type="button" class="link-btn" data-view-items="${i.id}" title="查看細項（進度總表）">${escapeHtml(i.project_name)}</button>` },
       { label: "層級", cell: (i) => escapeHtml(valueOrDash(i.level)) },
@@ -617,6 +619,26 @@ document.querySelector("#projects-list")?.addEventListener("click", async (event
   if (!view) return;
   navigateToPanel("cases-module");
   await openProjectItem(view.getAttribute("data-view-items"));
+});
+// 專案歸戶（比照預算既有機制）：沒掛案件的專案點「＋歸戶」→ 就地選案件 → 掛上即有系統編號，
+// 掛好之後線性進度圖/處理優先矩陣的「專案」那顆燈才會亮（那兩張圖只認案件底下掛的資料）。
+document.querySelector("#projects-list")?.addEventListener("click", (event) => {
+  const assign = event.target.closest("[data-assign-project-case]");
+  if (!assign) return;
+  const id = assign.getAttribute("data-assign-project-case");
+  const opts = `<option value="">選案件…</option>`
+    + (caseCache || []).map((c) => `<option value="${c.id}">${escapeHtml(c.case_code)}｜${escapeHtml(c.title || "")}</option>`).join("");
+  assign.outerHTML = `<select class="btn-sm" data-assign-project-case-select="${id}">${opts}</select>`;
+});
+document.querySelector("#projects-list")?.addEventListener("change", async (event) => {
+  const sel = event.target.closest("[data-assign-project-case-select]");
+  if (!sel || !sel.value) return;
+  try {
+    await api(`/api/projects/${sel.getAttribute("data-assign-project-case-select")}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ case_id: Number(sel.value) }),
+    });
+    await loadResource("project");  // 重載→系統編號就出現
+  } catch (error) { window.alert(`歸戶失敗：${error.message}`); }
 });
 document.querySelector("#budgets")?.addEventListener("click", (event) => {
   const assign = event.target.closest("[data-assign-case]");
