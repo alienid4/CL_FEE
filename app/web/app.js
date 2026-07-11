@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.84 · 2026-07-11 · 搜到專案子項時導去進度總表看細節(不再只開專案基本表單)";
+const BUILD_TAG = "v0.9.85 · 2026-07-11 · 工作項起訖拆欄可排序＋預設依急迫度排";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1788,38 +1788,95 @@ async function loadProjectItems(projectId) {
   }
 }
 
+// 工作項表格：開始日/結束日拆兩欄才能各自排序；預設依「結束日離今天的遠近」排，越急迫的越前面
+// （跟處理優先矩陣「橫軸=急迫度」同一個邏輯，不是單純日期由小到大)。
+const PF_ITEM_COLUMNS = [
+  { label: "工作主項目", key: "item_name" },
+  { label: "負責人", key: "owner" },
+  { label: "開始日", key: "start_date", cls: "num" },
+  { label: "結束日", key: "end_date", cls: "num" },
+  { label: "執行進度", key: "exec_status" },
+  { label: "完成度", key: "progress", cls: "num" },
+  { label: "追蹤事項", key: "track" },
+];
+let pfItemSort = null;  // {col, dir}；null＝用預設的「離今天近的先」排序
+
+function pfItemTrackText(it) {
+  return [it.risk_note, it.decision_needed, it.support_needed].filter(Boolean).join(" ");
+}
+
+function pfItemDefaultSort(items) {
+  const today = Date.now();
+  const dist = (d) => {
+    const t = d ? new Date(d).getTime() : NaN;
+    return Number.isNaN(t) ? Infinity : Math.abs(t - today);
+  };
+  return [...items].sort((a, b) => dist(a.end_date) - dist(b.end_date));
+}
+
+function sortPfItems(items) {
+  if (!pfItemSort) return pfItemDefaultSort(items);
+  const { col, dir } = pfItemSort;
+  const key = PF_ITEM_COLUMNS[col].key;
+  const arr = [...items];
+  arr.sort((a, b) => {
+    let r;
+    if (key === "progress") {
+      r = Number(a.progress || 0) - Number(b.progress || 0);
+    } else if (key === "start_date" || key === "end_date") {
+      const da = a[key] ? new Date(a[key]).getTime() : Infinity;
+      const db = b[key] ? new Date(b[key]).getTime() : Infinity;
+      r = da - db;
+    } else {
+      const va = key === "track" ? pfItemTrackText(a) : String(a[key] || "");
+      const vb = key === "track" ? pfItemTrackText(b) : String(b[key] || "");
+      r = va.localeCompare(vb, "zh-Hant");
+    }
+    return dir === "desc" ? -r : r;
+  });
+  return arr;
+}
+
 function renderItemsSection(projectId, items) {
   const editable = canEditPortfolio();
   const addBtn = editable
     ? `<button type="button" class="secondary" data-item-add="${projectId}"><span aria-hidden="true">＋</span> 新增工作項</button>`
     : "";
-  const rows = items.length
-    ? items.map((it) => {
+  const sorted = sortPfItems(items);
+  const head = PF_ITEM_COLUMNS.map((c, i) => {
+    const arrow = pfItemSort && pfItemSort.col === i ? (pfItemSort.dir === "asc" ? " ▲" : " ▼") : "";
+    return `<th class="sortable${c.cls ? " " + c.cls : ""}" data-pf-sort-col="${i}" title="點欄名可排序">${c.label}${arrow}</th>`;
+  }).join("");
+  const rows = sorted.length
+    ? sorted.map((it) => {
         const tone = ragTone(it.rag);
-        const track = [
-          it.risk_note && `風險：${escapeHtml(it.risk_note)}`,
-          it.decision_needed && `決策：${escapeHtml(it.decision_needed)}`,
-          it.support_needed && `支援：${escapeHtml(it.support_needed)}`,
-        ].filter(Boolean).join("　") || '<span class="muted">—</span>';
+        const track = pfItemTrackText(it)
+          ? [
+              it.risk_note && `風險：${escapeHtml(it.risk_note)}`,
+              it.decision_needed && `決策：${escapeHtml(it.decision_needed)}`,
+              it.support_needed && `支援：${escapeHtml(it.support_needed)}`,
+            ].filter(Boolean).join("　")
+          : '<span class="muted">—</span>';
         const ops = editable
           ? `<button type="button" class="secondary" data-item-edit="${it.id}">編輯</button> <button type="button" class="danger" data-item-del="${it.id}">刪除</button>`
           : "—";
         return `<tr data-item-id="${it.id}">
           <td>${escapeHtml(it.item_name)}</td>
           <td>${escapeHtml(valueOrDash(it.owner))}</td>
-          <td class="num">${escapeHtml(valueOrDash(it.start_date))}<br>${escapeHtml(valueOrDash(it.end_date))}</td>
+          <td class="num">${escapeHtml(valueOrDash(it.start_date))}</td>
+          <td class="num">${escapeHtml(valueOrDash(it.end_date))}</td>
           <td><span class="pf-dot ${tone}"></span> ${escapeHtml(valueOrDash(it.exec_status))}</td>
           <td class="num">${Number(it.progress || 0)}%</td>
           <td>${track}</td>
           <td class="col-actions">${ops}</td>
         </tr>`;
       }).join("")
-    : `<tr><td colspan="7" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
+    : `<tr><td colspan="8" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
   return `
     <div class="pf-items-head"><strong>工作項（${items.length}）</strong>${addBtn}</div>
     <div class="grid-scroll">
       <table class="grid-table">
-        <thead><tr><th>工作主項目</th><th>負責人</th><th>起訖</th><th>執行進度</th><th>完成度</th><th>追蹤事項</th><th class="col-actions">操作</th></tr></thead>
+        <thead><tr>${head}<th class="col-actions">操作</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -1888,6 +1945,16 @@ function renderPortfolio() {
 
 // 工作項維護：新增/編輯/刪除/儲存（承辦也可，直接生效）
 document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
+  const sortTh = event.target.closest("th.sortable[data-pf-sort-col]");
+  if (sortTh) {
+    const col = Number(sortTh.getAttribute("data-pf-sort-col"));
+    pfItemSort = (pfItemSort && pfItemSort.col === col)
+      ? { col, dir: pfItemSort.dir === "asc" ? "desc" : "asc" }
+      : { col, dir: "asc" };
+    const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
+    if (pid) await loadProjectItems(Number(pid));
+    return;
+  }
   const add = event.target.closest("[data-item-add]");
   const edit = event.target.closest("[data-item-edit]");
   const del = event.target.closest("[data-item-del]");
