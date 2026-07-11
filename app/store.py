@@ -3324,7 +3324,11 @@ def backfill_status() -> dict[str, int]:
         settle_missing = conn.execute(
             "SELECT COUNT(*) n FROM payments WHERE status <> 'disabled' "
             "AND COALESCE(settle_no,'')=''").fetchone()["n"]
-    return {"cases_missing": cases_missing, "settle_missing": settle_missing}
+        case_link_missing = conn.execute(
+            "SELECT (SELECT COUNT(*) FROM budgets WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)) + "
+            "(SELECT COUNT(*) FROM projects WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)) n"
+        ).fetchone()["n"]
+    return {"cases_missing": cases_missing, "settle_missing": settle_missing, "case_link_missing": case_link_missing}
 
 
 def backfill_case_numbers() -> int:
@@ -3367,11 +3371,30 @@ def backfill_settle_numbers() -> int:
     return filled
 
 
+def backfill_case_links() -> int:
+    """回填舊有預算/專案的案件關聯：使用者拍板「匯進來就該自動配一個案件」不只套新資料、
+    舊的也要補——比照 v0.9.92 新建時的規則（_ensure_case_for），沒 case_id 的就補一個同名案件掛上。"""
+    filled = 0
+    with connect() as conn:
+        for table, name_col, code_col in (("budgets", "budget_code", "budget_code"), ("projects", "project_name", "project_code")):
+            rows = conn.execute(
+                f"SELECT id, {name_col} AS name, {code_col} AS code FROM {table} "
+                f"WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)"
+            ).fetchall()
+            for r in rows:
+                cid = _ensure_case_for(conn, r["name"], r["code"], None)
+                if cid:
+                    conn.execute(f"UPDATE {table} SET case_id = ? WHERE id = ?", (cid, r["id"]))
+                    filled += 1
+    return filled
+
+
 def backfill_all_numbers() -> dict[str, int]:
-    """一次補齊案件系統編號與付款核銷編號，回報各補幾筆。"""
+    """一次補齊案件系統編號、付款核銷編號、預算/專案的案件關聯，回報各補幾筆。"""
     cases_filled = backfill_case_numbers()
     settle_filled = backfill_settle_numbers()
-    return {"cases_filled": cases_filled, "settle_filled": settle_filled}
+    case_links_filled = backfill_case_links()
+    return {"cases_filled": cases_filled, "settle_filled": settle_filled, "case_links_filled": case_links_filled}
 
 
 # ── L3 預算年度費用比較：全年度／年增差異皆讀取時動態算（不存死），#DIV/0! 改語意標示 ──

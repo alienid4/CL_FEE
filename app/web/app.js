@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.92 · 2026-07-11 · 建預算/專案自動生成同名案件(不用再手動先建案)";
+const BUILD_TAG = "v0.9.93 · 2026-07-12 · 舊資料補號擴大：批次回填預算/專案的案件關聯";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3999,24 +3999,24 @@ async function loadBackfillStatus() {
   try {
     const res = await api("/api/dev-console/backfill/status");
     const d = res.data || {};
-    const total = (Number(d.cases_missing) || 0) + (Number(d.settle_missing) || 0);
+    const total = (Number(d.cases_missing) || 0) + (Number(d.settle_missing) || 0) + (Number(d.case_link_missing) || 0);
     backfillStatusEl.textContent = total
-      ? `待補：案件系統編號 ${d.cases_missing} 筆、付款核銷編號 ${d.settle_missing} 筆`
-      : "全部已有編號，無需補號。";
+      ? `待補：案件系統編號 ${d.cases_missing} 筆、付款核銷編號 ${d.settle_missing} 筆、預算/專案未掛案件 ${d.case_link_missing} 筆`
+      : "全部已有編號、已掛案件，無需補號。";
   } catch (error) {
     backfillStatusEl.textContent = `狀態載入失敗：${error.message}`;
   }
 }
 
 backfillRun?.addEventListener("click", async () => {
-  if (!window.confirm("將替缺號的舊資料補上系統編號／核銷編號（只補缺的、不覆蓋既有號）。確定執行？")) return;
+  if (!window.confirm("將替缺號的舊資料補上系統編號／核銷編號，並替沒掛案件的舊預算/專案自動配一個同名案件（只補缺的、不覆蓋既有）。確定執行？")) return;
   backfillRun.disabled = true;
   if (backfillStatusEl) backfillStatusEl.textContent = "補號中…";
   try {
     const res = await api("/api/dev-console/backfill/run", { method: "POST" });
     const d = res.data || {};
     if (backfillStatusEl) {
-      backfillStatusEl.textContent = `已補：案件 ${d.cases_filled || 0} 筆、付款 ${d.settle_filled || 0} 筆`;
+      backfillStatusEl.textContent = `已補：案件編號 ${d.cases_filled || 0} 筆、付款核銷 ${d.settle_filled || 0} 筆、預算/專案掛案件 ${d.case_links_filled || 0} 筆`;
     }
     await refresh();
   } catch (error) {

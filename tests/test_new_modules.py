@@ -211,3 +211,30 @@ def test_budget_import_without_case_auto_creates_case(tmp_path):
         assert row["case_id"] is not None
         cases = client.get("/api/cases").json()["data"]
         assert any(c["id"] == row["case_id"] and c["title"] == "匯入自動建案預算" for c in cases)
+
+
+def test_backfill_case_links_for_existing_orphan_data(tmp_path):
+    """使用者拍板：舊有（v0.9.92 之前匯入的）沒掛案件的預算/專案，也要能批次回填，不是只套新資料。"""
+    with _client(tmp_path) as client:
+        from app import store
+        # 模擬舊資料：直接用 store.insert_row 繞過（v0.9.92 之後這條路徑本身就會自動掛，
+        # 這裡刻意在插入後把 case_id 清掉，模擬「v0.9.92 上線前就存在」的孤兒資料）
+        b = store.insert_row("budgets", {"budget_code": "舊孤兒預算"})
+        p = store.insert_row("projects", {"project_code": "OLD-PJ", "project_name": "舊孤兒專案"})
+        with store.connect() as conn:
+            conn.execute("UPDATE budgets SET case_id = NULL WHERE id = ?", (b["id"],))
+            conn.execute("UPDATE projects SET case_id = NULL WHERE id = ?", (p["id"],))
+
+        status_before = client.get("/api/dev-console/backfill/status").json()["data"]
+        assert status_before["case_link_missing"] >= 2
+
+        result = client.post("/api/dev-console/backfill/run").json()["data"]
+        assert result["case_links_filled"] >= 2
+
+        budget_after = [r for r in client.get("/api/budgets").json()["data"] if r["id"] == b["id"]][0]
+        project_after = [r for r in client.get("/api/projects").json()["data"] if r["id"] == p["id"]][0]
+        assert budget_after["case_id"] is not None
+        assert project_after["case_id"] is not None
+
+        status_after = client.get("/api/dev-console/backfill/status").json()["data"]
+        assert status_after["case_link_missing"] == 0
