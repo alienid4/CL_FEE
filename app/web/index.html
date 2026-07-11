@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-68" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-69" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -346,8 +346,8 @@
                   <legend><label><input type="checkbox" data-wizard-toggle="budget" /> ② 預算（可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
                     <input name="budget_code" placeholder="預算編號 *" />
-                    <input name="category" placeholder="類別" />
-                    <input name="unit_name" placeholder="單位名稱" />
+                    <input name="category" placeholder="類別" list="opt-budget-categories" />
+                    <select name="unit_name" class="unit-select"><option value="">（未選擇）</option></select>
                     <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
                     <input name="note" placeholder="備註" />
                   </div>
@@ -613,8 +613,15 @@
             <div id="unitconf-result"></div>
             <div class="unit-master-block">
               <div class="section-heading compact">
-                <h3>單位主檔（已裁決）</h3>
+                <h3>單位主檔（已裁決）<span class="help" data-tip="這裡是本來就跟撞名資料做合併裁決才會出現的單位；若要在有資料之前先登記一個全新的乾淨單位（例如預算表單下拉要用），用下面「＋新增單位」。" role="button" tabindex="0" aria-label="說明">?</span></h3>
               </div>
+              <form id="unit-create-form" class="resource-form">
+                <input name="canonical_code" placeholder="單位代號（選填）" />
+                <input name="canonical_name" placeholder="單位名稱 *" required />
+                <input name="note" placeholder="備註" />
+                <button type="submit">＋ 新增單位</button>
+                <span class="muted" id="unit-create-status" role="status" aria-live="polite"></span>
+              </form>
               <div id="unitmaster-result"></div>
             </div>
             <div class="unit-master-block">
@@ -909,7 +916,7 @@
             <input name="budget_code" placeholder="預算編號" required />
             <input name="category" placeholder="類別（可在系統管理後台維護選項）" list="opt-budget-categories" />
             <datalist id="opt-budget-categories"></datalist>
-            <input name="unit_name" placeholder="單位名稱" />
+            <select name="unit_name" class="unit-select"><option value="">（未選擇）</option></select>
             <input name="expense_detail" placeholder="費用內容（例：開放系統平台主機APT防護）" />
             <input name="fill_dept" placeholder="填寫部門" />
             <input name="estimator" placeholder="預估人員" />
@@ -1015,6 +1022,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-68"></script>
+    <script src="/static/app.js?v=v0-9-69"></script>
   </body>
 </html>

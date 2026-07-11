@@ -148,6 +148,30 @@ def main() -> int:
             results.append(("匯出的 CSV 含剛建立的案件", "E2E-001" in csv_text))
             results.append(("匯出的 CSV 含正確表頭", "案件編號" in csv_text))
 
+            # 3.67) 單位主檔：主動新增單位（撞名擋下）→ 出現在預算單位下拉
+            page.click('a.module-card[href="#data-admin"]')
+            page.wait_for_timeout(300)
+            page.click('.admin-tile[data-open-panel="unit-admin"]')
+            page.wait_for_timeout(400)
+            page.fill('#unit-create-form input[name="canonical_code"]', "E2E-U1")
+            page.fill('#unit-create-form input[name="canonical_name"]', "E2E驗證單位")
+            page.click('#unit-create-form button[type="submit"]')
+            page.wait_for_timeout(600)
+            results.append(("新增單位成功回饋", "已新增" in page.inner_text("#unit-create-status")))
+            results.append(("新增單位出現在單位主檔清單", "E2E驗證單位" in page.inner_text("#unitmaster-result")))
+            # 撞名應被擋下
+            page.fill('#unit-create-form input[name="canonical_name"]', "E2E驗證單位")
+            page.click('#unit-create-form button[type="submit"]')
+            page.wait_for_timeout(600)
+            results.append(("撞名新增被擋下", "已存在" in page.inner_text("#unit-create-status")))
+            # 預算表單的單位下拉應該吃得到新單位
+            page.click('a.module-card[href="#budget"]')
+            page.wait_for_timeout(300)
+            page.click('[data-form-toggle="budget-form"]')
+            page.wait_for_timeout(200)
+            unit_options = page.locator('#budget-form select[name="unit_name"] option').all_inner_texts()
+            results.append(("預算單位下拉含新單位", "E2E驗證單位" in unit_options))
+
             # 3.7) 示範資料：主管在主管儀表板可一鍵載入（DEMO- 標示）
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)

@@ -1533,6 +1533,42 @@ def list_unit_master() -> dict[str, Any]:
     return {"masters": masters, "count": len(masters)}
 
 
+def create_unit_master(canonical_code: str, canonical_name: str, note: str = "") -> dict[str, Any]:
+    """主動新增一個乾淨單位（跟合併機制不同——合併是被動處理既有撞名資料，這是事前登記，
+    給表單下拉選單用）。建立前擋撞名：跟現有主檔的代號/名稱、或現有別名撞到就拒絕並指出撞到誰，
+    避免髒資料從源頭就重複，而不是等資料進來後才靠合併機制事後補救。"""
+    code = (canonical_code or "").strip()
+    name = (canonical_name or "").strip()
+    if not name:
+        raise ValueError("請填單位名稱。")
+    with connect() as conn:
+        if code:
+            dup_code = conn.execute(
+                "SELECT canonical_name FROM unit_master WHERE canonical_code = ?", (code,)
+            ).fetchone()
+            if dup_code:
+                raise ValueError(f"代號「{code}」已存在於單位主檔（對應「{dup_code['canonical_name']}」），不能重複。")
+        dup_name = conn.execute(
+            "SELECT canonical_code FROM unit_master WHERE canonical_name = ?", (name,)
+        ).fetchone()
+        if dup_name:
+            raise ValueError(f"「{name}」已存在於單位主檔（代號 {dup_name['canonical_code'] or '—'}），不能重複新增。")
+        dup_alias = conn.execute(
+            "SELECT um.canonical_name FROM unit_aliases ua "
+            "JOIN unit_master um ON um.id = ua.master_id WHERE ua.alias_name = ?", (name,)
+        ).fetchone()
+        if dup_alias:
+            raise ValueError(f"「{name}」已被登記為「{dup_alias['canonical_name']}」的別名，不能重複新增；如需調整請到「撞名待確認」處理。")
+        cur = conn.execute(
+            "INSERT INTO unit_master (canonical_code, canonical_name, note) VALUES (?, ?, ?)",
+            (code, name, note),
+        )
+        row_id = cur.lastrowid
+        row = get_row(conn, "unit_master", row_id)
+        write_audit_log(conn, "unit_master", row_id, "create", None, row)
+    return row
+
+
 def _find_or_create_master(conn, canonical_code: str, canonical_name: str, note: str = "") -> int:
     """以 (canonical_code, canonical_name) 找主檔，沒有就建。回傳 master_id。"""
     code = (canonical_code or "").strip()

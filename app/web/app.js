@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.68 · 2026-07-11 · 精靈補「預算」步驟+報表數字欄縮寬對齊";
+const BUILD_TAG = "v0.9.69 · 2026-07-11 · 單位主檔可主動新增+預算單位名稱改下拉";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2501,7 +2501,14 @@ async function startResourceEdit(type, id) {
   setManualForm(targetForm, true);  // 編輯時自動展開
   targetForm.elements.id.value = item.id;
   for (const field of config.fields) {
-    targetForm.elements[field].value = item[field] ?? "";
+    const el = targetForm.elements[field];
+    const val = item[field] ?? "";
+    // select 若沒有這個值的選項（例如舊資料的單位名稱還沒登記進主檔），先補一個選項，
+    // 避免編輯時看起來「值不見了」、存檔時被誤蓋成空白
+    if (el.tagName === "SELECT" && val && ![...el.options].some((o) => o.value === String(val))) {
+      el.add(new Option(`${val}（未登記）`, val));
+    }
+    el.value = val;
   }
   targetForm.querySelector('button[type="submit"]').textContent = "儲存";
   targetForm.querySelector("[data-cancel]").hidden = false;
@@ -3003,6 +3010,19 @@ async function loadUnitDecisions() {
 }
 
 let unitMasterCache = [];  // 供「改派」下拉列出現有單位
+// 單位下拉：預算表單(含精靈)的「單位名稱」只能選單位主檔已登記的乾淨名稱，避免手打錯字/寫法不一。
+// 保留 select 目前選到、但主檔沒有的值（見 startResourceEdit），這裡只負責從主檔灌選項。
+function populateUnitSelects() {
+  const options = ['<option value="">（未選擇）</option>']
+    .concat((unitMasterCache || []).map((m) => `<option value="${escapeHtml(m.canonical_name)}">${escapeHtml(m.canonical_name)}</option>`))
+    .join("");
+  for (const sel of document.querySelectorAll("select.unit-select")) {
+    const prev = sel.value;
+    sel.innerHTML = options;
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  }
+}
+
 async function loadUnitMaster() {
   const box = document.querySelector("#unitmaster-result");
   if (!box) return;
@@ -3010,7 +3030,8 @@ async function loadUnitMaster() {
     const data = (await api("/api/unit-master")).data || {};
     const masters = data.masters || [];
     unitMasterCache = masters;
-    if (!masters.length) { box.innerHTML = `<p class="muted">還沒有裁決過的單位。上面裁決後會出現在這裡。</p>`; return; }
+    populateUnitSelects();
+    if (!masters.length) { box.innerHTML = `<p class="muted">還沒有裁決過的單位。上面裁決後會出現在這裡，或用下面「＋新增單位」直接登記。</p>`; return; }
     box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
       <thead><tr><th>主單位（以此為準）</th><th>代號</th><th>別名（代號／名稱）</th></tr></thead>
       <tbody>${masters.map((m) => `<tr>
@@ -3184,6 +3205,21 @@ document.querySelector("#unit-reset")?.addEventListener("click", async () => {
 });
 
 document.querySelector("#unitconf-rescan")?.addEventListener("click", () => loadUnitConflicts());
+
+document.querySelector("#unit-create-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const statusEl = document.querySelector("#unit-create-status");
+  const data = Object.fromEntries(new FormData(form).entries());
+  try {
+    await api("/api/unit-master", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    if (statusEl) statusEl.textContent = `已新增「${data.canonical_name}」`;
+    form.reset();
+    await loadUnitMaster();
+  } catch (error) {
+    if (statusEl) statusEl.textContent = `失敗：${error.message}`;
+  }
+});
 
 // ===== 名稱歸納（案件名/專案名/廠商名）：相近名稱分群→裁決合併/分開 =====
 let nameKind = "vendor";
