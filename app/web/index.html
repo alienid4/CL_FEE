@@ -142,6 +142,7 @@
               <p class="breadcrumb">案件管理 / 案件總覽</p>
               <div class="tabs" aria-label="案件管理頁籤">
                 <button class="tab active" type="button" data-case-tab="list">案件清單</button>
+                <button class="tab" type="button" data-case-tab="todo">待辦事項</button>
                 <button class="tab" type="button" data-case-tab="dashboard">主管儀表板</button>
                 <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
                 <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
@@ -182,6 +183,35 @@
             </section>
           </section>
 
+          <section class="case-tab-panel" data-case-panel="todo" hidden>
+            <section class="watch-list" id="pending-approvals" aria-label="待我複核" hidden>
+              <div class="section-heading compact">
+                <h2>待我複核 <span id="pending-approvals-count" class="badge warn" hidden></span><span class="help" data-tip="這裡列「已送出複核、且不是你建立」的案件（雙人複核）；按「核准」即正式進入系統。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <ul class="note-list" id="pending-approvals-list"></ul>
+            </section>
+            <section class="watch-list" aria-label="expiring contracts">
+              <div class="section-heading compact">
+                <h2>合約續約提醒<span class="help" data-tip="列出 90 天內到期或已過期的合約。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <ul class="note-list" id="expiring-list"></ul>
+            </section>
+            <section class="watch-list" aria-label="overdue reminders">
+              <div class="section-heading compact">
+                <h2>催辦清單 <span id="reminders-count" class="badge warn" hidden></span><span class="help" data-tip="列出逾期或 14 天內到期、尚未完成的案件／合約／專案；承辦只看得到自己的。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <button type="button" id="notify-reminders" class="secondary">產生催辦通知</button>
+              </div>
+              <ul class="note-list" id="reminders-list"></ul>
+              <div id="notify-preview" class="muted" style="white-space:pre-wrap;margin-top:.5rem;"></div>
+            </section>
+            <section class="watch-list" id="orphan-payments" aria-label="未歸戶付款" hidden>
+              <div class="section-heading compact">
+                <h2>未歸戶付款 <span id="orphan-payments-count" class="badge danger" hidden></span><span class="help" data-tip="這些付款所屬的合約沒有掛案件，CIO 追不到來源；請到合約補上關聯案件。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <ul class="note-list" id="orphan-payments-list"></ul>
+            </section>
+          </section>
+
           <section class="case-tab-panel" data-case-panel="dashboard" hidden>
             <section class="watch-list" id="demo-controls" aria-label="示範資料" hidden>
               <div class="section-heading compact">
@@ -204,12 +234,6 @@
               </div>
             </section>
             <section class="metrics" id="metrics" aria-label="live system metrics"></section>
-            <section class="watch-list" id="pending-approvals" aria-label="待我複核" hidden>
-              <div class="section-heading compact">
-                <h2>待我複核 <span id="pending-approvals-count" class="badge warn" hidden></span><span class="help" data-tip="這裡列「已送出複核、且不是你建立」的案件（雙人複核）；按「核准」即正式進入系統。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <ul class="note-list" id="pending-approvals-list"></ul>
-            </section>
             <section id="manager-charts" class="chart-row" aria-label="儀表板圖表"></section>
             <section class="watch-list" aria-label="monthly spending">
               <div class="section-heading compact">
@@ -250,26 +274,6 @@
                   <tbody id="vendor-amt-body"></tbody>
                 </table>
               </div>
-            </section>
-            <section class="watch-list" aria-label="expiring contracts">
-              <div class="section-heading compact">
-                <h2>合約續約提醒<span class="help" data-tip="列出 90 天內到期或已過期的合約。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <ul class="note-list" id="expiring-list"></ul>
-            </section>
-            <section class="watch-list" aria-label="overdue reminders">
-              <div class="section-heading compact">
-                <h2>催辦清單 <span id="reminders-count" class="badge warn" hidden></span><span class="help" data-tip="列出逾期或 14 天內到期、尚未完成的案件／合約／專案；承辦只看得到自己的。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-                <button type="button" id="notify-reminders" class="secondary">產生催辦通知</button>
-              </div>
-              <ul class="note-list" id="reminders-list"></ul>
-              <div id="notify-preview" class="muted" style="white-space:pre-wrap;margin-top:.5rem;"></div>
-            </section>
-            <section class="watch-list" id="orphan-payments" aria-label="未歸戶付款" hidden>
-              <div class="section-heading compact">
-                <h2>未歸戶付款 <span id="orphan-payments-count" class="badge danger" hidden></span><span class="help" data-tip="這些付款所屬的合約沒有掛案件，CIO 追不到來源；請到合約補上關聯案件。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <ul class="note-list" id="orphan-payments-list"></ul>
             </section>
           </section>
 
@@ -1050,6 +1054,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-74"></script>
+    <script src="/static/app.js?v=v0-9-76"></script>
   </body>
 </html>

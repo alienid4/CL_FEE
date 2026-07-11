@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.74 · 2026-07-11 · 案件清單改表格化(比照其他清單)";
+const BUILD_TAG = "v0.9.76 · 2026-07-11 · 主管儀表板拆分：待辦事項獨立分頁";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1404,7 +1404,11 @@ document.addEventListener("change", (event) => {
   if (c && c.title) nameEl.value = c.title;
 });
 
-// 追溯鏈：從案件一路看 簽呈 ▸ 請購 ▸ 合約 ▸ 付款（用 case_360 的聚合）
+// 追溯鏈：從案件一路看 簽呈 ▸ 請購 ▸ 合約 ▸ 付款（用 case_360 的聚合）。
+// 編輯經理：每一筆都可點「編輯」直接開對應模組表單；缺的階段可點「＋新增」帶入本案／案名，
+// 一段一段各自獨立送出（沿用各模組既有 PATCH/POST，不做整批 atomic 交易）。
+let traceCaseId = null;
+let traceLatestContractId = null;
 async function loadCaseTrace(caseId) {
   const box = document.querySelector("#case-trace");
   if (!box) return;
@@ -1413,16 +1417,26 @@ async function loadCaseTrace(caseId) {
     const d = (await api(`/api/cases/${caseId}/360`)).data || {};
     const c = d.case || {};
     const t = d.totals || {};
+    traceCaseId = c.id;
+    traceLatestContractId = (d.contracts && d.contracts[0]) ? d.contracts[0].id : null;
     const n = (a) => (a || []).length;
     const chip = (label, count, amount) =>
       `<div class="trace-node"><span class="trace-count">${count}</span><span class="trace-label">${label}</span>${amount != null ? `<span class="trace-amt">${money(amount)} 元</span>` : ""}</div>`;
-    const listOf = (arr, fn, empty) => (arr && arr.length) ? arr.map(fn).join("") : `<li class="muted">${empty}</li>`;
+    const editBtn = (type, id) => ` <button type="button" class="link-btn" data-trace-edit="${type}" data-trace-id="${id}">編輯</button>`;
+    const listOf = (arr, type, fn, empty) => (arr && arr.length)
+      ? arr.map((row) => `<li>${fn(row)}${editBtn(type, row.id)}</li>`).join("")
+      : `<li class="muted">${empty}${addBtn(type)}</li>`;
+    const addBtn = (type) => {
+      if (type === "payment" && !traceLatestContractId) return "";  // 沒有合約，無法帶合約 id，不給捷徑
+      return ` <button type="button" class="link-btn" data-trace-add="${type}">＋新增（帶入本案）</button>`;
+    };
     box.innerHTML = `
       <div class="trace-panel">
         <div class="section-heading compact">
           <h3>追溯鏈：${escapeHtml(c.case_code || "")}　${escapeHtml(c.title || "")}</h3>
           <button type="button" class="secondary btn-sm" id="trace-close">收起</button>
         </div>
+        <p class="muted">點項目可直接編輯，或用「＋新增」補齊缺的階段。</p>
         <div class="trace-chain">
           ${chip("預算", n(d.budgets), t.budget_amount)}<span class="trace-arrow">▸</span>
           ${chip("專案", n(d.projects), null)}<span class="trace-arrow">▸</span>
@@ -1432,12 +1446,12 @@ async function loadCaseTrace(caseId) {
           ${chip("付款", n(d.payments), t.payment_amount)}
         </div>
         <div class="trace-lists">
-          <div><h4>預算</h4><ul class="note-list">${listOf(d.budgets, (b) => `<li><strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元</li>`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
-          <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, (p) => `<li><strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}</li>`, "無關聯專案")}</ul></div>
-          <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, (s) => `<li><strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}</li>`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
-          <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, (p) => `<li><strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元</li>`, "無關聯請購")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, (k) => `<li><strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元</li>`, "無關聯合約")}</ul></div>
-          <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, (p) => `<li>${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}</li>`, "無付款紀錄")}</ul></div>
+          <div><h4>預算</h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
+          <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
+          <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
+          <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元`, "無關聯請購")}</ul></div>
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元`, "無關聯合約")}</ul></div>
+          <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
       </div>`;
     box.scrollIntoView({ block: "nearest" });
@@ -1445,8 +1459,44 @@ async function loadCaseTrace(caseId) {
     box.innerHTML = `<p class="muted">追溯鏈載入失敗：${escapeHtml(error.message)}</p>`;
   }
 }
-document.querySelector("#case-trace")?.addEventListener("click", (event) => {
-  if (event.target.closest("#trace-close")) document.querySelector("#case-trace").innerHTML = "";
+
+// 編輯經理：把表單（新增用途）預帶本案關聯，並在有案名沿用機制的表單觸發 change 讓案名帶入。
+function presetCaseOnForm(type, caseId, contractId) {
+  const targetForm = resourceForms[type];
+  if (!targetForm) return;
+  const casePicker = targetForm.querySelector(".case-picker");
+  if (casePicker) {
+    casePicker.value = String(caseId);
+    casePicker.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  if (type === "payment" && contractId && targetForm.elements.contract_id) {
+    targetForm.elements.contract_id.value = contractId;
+  }
+}
+
+document.querySelector("#case-trace")?.addEventListener("click", async (event) => {
+  if (event.target.closest("#trace-close")) { document.querySelector("#case-trace").innerHTML = ""; return; }
+  const editBtn = event.target.closest("[data-trace-edit]");
+  if (editBtn) {
+    const type = editBtn.getAttribute("data-trace-edit");
+    const id = editBtn.getAttribute("data-trace-id");
+    const nav = SEARCH_NAV[type];
+    if (!nav) return;
+    navigateToPanel(nav.href.replace("#", ""));
+    await nav.open(id);
+    resourceForms[type]?.scrollIntoView({ block: "center", behavior: "smooth" });
+    return;
+  }
+  const addBtn = event.target.closest("[data-trace-add]");
+  if (addBtn) {
+    const type = addBtn.getAttribute("data-trace-add");
+    const nav = SEARCH_NAV[type];
+    if (!nav) return;
+    navigateToPanel(nav.href.replace("#", ""));
+    setManualForm(resourceForms[type], true);
+    presetCaseOnForm(type, traceCaseId, traceLatestContractId);
+    resourceForms[type]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
 });
 
 async function loadResource(type) {
