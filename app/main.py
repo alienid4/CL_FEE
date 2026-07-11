@@ -457,6 +457,14 @@ class CaseWizardCaseIn(BaseModel):
     due_date: str = ""
 
 
+class CaseWizardBudgetIn(BaseModel):
+    budget_code: str = Field(min_length=1)
+    category: str = ""
+    unit_name: str = ""
+    amount: float = 0
+    note: str = ""
+
+
 class CaseWizardSignoffIn(BaseModel):
     signoff_code: str = Field(min_length=1)
     subject: str = Field(min_length=1)
@@ -502,9 +510,10 @@ class CaseWizardPaymentIn(BaseModel):
 
 
 class CaseWizardIn(BaseModel):
-    """一條龍新案精靈：單頁多步驟表單一次送出。簽呈/請購/合約/付款皆可跳過(None)；
+    """一條龍新案精靈：單頁多步驟表單一次送出。預算/簽呈/請購/合約/付款皆可跳過(None)；
     付款要掛在合約下，若填了付款卻沒填合約，直接擋在驗證層（不用等寫進資料庫才發現）。"""
     case: CaseWizardCaseIn
+    budget: CaseWizardBudgetIn | None = None
     signoff: CaseWizardSignoffIn | None = None
     purchase: CaseWizardPurchaseIn | None = None
     contract: CaseWizardContractIn | None = None
@@ -610,7 +619,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.67 · 2026-07-11 · 一條龍新案精靈(規劃→簽呈→請購→合約→付款)"
+BACKEND_BUILD = "v0.9.68 · 2026-07-11 · 精靈補「預算」步驟+報表數字欄縮寬對齊"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1272,6 +1281,7 @@ def create_app() -> FastAPI:
         try:
             result = create_case_wizard(
                 case=payload.case.model_dump(),
+                budget=payload.budget.model_dump() if payload.budget else None,
                 signoff=payload.signoff.model_dump() if payload.signoff else None,
                 purchase=payload.purchase.model_dump() if payload.purchase else None,
                 contract=payload.contract.model_dump() if payload.contract else None,

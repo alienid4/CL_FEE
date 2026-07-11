@@ -213,7 +213,7 @@ def main() -> int:
             wiz.locator('[data-wizard-step="case"] input[name="case_code"]').fill("E2E-WIZ")
             wiz.locator('[data-wizard-step="case"] input[name="title"]').fill("精靈E2E驗證案")
             wiz.locator('[data-wizard-toggle="contract"]').check()
-            results.append(("勾④合約後付款開關解鎖", not wiz.locator('[data-wizard-toggle="payment"]').is_disabled()))
+            results.append(("勾⑤合約後付款開關解鎖", not wiz.locator('[data-wizard-toggle="payment"]').is_disabled()))
             wiz.locator('[data-wizard-step="contract"] input[name="contract_code"]').fill("K-E2E-WIZ")
             wiz.locator('[data-wizard-step="contract"] input[name="contract_name"]').fill("精靈E2E合約")
             wiz.locator('[data-wizard-toggle="payment"]').check()

@@ -1635,5 +1635,7 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 #unit-bva tr.total-row td { border-top: 2px solid var(--line); font-weight: 700; }
 #unit-bva tr.over-budget td { background: var(--danger-bg); }
 #unit-bva select { margin-left: auto; }
+/* 數字欄縮到內容寬（width:1%技巧），標籤欄吸收剩餘空間——避免右對齊數字離標題太遠、難以對照 */
+#unit-bva th.num, #unit-bva td.num, #vendor-amt th.num, #vendor-amt td.num { width: 1%; white-space: nowrap; }
 /* 提示橫幅（CIO「自上次查看以來」變動摘要等）：淺綠底、與內容區隔但不搶焦點 */
 .callout { background: var(--accent-weak); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; font-size: .88rem; color: var(--ink-2, #333); }

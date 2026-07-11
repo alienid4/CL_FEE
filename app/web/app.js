@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.67 · 2026-07-11 · 一條龍新案精靈(規劃→簽呈→請購→合約→付款)";
+const BUILD_TAG = "v0.9.68 · 2026-07-11 · 精靈補「預算」步驟+報表數字欄縮寬對齊";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3823,7 +3823,7 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   }
 });
 
-// 一條龍新案精靈：checkbox 開關各步驟必填欄位＋顯示/隱藏；付款需先勾④合約才能勾選。
+// 一條龍新案精靈：checkbox 開關各步驟必填欄位＋顯示/隱藏；付款需先勾⑤合約才能勾選。
 // 用 data-wizard-step 範圍讀值，不用 FormData(form) 整支表單讀——多個步驟共用同樣的
 // name（amount/note/vendor_name…），FormData.get() 只會拿到第一個，會互相蓋掉。
 (() => {
@@ -3832,6 +3832,7 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   const contractToggle = wizardForm.querySelector('[data-wizard-toggle="contract"]');
   const paymentToggle = wizardForm.querySelector('[data-wizard-toggle="payment"]');
   const REQUIRED_BY_STEP = {
+    budget: ["budget_code"],
     signoff: ["signoff_code", "subject"],
     purchase: ["purchase_code", "item_name"],
     contract: ["contract_code", "contract_name"],
@@ -3889,6 +3890,10 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
         fiscal_year: c.fiscal_year, note: c.note, next_step: c.next_step, due_date: c.due_date,
       },
     };
+    if (wizardForm.querySelector('[data-wizard-toggle="budget"]').checked) {
+      const b = readStep("budget", ["budget_code", "category", "unit_name", "amount", "note"]);
+      body.budget = { budget_code: b.budget_code, category: b.category, unit_name: b.unit_name, amount: num(b.amount), note: b.note };
+    }
     if (wizardForm.querySelector('[data-wizard-toggle="signoff"]').checked) {
       const s = readStep("signoff", ["signoff_code", "subject", "applicant", "amount", "sign_date", "note"]);
       body.signoff = { signoff_code: s.signoff_code, subject: s.subject, applicant: s.applicant, amount: num(s.amount), sign_date: s.sign_date, note: s.note };
@@ -3912,13 +3917,14 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
       const created = (await api("/api/case-wizard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).data || {};
       if (statusEl) statusEl.textContent = "全部建立成功！";
       const lines = [`案件 ${escapeHtml(created.case.case_code)}（案號 ${escapeHtml(caseNumber(created.case) || "—")}）`];
+      if (created.budget) lines.push(`預算 ${escapeHtml(created.budget.budget_code)}`);
       if (created.signoff) lines.push(`簽呈 ${escapeHtml(created.signoff.signoff_code)}`);
       if (created.purchase) lines.push(`請購 ${escapeHtml(created.purchase.purchase_code)}`);
       if (created.contract) lines.push(`合約 ${escapeHtml(created.contract.contract_code)}`);
       if (created.payment) lines.push(`付款 ${escapeHtml(created.payment.settle_no || "")}（${escapeHtml(created.payment.payment_month)}）`);
       if (resultEl) resultEl.innerHTML = `<div class="callout">${lines.join("<br/>")}</div>`;
       wizardForm.reset();
-      for (const step of ["signoff", "purchase", "contract", "payment"]) setStepEnabled(step, false);
+      for (const step of ["budget", "signoff", "purchase", "contract", "payment"]) setStepEnabled(step, false);
       if (paymentToggle) paymentToggle.disabled = true;
       await refresh();
     } catch (error) {

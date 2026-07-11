@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-67" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-68" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -327,7 +327,7 @@
           <section class="case-tab-panel" data-case-panel="wizard" hidden>
             <section class="watch-list">
               <div class="section-heading compact">
-                <h2>一條龍新案精靈<span class="help" data-tip="一次填完規劃→簽呈→請購→合約→付款，送出後系統自動把後面幾步串上新案的系統編號（付款則串新合約）。簽呈/請購/合約/付款都可跳過，只有「案件」必填。整批一次寫入：任一步驟失敗（例如編號重複），前面已建的一併回滾，不會留下半成品，修正後可整批重送。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <h2>一條龍新案精靈<span class="help" data-tip="一次填完規劃(預算)→簽呈→請購→合約→付款，送出後系統自動把後面幾步串上新案的系統編號（付款則串新合約）。「案件」是跨所有階段共用的錨點，必填；預算/簽呈/請購/合約/付款都可跳過。整批一次寫入：任一步驟失敗（例如編號重複），前面已建的一併回滾，不會留下半成品，修正後可整批重送。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <form id="wizard-form" class="wizard-form">
                 <fieldset class="wizard-step" data-wizard-step="case">
@@ -342,8 +342,19 @@
                   <input name="due_date" placeholder="預計完成日 YYYY-MM-DD" />
                 </fieldset>
 
+                <fieldset class="wizard-step" data-wizard-step="budget">
+                  <legend><label><input type="checkbox" data-wizard-toggle="budget" /> ② 預算（可跳過）</label></legend>
+                  <div class="wizard-step-body" hidden>
+                    <input name="budget_code" placeholder="預算編號 *" />
+                    <input name="category" placeholder="類別" />
+                    <input name="unit_name" placeholder="單位名稱" />
+                    <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
+                    <input name="note" placeholder="備註" />
+                  </div>
+                </fieldset>
+
                 <fieldset class="wizard-step" data-wizard-step="signoff">
-                  <legend><label><input type="checkbox" data-wizard-toggle="signoff" /> ② 簽呈（可跳過）</label></legend>
+                  <legend><label><input type="checkbox" data-wizard-toggle="signoff" /> ③ 簽呈（可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
                     <input name="signoff_code" placeholder="簽呈編號 *" />
                     <input name="subject" placeholder="主旨 *" />
@@ -355,7 +366,7 @@
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="purchase">
-                  <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ③ 請購（可跳過）</label></legend>
+                  <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ④ 請購（可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
                     <input name="purchase_code" placeholder="請購編號 *" />
                     <input name="item_name" placeholder="品項 *" />
@@ -367,7 +378,7 @@
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="contract">
-                  <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ④ 合約（可跳過）</label></legend>
+                  <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ⑤ 合約（可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
                     <input name="contract_code" placeholder="合約編號 *" />
                     <input name="contract_name" placeholder="合約名稱 *" />
@@ -378,7 +389,7 @@
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="payment">
-                  <legend><label><input type="checkbox" data-wizard-toggle="payment" disabled /> ⑤ 付款（可跳過，需先勾④合約）</label></legend>
+                  <legend><label><input type="checkbox" data-wizard-toggle="payment" disabled /> ⑥ 付款（可跳過，需先勾⑤合約）</label></legend>
                   <div class="wizard-step-body" hidden>
                     <input name="payment_month" placeholder="核銷月份 2026-07 *" pattern="\d{4}-\d{2}" />
                     <input name="payment_amount" placeholder="含稅/核銷金額 *" type="number" min="0" step="1" />
@@ -1004,6 +1015,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-67"></script>
+    <script src="/static/app.js?v=v0-9-68"></script>
   </body>
 </html>

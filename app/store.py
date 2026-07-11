@@ -523,17 +523,22 @@ def insert_row(table: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def create_case_wizard(
     case: dict[str, Any],
+    budget: dict[str, Any] | None,
     signoff: dict[str, Any] | None,
     purchase: dict[str, Any] | None,
     contract: dict[str, Any] | None,
     payment: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """一條龍新案精靈：一次送出，依序建案件→(可選)簽呈/請購/合約→(可選)付款，全部自動帶上新案的
+    """一條龍新案精靈：一次送出，依序建案件→(可選)預算/簽呈/請購/合約→(可選)付款，全部自動帶上新案的
     case_id（付款則帶新合約的 contract_id）。單一交易：任一步驟失敗，前面已建的一併回滾、什麼都不留下，
     使用者修正後可整批重送，不會卡在「半成功」的狀態。"""
     with connect() as conn:
         case_row = _insert_row(conn, "cases", case)
         case_id = case_row["id"]
+
+        budget_row = None
+        if budget is not None:
+            budget_row = _insert_row(conn, "budgets", {**budget, "case_id": case_id})
 
         signoff_row = None
         if signoff is not None:
@@ -553,6 +558,7 @@ def create_case_wizard(
 
     return {
         "case": case_row,
+        "budget": budget_row,
         "signoff": signoff_row,
         "purchase": purchase_row,
         "contract": contract_row,
