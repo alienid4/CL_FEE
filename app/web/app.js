@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.76 · 2026-07-11 · 主管儀表板拆分：待辦事項獨立分頁";
+const BUILD_TAG = "v0.9.77 · 2026-07-11 · 合約續約提醒/催辦清單預設前5筆+展開";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2112,25 +2112,42 @@ async function loadVendorAmt() {
   body.innerHTML = lines.join("") || `<tr><td colspan="6" class="muted">目前沒有合約或付款資料。</td></tr>`;
 }
 
+// 待辦清單類（合約續約提醒／催辦清單）預設只顯示前 N 筆，其餘收在「展開」按鈕後面，避免一次全灌爆版面。
+const EXPANDABLE_LIST_LIMIT = 5;
+const expandableListState = {};  // key(如 "expiring") -> true 代表使用者已展開，重繪(refresh)時記得維持
+function renderExpandableList(el, key, items, renderItem, emptyMsg) {
+  if (!items.length) { el.innerHTML = `<li><small class="muted">${emptyMsg}</small></li>`; return; }
+  const expanded = !!expandableListState[key];
+  const shown = expanded ? items : items.slice(0, EXPANDABLE_LIST_LIMIT);
+  const toggle = items.length > EXPANDABLE_LIST_LIMIT
+    ? `<li class="expand-toggle"><button type="button" class="link-btn" data-expand-list="${key}">${expanded ? "收起" : `展開全部（共 ${items.length} 筆）`}</button></li>`
+    : "";
+  el.innerHTML = shown.map(renderItem).join("") + toggle;
+}
+document.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-expand-list]");
+  if (!btn) return;
+  const key = btn.getAttribute("data-expand-list");
+  expandableListState[key] = !expandableListState[key];
+  if (key === "expiring") loadExpiring();
+  if (key === "reminders") loadReminders();
+});
+
 async function loadExpiring() {
   const el = document.querySelector("#expiring-list");
   if (!el) return;
   const payload = await api("/api/reports/expiring-contracts");
   const items = payload.data || [];
   const today = new Date().toISOString().slice(0, 10);
-  el.innerHTML = items.length
-    ? items
-        .map((c) => {
-          const overdue = c.end_date && c.end_date < today;
-          return `
-            <li>
-              <span class="badge ${overdue ? "danger" : "warn"}">${overdue ? "已過期" : "快到期"}</span>
-              <strong>${escapeHtml(c.contract_code)}　${escapeHtml(c.contract_name)}</strong>
-              <small>到期日：${escapeHtml(c.end_date)}；廠商：${escapeHtml(c.vendor_name || "—")}；金額：${Number(c.amount || 0).toLocaleString()}</small>
-            </li>`;
-        })
-        .join("")
-    : `<li><small class="muted">目前沒有快到期或已過期的合約。</small></li>`;
+  renderExpandableList(el, "expiring", items, (c) => {
+    const overdue = c.end_date && c.end_date < today;
+    return `
+      <li>
+        <span class="badge ${overdue ? "danger" : "warn"}">${overdue ? "已過期" : "快到期"}</span>
+        <strong>${escapeHtml(c.contract_code)}　${escapeHtml(c.contract_name)}</strong>
+        <small>到期日：${escapeHtml(c.end_date)}；廠商：${escapeHtml(c.vendor_name || "—")}；金額：${Number(c.amount || 0).toLocaleString()}</small>
+      </li>`;
+  }, "目前沒有快到期或已過期的合約。");
 }
 
 // ---- 內嵌 SVG 圖表（不依賴外部函式庫，離線可用）----
@@ -2321,20 +2338,16 @@ async function loadReminders() {
     countEl.hidden = items.length === 0;
     countEl.textContent = overdue ? `${overdue} 逾期 / 共 ${items.length}` : `${items.length}`;
   }
-  el.innerHTML = items.length
-    ? items
-        .map((i) => {
-          const kind = i.type === "case" ? "案件" : i.type === "project" ? "專案" : "合約";
-          const tag = i.severity === "overdue" ? `已逾期 ${Math.abs(i.days)} 天` : `剩 ${i.days} 天`;
-          return `
-            <li>
-              <span class="badge ${i.severity === "overdue" ? "danger" : "warn"}">${tag}</span>
-              <strong>${escapeHtml(kind)}｜${escapeHtml(i.code)}　${escapeHtml(i.title)}</strong>
-              <small>期限：${escapeHtml(i.date)}；負責人：${escapeHtml(i.owner || "未指派")}；狀態：${escapeHtml(labelStatus(i.status))}</small>
-            </li>`;
-        })
-        .join("")
-    : `<li><small class="muted">目前沒有逾期或即將到期的催辦項目。</small></li>`;
+  renderExpandableList(el, "reminders", items, (i) => {
+    const kind = i.type === "case" ? "案件" : i.type === "project" ? "專案" : "合約";
+    const tag = i.severity === "overdue" ? `已逾期 ${Math.abs(i.days)} 天` : `剩 ${i.days} 天`;
+    return `
+      <li>
+        <span class="badge ${i.severity === "overdue" ? "danger" : "warn"}">${tag}</span>
+        <strong>${escapeHtml(kind)}｜${escapeHtml(i.code)}　${escapeHtml(i.title)}</strong>
+        <small>期限：${escapeHtml(i.date)}；負責人：${escapeHtml(i.owner || "未指派")}；狀態：${escapeHtml(labelStatus(i.status))}</small>
+      </li>`;
+  }, "目前沒有逾期或即將到期的催辦項目。");
 }
 
 async function loadPendingApprovals() {
