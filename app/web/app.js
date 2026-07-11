@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.78 · 2026-07-11 · 簽呈/請購串接(方案A)：合約←請購←簽呈追溯鏈";
+const BUILD_TAG = "v0.9.79 · 2026-07-11 · AI測試資料清除機制(比照示範資料模式)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -49,6 +49,9 @@ const demoControls = document.querySelector("#demo-controls");
 const demoSeed = document.querySelector("#demo-seed");
 const demoClear = document.querySelector("#demo-clear");
 const demoStatus = document.querySelector("#demo-status");
+const testDataControls = document.querySelector("#test-data-controls");
+const testDataClear = document.querySelector("#test-data-clear");
+const testDataStatus = document.querySelector("#test-data-status");
 const backfillControls = document.querySelector("#backfill-controls");
 const backfillRun = document.querySelector("#backfill-run");
 const backfillStatusEl = document.querySelector("#backfill-status");
@@ -790,6 +793,10 @@ function applyRoleVisibility(user) {
   // 示範資料工具只給主管/助理（有 edit）；CIO 唯讀、承辦被後端擋，也不顯示。
   if (demoControls) {
     demoControls.hidden = user.role_code !== "manager_assistant";
+  }
+  // AI 測試資料清除，同樣只給主管/助理。
+  if (testDataControls) {
+    testDataControls.hidden = user.role_code !== "manager_assistant";
   }
   // 舊資料補號同樣只給主管/助理；顯示時載入「還缺幾筆」。
   if (backfillControls) {
@@ -3842,6 +3849,27 @@ async function runDemo(action) {
 }
 demoSeed?.addEventListener("click", () => runDemo("load"));
 demoClear?.addEventListener("click", () => runDemo("clear"));
+
+async function runTestDataClear() {
+  if (!testDataStatus) return;
+  testDataStatus.textContent = "清除中…";
+  if (testDataClear) testDataClear.disabled = true;
+  try {
+    const res = await api("/api/dev-console/test-data/clear", { method: "POST" });
+    const counts = res.data || {};
+    const total = Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0);
+    testDataStatus.textContent = `已清除 ${total} 筆 AI 測試資料`;
+    await refresh();
+  } catch (error) {
+    testDataStatus.textContent = `失敗：${error.message}`;
+  } finally {
+    if (testDataClear) testDataClear.disabled = false;
+  }
+}
+testDataClear?.addEventListener("click", () => {
+  if (!window.confirm("確定清除所有 AI 測試資料？不影響真實資料，此動作無法復原。")) return;
+  runTestDataClear();
+});
 
 async function loadBackfillStatus() {
   if (!backfillStatusEl) return;

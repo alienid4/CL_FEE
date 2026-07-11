@@ -224,6 +224,16 @@
               </div>
             </section>
 
+            <section class="watch-list" id="test-data-controls" aria-label="AI測試資料" hidden>
+              <div class="section-heading compact">
+                <h2>AI 測試資料<span class="help" data-tip="AI 自我測試（cl-fee-selftest）過程建立的資料，跟上面「示範資料」是不同一批。一鍵清除，不影響任何真實資料。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <div class="demo-actions">
+                <button type="button" id="test-data-clear" class="secondary">清除AI測試資料</button>
+                <span class="muted" id="test-data-status" role="status" aria-live="polite"></span>
+              </div>
+            </section>
+
             <section class="watch-list" id="backfill-controls" aria-label="舊資料補號" hidden>
               <div class="section-heading compact">
                 <h2>舊資料補號<span class="help" data-tip="替匯入前就存在、還沒有系統編號／核銷編號的舊資料補上號碼。只補缺號的、不覆蓋既有號，可重複執行。請先在預覽庫試跑、確認無誤再對正式庫執行。" role="button" tabindex="0" aria-label="說明">?</span></h2>
@@ -1056,6 +1066,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-78"></script>
+    <script src="/static/app.js?v=v0-9-79"></script>
   </body>
 </html>

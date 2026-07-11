@@ -184,3 +184,92 @@ def demo_counts() -> dict[str, int]:
             "contracts": _count("SELECT COUNT(*) AS n FROM contracts WHERE contract_code LIKE ?"),
             "documents": _count("SELECT COUNT(*) AS n FROM documents WHERE file_name LIKE ?"),
         }
+
+
+# ── AI 自測資料清除：跟「示範資料」是兩回事 ──
+# 示範資料＝少量精選、給使用者展示功動用，維持不動。
+# AI 測試資料＝AI 自測（cl-fee-selftest）過程中隨手建的，數量不定、跨全部模組，需要通用清除機制。
+# 往後 AI 自測一律用 AITEST- 前綴（唯一標準）；以下舊前綴是這次上線前累積的歷史殘留，
+# 一併收錄以便一次清乾淨——之後應該不會再長出新的舊前綴資料。
+TEST_DATA_PREFIXES = ("AITEST-", "測-", "SELFTEST", "PROOF", "E2E", "test", "K-SELFTEST", "K-E2E", "K-CHAIN")
+
+
+def _test_case_ids(conn) -> list[int]:
+    clauses = " OR ".join("case_code LIKE ?" for _ in TEST_DATA_PREFIXES)
+    params = [p + "%" for p in TEST_DATA_PREFIXES]
+    return [r["id"] for r in conn.execute(f"SELECT id FROM cases WHERE {clauses}", params).fetchall()]
+
+
+def _test_row_ids(conn, table: str, code_col: str, case_ids: list[int]) -> list[int]:
+    """一筆資料算「AI 測試資料」：自己的代碼開頭符合已知前綴，或掛在測試案件的 case_id 底下。"""
+    code_clauses = " OR ".join(f"{code_col} LIKE ?" for _ in TEST_DATA_PREFIXES)
+    params: list[Any] = [p + "%" for p in TEST_DATA_PREFIXES]
+    sql = f"SELECT id FROM {table} WHERE ({code_clauses})"
+    if case_ids:
+        placeholders = ",".join("?" * len(case_ids))
+        sql += f" OR case_id IN ({placeholders})"
+        params += case_ids
+    return [r["id"] for r in conn.execute(sql, params).fetchall()]
+
+
+def test_data_counts() -> dict[str, int]:
+    """目前資料庫裡符合 AI 測試資料判定規則的列數（各表獨立計算，不含依賴表）。"""
+    with store.connect() as conn:
+        case_ids = _test_case_ids(conn)
+        return {
+            "cases": len(case_ids),
+            "contracts": len(_test_row_ids(conn, "contracts", "contract_code", case_ids)),
+            "purchases": len(_test_row_ids(conn, "purchases", "purchase_code", case_ids)),
+            "signoffs": len(_test_row_ids(conn, "signoffs", "signoff_code", case_ids)),
+            "budgets": len(_test_row_ids(conn, "budgets", "budget_code", case_ids)),
+            "projects": len(_test_row_ids(conn, "projects", "project_code", case_ids)),
+        }
+
+
+def clear_test_data() -> dict[str, int]:
+    """清掉所有 AI 測試資料（判定規則見 _test_row_ids），依外鍵順序刪除，回傳各表刪除筆數。
+    絕不碰真實資料——已用現有 preview.db 驗證這條規則對目前資料無孤兒風險。"""
+    removed: dict[str, int] = {}
+    with store.connect() as conn:
+        case_ids = _test_case_ids(conn)
+        contract_ids = _test_row_ids(conn, "contracts", "contract_code", case_ids)
+        purchase_ids = _test_row_ids(conn, "purchases", "purchase_code", case_ids)
+        signoff_ids = _test_row_ids(conn, "signoffs", "signoff_code", case_ids)
+        budget_ids = _test_row_ids(conn, "budgets", "budget_code", case_ids)
+        project_ids = _test_row_ids(conn, "projects", "project_code", case_ids)
+
+        def _delete_in(table: str, ids: list[int]) -> int:
+            if not ids:
+                return 0
+            placeholders = ",".join("?" * len(ids))
+            cur = conn.execute(f"DELETE FROM {table} WHERE id IN ({placeholders})", ids)
+            return cur.rowcount
+
+        def _delete_by_parent(table: str, parent_col: str, parent_ids: list[int]) -> int:
+            if not parent_ids:
+                return 0
+            placeholders = ",".join("?" * len(parent_ids))
+            cur = conn.execute(f"DELETE FROM {table} WHERE {parent_col} IN ({placeholders})", parent_ids)
+            return cur.rowcount
+
+        removed["payments"] = _delete_by_parent("payments", "contract_id", contract_ids)
+        removed["project_items"] = _delete_by_parent("project_items", "project_id", project_ids)
+        removed["budget_allocations"] = _delete_by_parent("budget_allocations", "budget_id", budget_ids)
+        removed["budget_periods"] = _delete_by_parent("budget_periods", "budget_id", budget_ids)
+        doc_ids = list({
+            r["id"] for r in conn.execute(
+                "SELECT id FROM documents WHERE case_id IN ({}) OR contract_id IN ({})".format(
+                    ",".join("?" * len(case_ids)) or "NULL",
+                    ",".join("?" * len(contract_ids)) or "NULL",
+                ),
+                (case_ids or []) + (contract_ids or []),
+            ).fetchall()
+        }) if (case_ids or contract_ids) else []
+        removed["documents"] = _delete_in("documents", doc_ids)
+        removed["contracts"] = _delete_in("contracts", contract_ids)
+        removed["purchases"] = _delete_in("purchases", purchase_ids)
+        removed["signoffs"] = _delete_in("signoffs", signoff_ids)
+        removed["budgets"] = _delete_in("budgets", budget_ids)
+        removed["projects"] = _delete_in("projects", project_ids)
+        removed["cases"] = _delete_in("cases", case_ids)
+    return removed

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.dev_console import console_status, run_console_command
 from app.notify import send_digests, send_test
-from app.seed_data import clear_demo_data, demo_counts, load_demo_data
+from app.seed_data import clear_demo_data, clear_test_data, demo_counts, load_demo_data, test_data_counts
 from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
@@ -638,7 +638,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.78 · 2026-07-11 · 簽呈/請購串接(方案A)：合約←請購←簽呈追溯鏈"
+BACKEND_BUILD = "v0.9.79 · 2026-07-11 · AI測試資料清除機制(比照示範資料模式)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1182,6 +1182,17 @@ def create_app() -> FastAPI:
     @app.post("/api/dev-console/demo-data/clear")
     def demo_data_clear() -> dict[str, Any]:
         return ok(clear_demo_data())
+
+    # AI 自測資料（跟示範資料不同批）：AI 自測（cl-fee-selftest）過程建的資料，數量不定、
+    # 跨全部模組，一律用 AITEST- 前綴（見 seed_data.TEST_DATA_PREFIXES）。同樣掛 dev-console，
+    # 承辦被既有前綴擋、CIO 唯讀擋，只有主管/助理可用。
+    @app.get("/api/dev-console/test-data/status")
+    def test_data_status() -> dict[str, Any]:
+        return ok(test_data_counts())
+
+    @app.post("/api/dev-console/test-data/clear")
+    def test_data_clear() -> dict[str, Any]:
+        return ok(clear_test_data())
 
     # Step 3 舊資料補號：只補缺號、冪等；掛 dev-console（承辦擋、CIO 唯讀擋）。
     @app.get("/api/dev-console/backfill/status")
