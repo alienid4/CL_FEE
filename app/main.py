@@ -639,7 +639,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.86 · 2026-07-11 · 試辦免密碼涵蓋DB自建帳號(登入下拉也列出)"
+BACKEND_BUILD = "v0.9.87 · 2026-07-11 · 修真bug：DB自建帳號登入後每個API都401(session驗證漏認)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -750,7 +750,10 @@ def _verify_session(token: str) -> str | None:
         return None
     username, ts, sig = parts
     expected = hmac.new(SESSION_SECRET.encode(), f"{username}.{ts}".encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, expected) or username not in LOCAL_AUTH_USERS:
+    # 既有 bug：這裡曾寫死只認 5 個內建帳號，DB 自建帳號（如 admin 建的測試/真人帳號）登入當下
+    # 成功、但下一個 API 呼叫就被判定沒登入（因為不在 LOCAL_AUTH_USERS）。改用 get_account 查
+    # 內建+DB 帳號都認，帳號管理建的帳號才真的能用。
+    if not hmac.compare_digest(sig, expected) or not get_account(username):
         return None
     try:
         age = time.time() - int(ts)
