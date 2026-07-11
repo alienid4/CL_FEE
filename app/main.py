@@ -639,7 +639,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.85 · 2026-07-11 · 工作項起訖拆欄可排序＋預設依急迫度排"
+BACKEND_BUILD = "v0.9.86 · 2026-07-11 · 試辦免密碼涵蓋DB自建帳號(登入下拉也列出)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -925,17 +925,26 @@ def create_app() -> FastAPI:
     @app.get("/api/auth/options")
     def auth_options() -> dict[str, Any]:
         # 公開端點：前端登入頁用來決定「下拉選角色 / 是否要密碼」，並取得可選帳號清單。
+        # 試辦免密碼模式下，DB 自建帳號（如 admin 建的測試帳號）也一併列出、免密碼登入，
+        # 方便切換角色測試；正式機不開 PILOT_PASSWORDLESS，這段不影響安全性。
         accounts = [
             {"username": u, "label": a["role_name"]}
             for u, a in LOCAL_AUTH_USERS.items()
         ]
+        if pilot_passwordless():
+            accounts += [
+                {"username": r["username"],
+                 "label": f"{r['display_name'] or r['username']}／{ROLE_TEMPLATES.get(r['role_code'], {}).get('role_name', r['role_code'])}"}
+                for r in store_list_db_users() if not r["disabled"]
+            ]
         return ok({"passwordless": pilot_passwordless(), "accounts": accounts})
 
     @app.post("/api/auth/login")
     def login(payload: LoginIn, response: Response) -> dict[str, Any]:
         username = payload.username.strip().lower()
-        # 試辦免密碼：內建帳號選了就登入（跳過密碼）；其餘一律走正常密碼驗證。
-        passwordless_ok = pilot_passwordless() and username in LOCAL_AUTH_USERS
+        # 試辦免密碼：PILOT_PASSWORDLESS=1 時，內建帳號跟 DB 自建帳號都選了就登入（跳過密碼）；
+        # 正式機（8010）不開這個環境變數，一律走正常密碼驗證，不受影響。
+        passwordless_ok = pilot_passwordless() and bool(get_account(username))
         if not passwordless_ok and not verify_login(username, payload.password):
             raise HTTPException(status_code=401, detail="帳號或密碼錯誤。")
         response.set_cookie(
