@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.79 · 2026-07-11 · AI測試資料清除機制(比照示範資料模式)";
+const BUILD_TAG = "v0.9.80 · 2026-07-11 · 全文搜尋模組篩選器修好(補專案+真的能篩選)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3916,6 +3916,7 @@ document.addEventListener("click", (event) => {
 });
 
 const globalSearch = document.querySelector("#global-search");
+const searchScope = document.querySelector("#search-scope");           // 縮小範圍：只看某個模組
 const searchResults = document.querySelector("#search-results");      // 側欄小提示
 const searchPanel = document.querySelector("#search-panel");           // 中間大結果區
 const searchResultsMain = document.querySelector("#search-results-main");
@@ -3974,7 +3975,7 @@ function renderSearchResults(rows, q, errMsg) {
     : `<p class="muted">找不到「${escapeHtml(q)}」。換個關鍵字試試。</p>`;
 }
 
-globalSearch?.addEventListener("input", () => {
+function runGlobalSearch() {
   clearTimeout(searchTimer);
   const q = globalSearch.value.trim();
   if (q.length < 2) {
@@ -3984,14 +3985,18 @@ globalSearch?.addEventListener("input", () => {
   }
   searchTimer = setTimeout(async () => {
     try {
-      const rows = (await api(`/api/search?q=${encodeURIComponent(q)}`)).data || [];
+      let rows = (await api(`/api/search?q=${encodeURIComponent(q)}`)).data || [];
+      const scope = searchScope?.value;
+      if (scope) rows = rows.filter((r) => r.type === scope);  // 縮小範圍：只看選定的模組
       if (searchResults) { searchResults.hidden = false; searchResults.innerHTML = `<small class="muted">找到 ${rows.length} 筆，見中間結果 →</small>`; }
       renderSearchResults(rows, q);
     } catch (error) {
       renderSearchResults(null, q, error.message);
     }
   }, 250);
-});
+}
+globalSearch?.addEventListener("input", runGlobalSearch);
+searchScope?.addEventListener("change", runGlobalSearch);
 
 document.querySelector("#search-results-main")?.addEventListener("click", (event) => {
   const row = event.target.closest("[data-hit-type]");

@@ -33,10 +33,16 @@
             <button id="logout" type="button" class="secondary" hidden>登出</button>
           </div>
           <strong>全文搜尋</strong>
-          <select aria-label="module filter">
-            <option>全部功能</option>
-            <option>案件、合約、預算、廠商</option>
-            <option>簽呈、請購、付款、文件</option>
+          <select id="search-scope" aria-label="module filter">
+            <option value="">全部功能</option>
+            <option value="case">案件</option>
+            <option value="contract">合約</option>
+            <option value="budget">預算</option>
+            <option value="project">專案</option>
+            <option value="signoff">簽呈</option>
+            <option value="purchase">請購</option>
+            <option value="payment">付款</option>
+            <option value="document">文件</option>
           </select>
           <input id="global-search" aria-label="search keyword" placeholder="輸入 ≥2 字搜尋八大模組" autocomplete="off" />
           <div id="search-results" class="search-results" hidden></div>
@@ -1066,6 +1072,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-79"></script>
+    <script src="/static/app.js?v=v0-9-80"></script>
   </body>
 </html>
