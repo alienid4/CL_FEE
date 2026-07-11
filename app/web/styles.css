@@ -1281,6 +1281,8 @@ a, .link { color: var(--accent-2); }
 .grid-table td strong { color: var(--ink); font-weight: 700; }
 .grid-table th.num, .grid-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .grid-table th.col-actions, .grid-table td.col-actions { text-align: right; white-space: nowrap; width: 1%; }
+/* 短內容欄（徽章/人名/狀態等）縮到內容寬，讓真正需要空間的欄（如名稱）吃剩下的寬度，不要欄跟欄之間留一大片空白 */
+.grid-table th.col-narrow, .grid-table td.col-narrow { width: 1%; white-space: nowrap; }
 
 /* 進度：迷你長條 + 文字 */
 .progress-cell { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }

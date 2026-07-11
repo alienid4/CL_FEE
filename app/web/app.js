@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.81 · 2026-07-11 · 清單框高度放寬(300px→65vh，全模組共用)";
+const BUILD_TAG = "v0.9.82 · 2026-07-11 · 取消複核功能＋案件清單欄寬收緊";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1328,11 +1328,11 @@ function sourceTag(item) {
 function renderCaseRow(item) {
   const statusClass = item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : "";
   return `<tr data-case-id="${item.id}">
-    <td><span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span></td>
-    <td><strong>${escapeHtml(item.case_code)}</strong>${sourceTag(item)}</td>
+    <td class="col-narrow"><span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span></td>
+    <td class="col-narrow"><strong>${escapeHtml(item.case_code)}</strong>${sourceTag(item)}</td>
     <td>${escapeHtml(item.title)}</td>
-    <td class="muted">${escapeHtml(item.owner || "未指派")}</td>
-    <td><span class="badge ${statusClass}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+    <td class="col-narrow muted">${escapeHtml(item.owner || "未指派")}</td>
+    <td class="col-narrow"><span class="badge ${statusClass}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
     <td class="col-actions">
       <span class="row-actions">
         ${caseWorkflowButtons(item)}
@@ -1350,7 +1350,7 @@ async function loadCases() {
   caseCache = payload.data;
   cases.innerHTML = caseCache.length
     ? `<div class="grid-scroll"><table class="grid-table">
-        <thead><tr><th>案號</th><th>案件編號</th><th>案件名稱</th><th>負責人</th><th>狀態</th><th class="col-actions">操作</th></tr></thead>
+        <thead><tr><th class="col-narrow">案號</th><th class="col-narrow">案件編號</th><th>案件名稱</th><th class="col-narrow">負責人</th><th class="col-narrow">狀態</th><th class="col-actions">操作</th></tr></thead>
         <tbody>${caseCache.map(renderCaseRow).join("")}</tbody>
       </table></div>`
     : `<p class="muted">目前沒有案件資料。</p>`;
@@ -1963,11 +1963,18 @@ function caseWorkflowButtons(item) {
   if (item.status === "draft" || item.status === "reviewing") {
     btns.push(`<button type="button" class="secondary btn-sm" data-action="submit">送出複核</button>`);
   }
-  if (item.status === "pending_review" && currentUser && currentUser.role_code === "manager_assistant") {
-    if ((item.created_by || "") === currentUser.username) {
-      btns.push(`<span class="muted" title="不能核准自己建立的案件">待他人複核</span>`);
-    } else {
+  if (item.status === "pending_review") {
+    const isSubmitter = currentUser && (item.created_by || "") === currentUser.username;
+    const isManager = currentUser && currentUser.role_code === "manager_assistant";
+    if (isManager && !isSubmitter) {
       btns.push(`<button type="button" class="btn-sm" data-action="approve">核准</button>`);
+    }
+    if (isManager && isSubmitter) {
+      btns.push(`<span class="muted" title="不能核准自己建立的案件">待他人複核</span>`);
+    }
+    // 取消複核（退回草稿）：原提交者或主管/助理都可以，不像核准有球員兼裁判風險
+    if (isSubmitter || isManager) {
+      btns.push(`<button type="button" class="secondary btn-sm" data-action="cancel-review">取消複核</button>`);
     }
   }
   return btns.join(" ");
@@ -3780,6 +3787,9 @@ cases.addEventListener("click", async (event) => {
     }
     if (action === "approve") {
       await api(`/api/cases/${id}/approve`, { method: "POST" });
+    }
+    if (action === "cancel-review") {
+      await api(`/api/cases/${id}/cancel-review`, { method: "POST" });
     }
     if (action === "disable") {
       await api(`/api/cases/${id}/disable`, { method: "POST" });

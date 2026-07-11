@@ -700,6 +700,22 @@ def submit_case(case_id: int) -> dict[str, Any]:
         return after
 
 
+def cancel_case_review(case_id: int, actor: str, actor_role: str) -> dict[str, Any]:
+    """取消複核：pending_review -> draft。原提交者本人，或主管/助理角色，都可以取消
+    （跟核准不同，取消沒有「球員兼裁判」風險，不用排除提交者本人）。"""
+    with connect() as conn:
+        before = get_row(conn, "cases", case_id)
+        if before["status"] != "pending_review":
+            raise RuntimeError(f"案件目前狀態為 {before['status']}，只有『待複核』能取消複核。")
+        is_submitter = (before.get("created_by") or "") == actor
+        if not is_submitter and actor_role != "manager_assistant":
+            raise PermissionError("只有原提交者或主管/助理能取消複核。")
+        conn.execute("UPDATE cases SET status = 'draft' WHERE id = ?", (case_id,))
+        after = get_row(conn, "cases", case_id)
+        write_audit_log(conn, "cases", case_id, "cancel_review", before, after)
+        return after
+
+
 def approve_case(case_id: int, approver: str) -> dict[str, Any]:
     """核准：pending_review -> approved。雙人複核鐵則——建立者不得核准自己的案件。
     （角色限制「只有助理/主管可核」在 API 層擋；此處核准者看全部，不套 owner 範圍。）"""
@@ -2762,7 +2778,7 @@ CHANGE_TABLE_LABEL = {
 }
 CHANGE_ACTION_LABEL = {
     "create": "新增", "update": "更新", "disable": "停用", "delete": "刪除",
-    "submit": "送出複核", "approve": "核准", "import": "匯入新增", "import-update": "匯入更新",
+    "submit": "送出複核", "approve": "核准", "cancel_review": "取消複核", "import": "匯入新增", "import-update": "匯入更新",
 }
 
 

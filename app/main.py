@@ -24,6 +24,7 @@ from app.import_mapping import mapping_draft_catalog
 from app.settings import get_settings
 from app.store import (
     approve_case,
+    cancel_case_review,
     backfill_all_numbers,
     backfill_status,
     backup_database,
@@ -638,7 +639,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.81 · 2026-07-11 · 清單框高度放寬(300px→65vh，全模組共用)"
+BACKEND_BUILD = "v0.9.82 · 2026-07-11 · 取消複核功能＋案件清單欄寬收緊"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1373,6 +1374,19 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=403, detail="只有助理/主管能複核核准案件。")
         try:
             return ok(approve_case(case_id, approver))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/cases/{case_id}/cancel-review")
+    def cancel_case_review_endpoint(case_id: int, request: Request) -> dict[str, Any]:
+        actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        role = (get_account(actor) or {}).get("role_code")
+        try:
+            return ok(cancel_case_review(case_id, actor, role))
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PermissionError as exc:
