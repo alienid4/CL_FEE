@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.88 · 2026-07-11 · 專案改依負責人隔離(承辦只看列名到自己的)";
+const BUILD_TAG = "v0.9.89 · 2026-07-11 · 專案清單加「查看細項」捷徑直達進度總表";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -271,6 +271,7 @@ const resourceConfig = {
       { label: "負責人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.owner))}</span>` },
       { label: "進度（預計／實際）", cls: "num", cell: (i) => progressCell(i.progress_planned, i.progress) },
       { label: "燈號", cell: (i) => ragChip(valueOrDash(i.rag_status) === "-" ? labelStatus(i.status) : i.rag_status) },
+      { label: "細項", cell: (i) => `<button type="button" class="secondary btn-sm" data-view-items="${i.id}">查看</button>` },
     ],
   },
   signoff: {
@@ -610,6 +611,13 @@ function renderBudgetAnnual(data) {
 document.querySelector("#budgets")?.addEventListener("click", (event) => {
   const view = event.target.closest("[data-alloc-view]");
   if (view) { loadBudgetAllocations(view.getAttribute("data-alloc-view"), "#budget-annual-alloc"); return; }
+});
+// 專案清單「細項」捷徑：跳去進度總表看該專案的工作項細節（跟全文搜尋比對到子項目時同一套導覽）。
+document.querySelector("#projects-list")?.addEventListener("click", async (event) => {
+  const view = event.target.closest("[data-view-items]");
+  if (!view) return;
+  navigateToPanel("cases-module");
+  await openProjectItem(view.getAttribute("data-view-items"));
 });
 document.querySelector("#budgets")?.addEventListener("click", (event) => {
   const assign = event.target.closest("[data-assign-case]");
