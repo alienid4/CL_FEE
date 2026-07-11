@@ -860,6 +860,7 @@
             <input name="vendor_name" placeholder="廠商" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
+            <select name="purchase_id" class="purchase-picker" title="關聯請購（此合約源自哪筆請購）"><option value="">（不關聯請購）</option></select>
             <select name="status">
               <option value="active">有效</option>
               <option value="reviewing">審核中</option>
@@ -1039,6 +1040,7 @@
             <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
+            <select name="signoff_id" class="signoff-picker" title="關聯簽呈（此請購經哪張簽呈核准）"><option value="">（不關聯簽呈）</option></select>
             <select name="status">
               <option value="pending">待處理</option>
               <option value="ordered">已下單</option>
@@ -1054,6 +1056,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-77"></script>
+    <script src="/static/app.js?v=v0-9-78"></script>
   </body>
 </html>

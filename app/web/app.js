@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.77 · 2026-07-11 · 合約續約提醒/催辦清單預設前5筆+展開";
+const BUILD_TAG = "v0.9.78 · 2026-07-11 · 簽呈/請購串接(方案A)：合約←請購←簽呈追溯鏈";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -183,8 +183,8 @@ const resourceConfig = {
     idAttr: "contract-id",
     idField: "contractId",
     api: "/api/contracts",
-    fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "status", "end_date"],
-    numberFields: ["amount", "case_id"],
+    fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "purchase_id", "status", "end_date"],
+    numberFields: ["amount", "case_id", "purchase_id"],
     canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
@@ -288,8 +288,8 @@ const resourceConfig = {
   purchase: {
     plural: "purchases", idAttr: "purchase-id", idField: "purchaseId", api: "/api/purchases",
     navCount: "nav-count-purchases", navLabel: "請購",
-    fields: ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"],
-    numberFields: ["quantity", "amount", "case_id"], canDisable: true,
+    fields: ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "signoff_id", "note"],
+    numberFields: ["quantity", "amount", "case_id", "signoff_id"], canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.purchase, i.case_id) },
       { label: "請購編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
@@ -1386,6 +1386,36 @@ async function loadCaseOptions() {
   }
 }
 
+// 簽呈/請購串接（方案A：只存關聯不重做簽核系統）：請購表單可選「這是哪張簽呈核准的」、
+// 合約表單可選「這是哪筆請購變成的」，兩條都可選填，供 Case 360 追溯鏈串出完整舉證鏈。
+async function loadSignoffOptions() {
+  const pickers = document.querySelectorAll(".signoff-picker");
+  if (!pickers.length) return;
+  let list = [];
+  try { list = (await api("/api/signoffs")).data || []; } catch (_e) { return; }
+  const opts = `<option value="">（不關聯簽呈）</option>` +
+    list.map((s) => `<option value="${s.id}">${escapeHtml(s.signoff_code)}｜${escapeHtml(s.subject || "")}</option>`).join("");
+  for (const sel of pickers) {
+    const cur = sel.value;
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  }
+}
+
+async function loadPurchaseOptions() {
+  const pickers = document.querySelectorAll(".purchase-picker");
+  if (!pickers.length) return;
+  let list = [];
+  try { list = (await api("/api/purchases")).data || []; } catch (_e) { return; }
+  const opts = `<option value="">（不關聯請購）</option>` +
+    list.map((p) => `<option value="${p.id}">${escapeHtml(p.purchase_code)}｜${escapeHtml(p.item_name || "")}</option>`).join("");
+  for (const sel of pickers) {
+    const cur = sel.value;
+    sel.innerHTML = opts;
+    if (cur) sel.value = cur;
+  }
+}
+
 // 案名沿用：選了案子，若該表單的「名稱」欄目前是空的，就帶入案名當預設值（仍可改，不鎖死）。
 // 只套用在概念上「跟案子同一個代稱」的欄位——合約名稱/專案名稱/簽呈主旨；預算編號、請購品項、
 // 文件檔名性質不同（同一案底下本來就會有多筆不同名稱的預算/品項），不套用。
@@ -1423,6 +1453,12 @@ async function loadCaseTrace(caseId) {
     const chip = (label, count, amount) =>
       `<div class="trace-node"><span class="trace-count">${count}</span><span class="trace-label">${label}</span>${amount != null ? `<span class="trace-amt">${money(amount)} 元</span>` : ""}</div>`;
     const editBtn = (type, id) => ` <button type="button" class="link-btn" data-trace-edit="${type}" data-trace-id="${id}">編輯</button>`;
+    // 簽呈/請購串接（方案A）：合約若關聯請購、請購若關聯簽呈，在項目後面標出來源，讓「這筆付款是哪張簽呈核准的」追得回去。
+    const sourceTag = (label, id, arr, codeField) => {
+      if (!id) return "";
+      const row = (arr || []).find((x) => x.id === id);
+      return ` <span class="muted">← ${label} ${escapeHtml(row ? row[codeField] : `#${id}`)}</span>`;
+    };
     const listOf = (arr, type, fn, empty) => (arr && arr.length)
       ? arr.map((row) => `<li>${fn(row)}${editBtn(type, row.id)}</li>`).join("")
       : `<li class="muted">${empty}${addBtn(type)}</li>`;
@@ -1449,8 +1485,8 @@ async function loadCaseTrace(caseId) {
           <div><h4>預算</h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
           <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
           <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
-          <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元`, "無關聯請購")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元`, "無關聯合約")}</ul></div>
+          <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯請購")}</ul></div>
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("請購", k.purchase_id, d.purchases, "purchase_code")}`, "無關聯合約")}</ul></div>
           <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
       </div>`;
@@ -2492,6 +2528,7 @@ async function refresh() {
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadVendorAmt(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
+    loadSignoffOptions(), loadPurchaseOptions(),
   ]);
 }
 

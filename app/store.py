@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     amount REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'active',
     case_id INTEGER,
+    purchase_id INTEGER,
     end_date TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -154,6 +155,7 @@ CREATE TABLE IF NOT EXISTS purchases (
     amount REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     case_id INTEGER,
+    signoff_id INTEGER,
     note TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -447,6 +449,9 @@ def initialize_database() -> None:
         ensure_column(conn, "payments", "settle_seq", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "net_amount", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "tax_amount", "REAL NOT NULL DEFAULT 0")
+        # 簽呈/請購串接（方案A：只存關聯，不重做簽核系統）：請購可關聯核准它的簽呈，合約可關聯源自的請購
+        ensure_column(conn, "purchases", "signoff_id", "INTEGER")
+        ensure_column(conn, "contracts", "purchase_id", "INTEGER")
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -455,7 +460,12 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
-_FK_REFS = {"case_id": ("cases", "案件"), "contract_id": ("contracts", "合約")}
+_FK_REFS = {
+    "case_id": ("cases", "案件"),
+    "contract_id": ("contracts", "合約"),
+    "signoff_id": ("signoffs", "簽呈"),
+    "purchase_id": ("purchases", "請購"),
+}
 
 
 def _validate_fks(conn: sqlite3.Connection, fields: dict[str, Any]) -> None:
@@ -577,7 +587,7 @@ def create_case_wizard(
 def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row"},
-        "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "end_date"},
+        "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount",
@@ -591,7 +601,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note", "attachment_ref"},
-        "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "note"},
+        "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "signoff_id", "note"},
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
                           "support_needed", "duration_days", "status"},
@@ -617,12 +627,12 @@ def get_row(conn: sqlite3.Connection, table: str, row_id: int) -> dict[str, Any]
 
 
 NULLABLE_FIELDS: dict[str, set[str]] = {
-    "contracts": {"case_id"},
+    "contracts": {"case_id", "purchase_id"},
     "documents": {"case_id", "contract_id"},
     "budgets": {"case_id"},
     "projects": {"case_id"},
     "signoffs": {"case_id"},
-    "purchases": {"case_id"},
+    "purchases": {"case_id", "signoff_id"},
 }
 
 
