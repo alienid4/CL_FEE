@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.73 · 2026-07-11 · 精靈撞號訊息去技術化+精靈也案名沿用";
+const BUILD_TAG = "v0.9.74 · 2026-07-11 · 案件清單改表格化(比照其他清單)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1315,30 +1315,37 @@ function sourceTag(item) {
   return ` <span class="source-tag" title="Excel 來源：${escapeHtml(loc)}（回原檔核對）" role="img" aria-label="Excel 來源 ${escapeHtml(loc)}">📎</span>`;
 }
 
+// 案件列：跟其他清單(預算/合約...)一樣用 .grid-table 表格化，欄位各有自己的位置，
+// 不要像以前那樣用 flex/grid 卡片擠在一起（曾經 6 個欄位只設定 5 個 grid-template-columns，
+// 案號徽章跟案件編號會疊在一起）。
+function renderCaseRow(item) {
+  const statusClass = item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : "";
+  return `<tr data-case-id="${item.id}">
+    <td><span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span></td>
+    <td><strong>${escapeHtml(item.case_code)}</strong>${sourceTag(item)}</td>
+    <td>${escapeHtml(item.title)}</td>
+    <td class="muted">${escapeHtml(item.owner || "未指派")}</td>
+    <td><span class="badge ${statusClass}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+    <td class="col-actions">
+      <span class="row-actions">
+        ${caseWorkflowButtons(item)}
+        <button type="button" class="icon-btn" data-action="trace" title="追溯鏈" aria-label="追溯鏈">${ICON_TRACE}</button>
+        <button type="button" class="icon-btn" data-action="edit" title="編輯" aria-label="編輯">${ICON_EDIT}</button>
+        <button type="button" class="icon-btn" data-action="disable" title="停用" aria-label="停用">${ICON_DISABLE}</button>
+        <button type="button" class="icon-btn danger" data-action="delete" title="刪除" aria-label="刪除">${ICON_DELETE}</button>
+      </span>
+    </td>
+  </tr>`;
+}
+
 async function loadCases() {
   const payload = await api("/api/cases");
   caseCache = payload.data;
   cases.innerHTML = caseCache.length
-    ? caseCache
-        .map(
-          (item) => `
-            <article class="row" data-case-id="${item.id}">
-              <span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span>
-              <strong>${escapeHtml(item.case_code)}${sourceTag(item)}</strong>
-              <span>${escapeHtml(item.title)}</span>
-              <span class="muted">${escapeHtml(item.owner || "未指派")}</span>
-              <span class="badge ${item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : ""}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>
-              <span class="actions">
-                ${caseWorkflowButtons(item)}
-                <button type="button" class="secondary" data-action="trace">追溯鏈</button>
-                <button type="button" class="secondary" data-action="edit">編輯</button>
-                <button type="button" class="secondary" data-action="disable">停用</button>
-                <button type="button" class="danger" data-action="delete">刪除</button>
-              </span>
-            </article>
-          `,
-        )
-        .join("")
+    ? `<div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>案號</th><th>案件編號</th><th>案件名稱</th><th>負責人</th><th>狀態</th><th class="col-actions">操作</th></tr></thead>
+        <tbody>${caseCache.map(renderCaseRow).join("")}</tbody>
+      </table></div>`
     : `<p class="muted">目前沒有案件資料。</p>`;
   renderCioTable();
 }
@@ -1526,6 +1533,7 @@ function renderResourceRow(type, item) {
 const ICON_EDIT = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13l-3.5.5L3 10z"/><path d="M9.5 3.5l3 3"/></svg>`;
 const ICON_DISABLE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/><line x1="4.1" y1="4.1" x2="11.9" y2="11.9" stroke-linecap="round"/></svg>`;
 const ICON_DELETE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 4.2h10.4M6 4.2V2.6h4v1.6M5 4.2l.5 9h5l.5-9"/></svg>`;
+const ICON_TRACE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 1 0-3.5-3.5l-1 1"/><path d="M10 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 1 0 3.5 3.5l1-1"/></svg>`;
 
 // 編輯／停用／刪除＝一排圖示鈕（一鍵，不用點兩次）；hover 顯示文字
 function renderRowMenu(config, item) {
@@ -1860,13 +1868,13 @@ const STATUS_LABELS = { draft: "草稿", pending_review: "待複核", reviewing:
 function caseWorkflowButtons(item) {
   const btns = [];
   if (item.status === "draft" || item.status === "reviewing") {
-    btns.push(`<button type="button" class="secondary" data-action="submit">送出複核</button>`);
+    btns.push(`<button type="button" class="secondary btn-sm" data-action="submit">送出複核</button>`);
   }
   if (item.status === "pending_review" && currentUser && currentUser.role_code === "manager_assistant") {
     if ((item.created_by || "") === currentUser.username) {
       btns.push(`<span class="muted" title="不能核准自己建立的案件">待他人複核</span>`);
     } else {
-      btns.push(`<button type="button" data-action="approve">核准</button>`);
+      btns.push(`<button type="button" class="btn-sm" data-action="approve">核准</button>`);
     }
   }
   return btns.join(" ");
