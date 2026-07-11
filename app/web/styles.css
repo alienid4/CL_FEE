@@ -945,7 +945,7 @@ form,
 }
 
 .compact-list {
-  max-height: 300px;
+  max-height: 65vh;  /* 原本寫死 300px，資料一多就雙向捲動很難看；改跟視窗高度連動，各模組共用 */
   overflow: auto;
 }
 
