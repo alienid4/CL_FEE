@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.71 · 2026-07-11 · 人員主檔+部門重用單位下拉+案名沿用";
+const BUILD_TAG = "v0.9.73 · 2026-07-11 · 精靈撞號訊息去技術化+精靈也案名沿用";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1417,12 +1417,16 @@ async function loadCaseTrace(caseId) {
           <button type="button" class="secondary btn-sm" id="trace-close">收起</button>
         </div>
         <div class="trace-chain">
+          ${chip("預算", n(d.budgets), t.budget_amount)}<span class="trace-arrow">▸</span>
+          ${chip("專案", n(d.projects), null)}<span class="trace-arrow">▸</span>
           ${chip("簽呈", n(d.signoffs), t.signoff_amount)}<span class="trace-arrow">▸</span>
           ${chip("請購", n(d.purchases), t.purchase_amount)}<span class="trace-arrow">▸</span>
           ${chip("合約", n(d.contracts), t.contract_amount)}<span class="trace-arrow">▸</span>
           ${chip("付款", n(d.payments), t.payment_amount)}
         </div>
         <div class="trace-lists">
+          <div><h4>預算</h4><ul class="note-list">${listOf(d.budgets, (b) => `<li><strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元</li>`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
+          <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, (p) => `<li><strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}</li>`, "無關聯專案")}</ul></div>
           <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, (s) => `<li><strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}</li>`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
           <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, (p) => `<li><strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元</li>`, "無關聯請購")}</ul></div>
           <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, (k) => `<li><strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元</li>`, "無關聯合約")}</ul></div>
@@ -3033,12 +3037,12 @@ let unitMasterCache = [];  // 供「改派」下拉列出現有單位
 // 單位下拉：預算表單(含精靈)的「單位名稱」只能選單位主檔已登記的乾淨名稱，避免手打錯字/寫法不一。
 // 保留 select 目前選到、但主檔沒有的值（見 startResourceEdit），這裡只負責從主檔灌選項。
 function populateUnitSelects() {
-  const options = ['<option value="">（未選擇）</option>']
-    .concat((unitMasterCache || []).map((m) => `<option value="${escapeHtml(m.canonical_name)}">${escapeHtml(m.canonical_name)}</option>`))
-    .join("");
+  const rest = (unitMasterCache || []).map((m) => `<option value="${escapeHtml(m.canonical_name)}">${escapeHtml(m.canonical_name)}</option>`).join("");
   for (const sel of document.querySelectorAll("select.unit-select")) {
+    // 第一個選項文字各表單各自標記（用 data-placeholder），不要整批蓋成同一句「（未選擇）」
+    const placeholder = sel.dataset.placeholder ? `（未選擇）${sel.dataset.placeholder}` : "（未選擇）";
     const prev = sel.value;
-    sel.innerHTML = options;
+    sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + rest;
     if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
   }
 }
@@ -3068,12 +3072,28 @@ async function loadUnitMaster() {
 // 人員下拉：案件/簽呈/預算/付款/專案表單的「負責人/申請人/核銷者…」只能選人員主檔已登記的名字。
 let personnelMasterCache = [];
 function populatePersonnelSelects() {
-  const options = ['<option value="">（未選擇）</option>']
-    .concat((personnelMasterCache || []).map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`))
-    .join("");
+  const rest = (personnelMasterCache || []).map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
   for (const sel of document.querySelectorAll("select.personnel-select")) {
+    // 第一個選項文字各表單各自標記（用 data-placeholder），不要整批蓋成同一句「（未選擇）」
+    const placeholder = sel.dataset.placeholder ? `（未選擇）${sel.dataset.placeholder}` : "（未選擇）";
     const prev = sel.value;
-    sel.innerHTML = options;
+    sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` + rest;
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  }
+}
+
+// 年度下拉：作業年度前後幾年的合理範圍，不用另外維護清單（年度是封閉、可預期的小集合）。
+function populateFiscalYearSelects() {
+  const now = new Date();
+  const base = now.getFullYear();
+  const years = [];
+  for (let y = base - 1; y <= base + 3; y++) years.push(y);
+  for (const sel of document.querySelectorAll("select.fiscal-year-select")) {
+    const placeholder = sel.dataset.placeholder || "";
+    const prev = sel.value;
+    sel.innerHTML = [`<option value="">${escapeHtml(placeholder)}</option>`]
+      .concat(years.map((y) => `<option value="${y}">${y} 年度</option>`))
+      .join("");
     if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
   }
 }
@@ -3966,10 +3986,19 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   }
   const num = (v) => (v === "" || v == null ? 0 : Number(v));
 
+  // 案名沿用（精靈版）：勾選簽呈/合約步驟時，若該步驟「名稱」欄位還空著，帶入①案件名稱當預設值
+  // （仍可改，不鎖死）。跟獨立表單版同一個道理：合約正式名稱常跟案子暱稱有出入。
+  const WIZARD_NAME_AUTOFILL_FIELD = { signoff: "subject", contract: "contract_name" };
   for (const toggle of wizardForm.querySelectorAll("[data-wizard-toggle]")) {
     toggle.addEventListener("change", () => {
       const step = toggle.getAttribute("data-wizard-toggle");
       setStepEnabled(step, toggle.checked);
+      if (toggle.checked) {
+        const fieldName = WIZARD_NAME_AUTOFILL_FIELD[step];
+        const nameEl = fieldName && stepScope(step)?.querySelector(`[name="${fieldName}"]`);
+        const titleEl = stepScope("case")?.querySelector('[name="title"]');
+        if (nameEl && !nameEl.value.trim() && titleEl && titleEl.value.trim()) nameEl.value = titleEl.value.trim();
+      }
       if (step === "contract") {
         if (!toggle.checked && paymentToggle) {
           paymentToggle.checked = false;
@@ -4036,6 +4065,7 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   });
 })();
 
+populateFiscalYearSelects();
 loadLoginOptions();
 initializeSession().catch((error) => {
   cases.innerHTML = `<p class="muted">${escapeHtml(error.message)}</p>`;

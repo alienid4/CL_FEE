@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-9-71" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-9-73" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -339,9 +339,9 @@
                   <legend>① 案件（必填）</legend>
                   <input name="case_code" placeholder="案件編號 *" required />
                   <input name="title" placeholder="案件名稱 *" required />
-                  <select name="owner" class="personnel-select"><option value="">（未選擇）負責人</option></select>
+                  <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
                   <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                  <input name="fiscal_year" placeholder="所屬年度（空＝作業年度）" inputmode="numeric" maxlength="4" />
+                  <select name="fiscal_year" class="fiscal-year-select" data-placeholder="所屬年度（空＝作業年度）"><option value="">所屬年度（空＝作業年度）</option></select>
                   <input name="note" placeholder="備註" />
                   <input name="next_step" placeholder="下一步" />
                   <input name="due_date" placeholder="預計完成日 YYYY-MM-DD" />
@@ -352,7 +352,7 @@
                   <div class="wizard-step-body" hidden>
                     <input name="budget_code" placeholder="預算編號 *" />
                     <input name="category" placeholder="類別" list="opt-budget-categories" />
-                    <select name="unit_name" class="unit-select"><option value="">（未選擇）</option></select>
+                    <select name="unit_name" class="unit-select" data-placeholder="單位名稱"><option value="">（未選擇）單位名稱</option></select>
                     <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
                     <input name="note" placeholder="備註" />
                   </div>
@@ -363,7 +363,7 @@
                   <div class="wizard-step-body" hidden>
                     <input name="signoff_code" placeholder="簽呈編號 *" />
                     <input name="subject" placeholder="主旨 *" />
-                    <select name="applicant" class="personnel-select"><option value="">（未選擇）申請人</option></select>
+                    <select name="applicant" class="personnel-select" data-placeholder="申請人"><option value="">（未選擇）申請人</option></select>
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
                     <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
                     <input name="note" placeholder="備註" />
@@ -830,8 +830,8 @@
             <input name="id" type="hidden" />
             <input name="case_code" placeholder="案件編號" required />
             <input name="title" placeholder="案件名稱" required />
-            <input name="fiscal_year" placeholder="所屬年度（空＝作業年度）" inputmode="numeric" maxlength="4" />
-            <select name="owner" class="personnel-select"><option value="">（未選擇）負責人</option></select>
+            <select name="fiscal_year" class="fiscal-year-select" data-placeholder="所屬年度（空＝作業年度）"><option value="">所屬年度（空＝作業年度）</option></select>
+            <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="status">
               <option value="draft">草稿</option>
@@ -884,8 +884,8 @@
             <input name="tax_amount" placeholder="營業稅" type="number" min="0" step="1" />
             <input name="payment_amount" placeholder="含稅/核銷金額" type="number" min="0" step="1" required />
             <input name="approval_level" placeholder="簽核層級（如 處長）" />
-            <select name="settled_by" class="personnel-select"><option value="">（未選擇）核銷者</option></select>
-            <select name="owner" class="personnel-select"><option value="">（未選擇）窗口</option></select>
+            <select name="settled_by" class="personnel-select" data-placeholder="核銷者"><option value="">（未選擇）核銷者</option></select>
+            <select name="owner" class="personnel-select" data-placeholder="窗口"><option value="">（未選擇）窗口</option></select>
             <input name="owner_email" placeholder="窗口 Email（催辦用）" />
             <select name="invoice_status">
               <option value="not_received">尚未收到發票</option>
@@ -944,11 +944,11 @@
             <input name="budget_code" placeholder="預算編號" required />
             <input name="category" placeholder="類別（可在系統管理後台維護選項）" list="opt-budget-categories" />
             <datalist id="opt-budget-categories"></datalist>
-            <select name="unit_name" class="unit-select"><option value="">（未選擇）</option></select>
+            <select name="unit_name" class="unit-select" data-placeholder="單位名稱"><option value="">（未選擇）單位名稱</option></select>
             <input name="expense_detail" placeholder="費用內容（例：開放系統平台主機APT防護）" />
-            <select name="fill_dept" class="unit-select"><option value="">（未選擇）填寫部門</option></select>
-            <select name="estimator" class="personnel-select"><option value="">（未選擇）預估人員</option></select>
-            <input name="fiscal_year" placeholder="年度，例如 2026" />
+            <select name="fill_dept" class="unit-select" data-placeholder="填寫部門"><option value="">（未選擇）填寫部門</option></select>
+            <select name="estimator" class="personnel-select" data-placeholder="預估人員"><option value="">（未選擇）預估人員</option></select>
+            <select name="fiscal_year" class="fiscal-year-select" data-placeholder="年度"><option value="">年度</option></select>
             <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
             <select name="alloc_method" title="分攤方法">
               <option value="fixed">分攤：固定金額</option>
@@ -984,7 +984,7 @@
             <input name="progress" placeholder="進度實際 %" type="number" min="0" max="100" step="1" />
             <input name="rag_status" placeholder="燈號（如期執行/延遲…）" list="opt-project-rag" />
             <datalist id="opt-project-rag"></datalist>
-            <select name="owner" class="personnel-select"><option value="">（未選擇）負責人</option></select>
+            <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
             <input name="start_date" placeholder="開始日 YYYY-MM-DD" />
             <input name="end_date" placeholder="結束日 YYYY-MM-DD" />
             <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供催辦）" />
@@ -1007,7 +1007,7 @@
             <input name="id" type="hidden" />
             <input name="signoff_code" placeholder="簽呈號碼（簽呈系統那組，勾稽用）" required />
             <input name="subject" placeholder="主旨" required />
-            <select name="applicant" class="personnel-select"><option value="">（未選擇）申請人</option></select>
+            <select name="applicant" class="personnel-select" data-placeholder="申請人"><option value="">（未選擇）申請人</option></select>
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
@@ -1050,6 +1050,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-71"></script>
+    <script src="/static/app.js?v=v0-9-73"></script>
   </body>
 </html>

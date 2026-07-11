@@ -78,11 +78,24 @@ def test_duplicate_contract_code_rolls_back_everything(tmp_path):
             "contract": {"contract_code": "DUPK", "contract_name": "撞號合約"},
         })
         assert r.status_code == 422
+        # 錯誤訊息要白話（別讓一般使用者看到原始 sqlite 錯誤字串），且要指出實際打的那個編號
+        detail = r.json()["detail"]
+        assert "合約編號" in detail and "DUPK" in detail and "已經存在" in detail
+        assert "UNIQUE constraint" not in detail
         # 案件跟簽呈都不該被留下——整批回滾
         cases = client.get("/api/cases").json()["data"]
         assert not any(c["case_code"] == "WIZ-4" for c in cases)
         signoffs = client.get("/api/signoffs").json()["data"]
         assert not any(s["signoff_code"] == "SG-WIZ-4" for s in signoffs)
+
+
+def test_duplicate_case_code_friendly_message(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/case-wizard", json={"case": {"case_code": "DUP-CASE", "title": "第一筆"}})
+        r = client.post("/api/case-wizard", json={"case": {"case_code": "DUP-CASE", "title": "第二筆"}})
+        assert r.status_code == 422
+        detail = r.json()["detail"]
+        assert "案件編號" in detail and "DUP-CASE" in detail and "已經存在" in detail
 
 
 def test_cio_cannot_use_wizard(tmp_path):

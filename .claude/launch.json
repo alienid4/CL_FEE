@@ -15,6 +15,21 @@
         "AP04_PASSWORD": "T3st!Pass",
         "ADMIN_PASSWORD": "T3st!Pass"
       }
+    },
+    {
+      "name": "cl-fee-selftest",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8027", "--log-level", "warning"],
+      "port": 8027,
+      "env": {
+        "SQLITE_PATH": "data/preview.db",
+        "PILOT_PASSWORDLESS": "1",
+        "AP01_PASSWORD": "T3st!Pass",
+        "AP02_PASSWORD": "T3st!Pass",
+        "AP03_PASSWORD": "T3st!Pass",
+        "AP04_PASSWORD": "T3st!Pass",
+        "ADMIN_PASSWORD": "T3st!Pass"
+      }
     }
   ]
 }

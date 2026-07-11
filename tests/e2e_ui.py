@@ -192,6 +192,11 @@ def main() -> int:
             page.wait_for_timeout(200)
             owner_options = page.locator('#case-form select[name="owner"] option').all_inner_texts()
             results.append(("案件負責人下拉含新人員", "E2E驗證人員" in owner_options))
+            # 下拉第一個選項要保留各表單自己的欄位標籤（負責人），不能被灌選項時整批蓋成同一句「（未選擇）」
+            results.append(("負責人下拉第一項保留欄位標籤", owner_options[0] == "（未選擇）負責人"))
+            # 所屬年度也要能用下拉選（不是自由輸入）
+            year_options = page.locator('#case-form select[name="fiscal_year"] option').all_inner_texts()
+            results.append(("所屬年度改成下拉且有多個年度可選", len(year_options) >= 4))
 
             # 3.69) 案名沿用：合約表單選了案子、名稱欄位是空的 → 自動帶入案名（仍可改）
             page.fill('#case-form input[name="case_code"]', "E2E-NAMEFILL")
@@ -310,6 +315,15 @@ def main() -> int:
             page.click('button[data-case-tab="list"]')
             page.wait_for_timeout(400)
             results.append(("面板核准後案件狀態為已核准", "已核准" in page.locator("#cases .row", has_text="E2E-Q1").inner_text()))
+
+            # 3.91) 追溯鏈：案件列「追溯鏈」按鈕 → 整條控管鏈(含預算/專案，先前漏接、這次補上)
+            row_wiz = page.locator("#cases .row", has_text="E2E-WIZ")
+            row_wiz.get_by_role("button", name="追溯鏈").click()
+            page.wait_for_timeout(500)
+            trace_text = page.inner_text("#case-trace")
+            results.append(("追溯鏈顯示預算節點", "預算" in trace_text))
+            results.append(("追溯鏈顯示專案節點", "專案" in trace_text))
+            results.append(("追溯鏈顯示精靈建立的合約", "K-E2E-WIZ" in trace_text))
 
             # 3.9) 雙人複核（案件列按鈕路徑）：ap02 送出 E2E-001 → 待複核；建立者不能自己核；ap04 核准 → 已核准
             row = page.locator("#cases .row", has_text="E2E-001")

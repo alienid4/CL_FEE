@@ -5,6 +5,7 @@ import hmac
 import io
 import os
 from pathlib import Path
+import re
 import secrets
 import sqlite3
 import subprocess
@@ -633,7 +634,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.71 · 2026-07-11 · 人員主檔+部門重用單位下拉+案名沿用"
+BACKEND_BUILD = "v0.9.73 · 2026-07-11 · 精靈撞號訊息去技術化+精靈也案名沿用"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1306,7 +1307,7 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except sqlite3.IntegrityError as exc:
-            raise HTTPException(status_code=422, detail=f"編號重複或關聯資料不存在：{exc}") from exc
+            raise HTTPException(status_code=422, detail=_friendly_wizard_integrity_error(exc, payload)) from exc
         return ok(result)
 
     @app.get("/api/cases")
@@ -1859,6 +1860,36 @@ def handle_create(table: str, payload: dict[str, Any]) -> dict[str, Any]:
         return ok(insert_row(table, payload))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+# 精靈撞號時，原始 sqlite3.IntegrityError 訊息（如 "UNIQUE constraint failed: cases.case_code"）
+# 對非技術背景的使用者太嚇人；轉成「案件編號「X」已經存在」這類白話訊息，並指出實際打的那個值。
+_WIZARD_CODE_LABEL = {
+    "cases.case_code": "案件編號",
+    "budgets.budget_code": "預算編號",
+    "signoffs.signoff_code": "簽呈編號",
+    "purchases.purchase_code": "請購編號",
+    "contracts.contract_code": "合約編號",
+}
+
+
+def _friendly_wizard_integrity_error(exc: sqlite3.IntegrityError, payload: "CaseWizardIn") -> str:
+    match = re.search(r"UNIQUE constraint failed: (\w+)\.(\w+)", str(exc))
+    if not match:
+        return f"資料衝突，請檢查各步驟填的編號是否跟既有資料重複。（{exc}）"
+    key = f"{match.group(1)}.{match.group(2)}"
+    label = _WIZARD_CODE_LABEL.get(key)
+    if not label:
+        return f"資料衝突（{key}），請檢查各步驟填的編號是否跟既有資料重複。"
+    value_by_key = {
+        "cases.case_code": payload.case.case_code,
+        "budgets.budget_code": payload.budget.budget_code if payload.budget else None,
+        "signoffs.signoff_code": payload.signoff.signoff_code if payload.signoff else None,
+        "purchases.purchase_code": payload.purchase.purchase_code if payload.purchase else None,
+        "contracts.contract_code": payload.contract.contract_code if payload.contract else None,
+    }
+    value = value_by_key.get(key)
+    return f"{label}「{value}」已經存在，請換一個編號。" if value else f"{label}重複，請換一個編號。"
 
 
 def handle_change(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, Any]:
