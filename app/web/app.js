@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.70 · 2026-07-11 · 修資料管理磚塊標題白字疊白底看不到";
+const BUILD_TAG = "v0.9.71 · 2026-07-11 · 人員主檔+部門重用單位下拉+案名沿用";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1363,11 +1363,13 @@ document.querySelector("#working-year-edit")?.addEventListener("click", async ()
 });
 
 // 關聯案件下拉：把各表單的 .case-picker 填成「案件編號｜名稱」，保留原選值（供編輯）
+let caseOptionsCache = [];
 async function loadCaseOptions() {
   const pickers = document.querySelectorAll(".case-picker");
   if (!pickers.length) return;
   let list = [];
   try { list = (await api("/api/cases")).data || []; } catch (_e) { return; }
+  caseOptionsCache = list;
   const opts = `<option value="">（不關聯案件）</option>` +
     list.map((c) => `<option value="${c.id}">${escapeHtml(c.case_code)}｜${escapeHtml(c.title || "")}</option>`).join("");
   for (const sel of pickers) {
@@ -1376,6 +1378,24 @@ async function loadCaseOptions() {
     if (cur) sel.value = cur;
   }
 }
+
+// 案名沿用：選了案子，若該表單的「名稱」欄目前是空的，就帶入案名當預設值（仍可改，不鎖死）。
+// 只套用在概念上「跟案子同一個代稱」的欄位——合約名稱/專案名稱/簽呈主旨；預算編號、請購品項、
+// 文件檔名性質不同（同一案底下本來就會有多筆不同名稱的預算/品項），不套用。
+const CASE_NAME_AUTOFILL_FIELD = { "contract-form": "contract_name", "project-form": "project_name", "signoff-form": "subject" };
+document.addEventListener("change", (event) => {
+  const picker = event.target.closest(".case-picker");
+  if (!picker) return;
+  const form = picker.closest("form");
+  // 注意：form.id 這個 DOM 屬性會被表單裡 <input name="id"> 遮蔽（每個 resource-form 都有這欄位
+  // 記編輯中的列 id），拿到的會是那個 input 元素、不是字串，一定要用 getAttribute("id")。
+  const fieldName = form && CASE_NAME_AUTOFILL_FIELD[form.getAttribute("id")];
+  if (!fieldName) return;
+  const nameEl = form.elements[fieldName];
+  if (!nameEl || nameEl.value.trim()) return;  // 已經有值就不覆蓋，避免蓋掉使用者已填的
+  const c = caseOptionsCache.find((x) => String(x.id) === String(picker.value));
+  if (c && c.title) nameEl.value = c.title;
+});
 
 // 追溯鏈：從案件一路看 簽呈 ▸ 請購 ▸ 合約 ▸ 付款（用 case_360 的聚合）
 async function loadCaseTrace(caseId) {
@@ -2396,7 +2416,7 @@ async function refresh() {
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadVendorAmt(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
-    loadPortfolio(), loadUnitConflicts(), loadCaseOptions(), loadWorkingYear(),
+    loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
   ]);
 }
 
@@ -3045,6 +3065,38 @@ async function loadUnitMaster() {
   }
 }
 
+// 人員下拉：案件/簽呈/預算/付款/專案表單的「負責人/申請人/核銷者…」只能選人員主檔已登記的名字。
+let personnelMasterCache = [];
+function populatePersonnelSelects() {
+  const options = ['<option value="">（未選擇）</option>']
+    .concat((personnelMasterCache || []).map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`))
+    .join("");
+  for (const sel of document.querySelectorAll("select.personnel-select")) {
+    const prev = sel.value;
+    sel.innerHTML = options;
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  }
+}
+
+async function loadPersonnelMaster() {
+  const box = document.querySelector("#personnelmaster-result");
+  try {
+    const data = (await api("/api/personnel-master")).data || {};
+    const masters = data.masters || [];
+    personnelMasterCache = masters;
+    populatePersonnelSelects();
+    if (!box) return;
+    box.innerHTML = masters.length
+      ? `<div class="grid-scroll"><table class="grid-table">
+          <thead><tr><th>姓名</th><th>備註</th></tr></thead>
+          <tbody>${masters.map((p) => `<tr><td><strong>${escapeHtml(p.name)}</strong></td><td class="muted">${escapeHtml(valueOrDash(p.note))}</td></tr>`).join("")}</tbody>
+        </table></div>`
+      : `<p class="muted">還沒有登記過人員，用上面「＋新增人員」登記。</p>`;
+  } catch (error) {
+    if (box) box.innerHTML = `<p class="muted">人員名單載入失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
 // 影響預覽：這些變體現在佔幾筆分攤、金額多少
 async function unitImpactLine(variants) {
   try {
@@ -3216,6 +3268,21 @@ document.querySelector("#unit-create-form")?.addEventListener("submit", async (e
     if (statusEl) statusEl.textContent = `已新增「${data.canonical_name}」`;
     form.reset();
     await loadUnitMaster();
+  } catch (error) {
+    if (statusEl) statusEl.textContent = `失敗：${error.message}`;
+  }
+});
+
+document.querySelector("#personnel-create-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const statusEl = document.querySelector("#personnel-create-status");
+  const data = Object.fromEntries(new FormData(form).entries());
+  try {
+    await api("/api/personnel-master", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    if (statusEl) statusEl.textContent = `已新增「${data.name}」`;
+    form.reset();
+    await loadPersonnelMaster();
   } catch (error) {
     if (statusEl) statusEl.textContent = `失敗：${error.message}`;
   }

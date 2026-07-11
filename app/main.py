@@ -49,6 +49,8 @@ from app.store import (
     unit_conflicts,
     list_unit_master,
     create_unit_master,
+    list_personnel_master,
+    create_personnel_master,
     merge_units,
     split_units,
     reassign_unit,
@@ -297,6 +299,11 @@ class UnitVariant(BaseModel):
 class UnitCreateIn(BaseModel):
     canonical_code: str = ""
     canonical_name: str = Field(min_length=1)
+    note: str = ""
+
+
+class PersonnelCreateIn(BaseModel):
+    name: str = Field(min_length=1)
     note: str = ""
 
 
@@ -626,7 +633,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.9.70 · 2026-07-11 · 修資料管理磚塊標題白字疊白底看不到"
+BACKEND_BUILD = "v0.9.71 · 2026-07-11 · 人員主檔+部門重用單位下拉+案名沿用"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -664,6 +671,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "payments-module",
             "io-center",
             "unit-admin",
+            "personnel-admin",
             "data-admin",
             "fee-alloc",
             "name-admin",
@@ -698,6 +706,7 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "payments-module",
             "io-center",
             "unit-admin",
+            "personnel-admin",
             "data-admin",
             "fee-alloc",
             "name-admin",
@@ -1509,6 +1518,19 @@ def create_app() -> FastAPI:
         _require_unit_editor(request)
         try:
             return ok(create_unit_master(payload.canonical_code, payload.canonical_name, payload.note))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/personnel-master")
+    def get_personnel_master() -> dict[str, Any]:
+        return ok(list_personnel_master())
+
+    @app.post("/api/personnel-master", status_code=201)
+    def post_personnel_master(payload: PersonnelCreateIn, request: Request) -> dict[str, Any]:
+        # 主動新增乾淨人員（給表單下拉選單用）；建立前擋撞名，避免同一人被打成兩種寫法。
+        _require_unit_editor(request)
+        try:
+            return ok(create_personnel_master(payload.name, payload.note))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

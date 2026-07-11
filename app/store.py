@@ -274,6 +274,14 @@ CREATE TABLE IF NOT EXISTS unit_master (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS personnel_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS unit_aliases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     master_id INTEGER NOT NULL,
@@ -1566,6 +1574,30 @@ def create_unit_master(canonical_code: str, canonical_name: str, note: str = "")
         row_id = cur.lastrowid
         row = get_row(conn, "unit_master", row_id)
         write_audit_log(conn, "unit_master", row_id, "create", None, row)
+    return row
+
+
+def list_personnel_master() -> dict[str, Any]:
+    """人員主檔清單：給案件/簽呈/預算/付款/專案表單的人員欄位下拉選單用。"""
+    with connect() as conn:
+        masters = [dict(m) for m in conn.execute(
+            "SELECT id, name, status, note FROM personnel_master WHERE status <> 'disabled' ORDER BY name").fetchall()]
+    return {"masters": masters, "count": len(masters)}
+
+
+def create_personnel_master(name: str, note: str = "") -> dict[str, Any]:
+    """主動新增一個人員（給表單下拉選單用）。建立前擋撞名，避免同一人被打成兩種寫法。"""
+    n = (name or "").strip()
+    if not n:
+        raise ValueError("請填人員姓名。")
+    with connect() as conn:
+        dup = conn.execute("SELECT id FROM personnel_master WHERE name = ?", (n,)).fetchone()
+        if dup:
+            raise ValueError(f"「{n}」已存在於人員主檔，不能重複新增。")
+        cur = conn.execute("INSERT INTO personnel_master (name, note) VALUES (?, ?)", (n, note))
+        row_id = cur.lastrowid
+        row = get_row(conn, "personnel_master", row_id)
+        write_audit_log(conn, "personnel_master", row_id, "create", None, row)
     return row
 
 
