@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.89 · 2026-07-11 · 專案清單加「查看細項」捷徑直達進度總表";
+const BUILD_TAG = "v0.9.90 · 2026-07-11 · 專案名稱本身變連結(取代獨立查看按鈕)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -265,13 +265,12 @@ const resourceConfig = {
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.project, i.case_id) },
       { label: "編號", cell: (i) => `<strong>${escapeHtml(i.project_code)}</strong>` },
-      { label: "專案名稱", cell: (i) => escapeHtml(i.project_name) },
+      { label: "專案名稱", cell: (i) => `<button type="button" class="link-btn" data-view-items="${i.id}" title="查看細項（進度總表）">${escapeHtml(i.project_name)}</button>` },
       { label: "層級", cell: (i) => escapeHtml(valueOrDash(i.level)) },
       { label: "必要性", cell: (i) => escapeHtml(valueOrDash(i.necessity)) },
       { label: "負責人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.owner))}</span>` },
       { label: "進度（預計／實際）", cls: "num", cell: (i) => progressCell(i.progress_planned, i.progress) },
       { label: "燈號", cell: (i) => ragChip(valueOrDash(i.rag_status) === "-" ? labelStatus(i.status) : i.rag_status) },
-      { label: "細項", cell: (i) => `<button type="button" class="secondary btn-sm" data-view-items="${i.id}">查看</button>` },
     ],
   },
   signoff: {
