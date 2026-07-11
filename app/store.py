@@ -2963,6 +2963,24 @@ def search_records(query: str) -> list[dict[str, Any]]:
             sql += " ORDER BY t.id DESC LIMIT 50"
             rows = conn.execute(sql, params).fetchall()
             results.extend({"type": typ, **row} for row in rows)
+
+        # 專案「工作主項目」子項目：使用者反饋 Excel 表格裡的細項（如「集團聯合議價，合約」）搜不到。
+        # 子項目沒有獨立頁面可編輯，比對到就導回所屬專案（type 沿用 project，id 用專案的 id）。
+        item_fields = ["item_name", "owner", "risk_note", "decision_needed", "support_needed"]
+        item_ors = " OR ".join(f"i.{f} LIKE ?" for f in item_fields)
+        item_sql = (
+            "SELECT pr.id AS id, pr.project_code AS code, i.item_name AS title, "
+            "('屬於「' || pr.project_name || '」的工作項目') AS detail "
+            f"FROM project_items i JOIN projects pr ON pr.id = i.project_id WHERE ({item_ors})"
+        )
+        item_params: list[Any] = [pattern] * len(item_fields)
+        if scope is not None:
+            sw, sp = _scope_where("projects", scope)
+            if sw:
+                item_sql += f" AND pr.id IN (SELECT id FROM projects WHERE {sw})"
+                item_params += sp
+        item_sql += " ORDER BY i.id DESC LIMIT 50"
+        results.extend({"type": "project", **row} for row in conn.execute(item_sql, item_params).fetchall())
     return results
 
 
