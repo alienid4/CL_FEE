@@ -510,6 +510,26 @@ def get_working_year() -> str:
 SETTLE_PREFIX = "Settle"
 
 
+def _ensure_case_for(conn: sqlite3.Connection, name: str | None, code_hint: str | None, fiscal_year: str | None) -> int | None:
+    """使用者的心智模型裡沒有「先建一個叫案件的空殼」這一步——「案子」就是那筆預算/專案本身。
+    建預算/專案沒給 case_id 時，用這個名稱找或建一個同名案件、自動掛上，讓使用者感覺不到「案件」這層存在。
+    標題完全相同才視為同一案（不做模糊比對，避免系統瞎猜合併不相干的東西——命名不一致要靠既有「＋歸戶」人工改掛）。
+    沒有名稱就回 None，呼叫端維持 case_id 為空，不強迫。"""
+    name = str(name or "").strip()
+    if not name:
+        return None
+    existing = conn.execute("SELECT id FROM cases WHERE title = ?", (name,)).fetchone()
+    if existing:
+        return existing["id"]
+    code = str(code_hint or name).strip() or name
+    base, n = code, 1
+    while conn.execute("SELECT 1 FROM cases WHERE case_code = ?", (code,)).fetchone() is not None:
+        n += 1
+        code = f"{base}-{n}"
+    new_case = _insert_row(conn, "cases", {"case_code": code, "title": name, "fiscal_year": fiscal_year or ""})
+    return new_case["id"]
+
+
 def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
     """insert_row 的核心邏輯，吃外部傳入的連線——供需要跨表單一交易的呼叫方使用（如 create_case_wizard）。"""
     scope = _owner_scope.get()
@@ -524,6 +544,14 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
     if not fields:
         raise ValueError("No valid fields supplied.")
     validate_status_fields(table, fields)
+    if table in ("budgets", "projects") and not fields.get("case_id"):
+        # 案件自動生成：使用者拍板「不需要案件，是系統要幫我建出一個案件」——
+        # 建預算/專案時沒指定案件，就用這筆自己的名稱/代碼幫它配一個同名案件。
+        name = fields.get("project_name") if table == "projects" else fields.get("budget_code")
+        code_hint = fields.get("project_code") if table == "projects" else fields.get("budget_code")
+        cid = _ensure_case_for(conn, name, code_hint, fields.get("fiscal_year"))
+        if cid:
+            fields["case_id"] = cid
     if table == "cases":
         nxt = conn.execute(
             "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
@@ -1143,6 +1171,10 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 write_audit_log(conn, "projects", rid, "import-update", before, after)
                 updated.append(name)
             else:
+                if not fields.get("case_id"):
+                    cid = _ensure_case_for(conn, fields.get("project_name"), fields.get("project_code"), fields.get("fiscal_year"))
+                    if cid:
+                        fields["case_id"] = cid
                 columns = ", ".join(fields)
                 placeholders = ", ".join("?" for _ in fields)
                 cur = conn.execute(f"INSERT INTO projects ({columns}) VALUES ({placeholders})", list(fields.values()))
@@ -1345,6 +1377,10 @@ def commit_budgets_import(records: list[dict[str, Any]], source_file: str = "") 
                 write_audit_log(conn, "budgets", rid, "import-update", before, get_row(conn, "budgets", rid))
                 updated.append(code)
             else:
+                if not fields.get("case_id"):
+                    cid = _ensure_case_for(conn, fields.get("budget_code"), fields.get("budget_code"), fields.get("fiscal_year"))
+                    if cid:
+                        fields["case_id"] = cid
                 columns = ", ".join(fields)
                 placeholders = ", ".join("?" for _ in fields)
                 cur = conn.execute(f"INSERT INTO budgets ({columns}) VALUES ({placeholders})", list(fields.values()))

@@ -155,3 +155,59 @@ def test_search_finds_project_by_owner(tmp_path):
         client.post("/api/projects", json={"project_code": "OWN-1", "project_name": "資產治理", "owner": "吳承恩"})
         codes = {r["code"] for r in client.get("/api/search", params={"q": "吳承恩"}).json()["data"]}
         assert "OWN-1" in codes
+
+
+def test_budget_without_case_auto_creates_case(tmp_path):
+    """使用者拍板：不需要先手動建案件，建預算沒指定案件就自動生一個同名案件掛上。"""
+    with _client(tmp_path) as client:
+        b = client.post("/api/budgets", json={"budget_code": "X Server維護案", "amount": 2000000}).json()["data"]
+        assert b["case_id"] is not None
+        case = client.get("/api/cases").json()["data"]
+        auto = [c for c in case if c["id"] == b["case_id"]][0]
+        assert auto["title"] == "X Server維護案"
+
+
+def test_project_same_name_reuses_auto_created_case(tmp_path):
+    """同名的預算跟專案要合流到同一個自動案件，不是各自生出兩個案件。"""
+    with _client(tmp_path) as client:
+        b = client.post("/api/budgets", json={"budget_code": "X Server維護案", "amount": 2000000}).json()["data"]
+        p = client.post("/api/projects", json={"project_code": "PJ-X", "project_name": "X Server維護案"}).json()["data"]
+        assert p["case_id"] == b["case_id"]
+
+
+def test_budget_with_explicit_case_id_not_overridden(tmp_path):
+    """有明確指定案件時不要被自動生成蓋掉。"""
+    with _client(tmp_path) as client:
+        case = client.post("/api/cases", json={"case_code": "MANUAL-1", "title": "手動案"}).json()["data"]
+        b = client.post("/api/budgets", json={"budget_code": "有指定案件的預算", "case_id": case["id"]}).json()["data"]
+        assert b["case_id"] == case["id"]
+
+
+def test_project_import_without_case_auto_creates_case(tmp_path):
+    """匯入路徑（commit_projects_import）也要吃到自動建案規則。"""
+    with _client(tmp_path) as client:
+        from app import store
+        result = store.commit_projects_import([
+            {"project_code": "IMP-PJ-1", "project_name": "匯入自動建案專案", "source": "測試組"},
+        ])
+        assert result["created_count"] == 1
+        rows = client.get("/api/projects").json()["data"]
+        row = [r for r in rows if r["project_code"] == "IMP-PJ-1"][0]
+        assert row["case_id"] is not None
+        cases = client.get("/api/cases").json()["data"]
+        assert any(c["id"] == row["case_id"] and c["title"] == "匯入自動建案專案" for c in cases)
+
+
+def test_budget_import_without_case_auto_creates_case(tmp_path):
+    """匯入路徑（commit_budgets_import）也要吃到自動建案規則。"""
+    with _client(tmp_path) as client:
+        from app import store
+        result = store.commit_budgets_import([
+            {"budget_code": "匯入自動建案預算", "amount": 100},
+        ])
+        assert result["created_count"] == 1
+        rows = client.get("/api/budgets").json()["data"]
+        row = [r for r in rows if r["budget_code"] == "匯入自動建案預算"][0]
+        assert row["case_id"] is not None
+        cases = client.get("/api/cases").json()["data"]
+        assert any(c["id"] == row["case_id"] and c["title"] == "匯入自動建案預算" for c in cases)
