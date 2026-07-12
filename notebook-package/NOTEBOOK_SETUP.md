@@ -77,7 +77,7 @@ SQLITE_PATH=data/preview.db PILOT_PASSWORDLESS=1 python -m uvicorn app.main:app 
 ## 內附的測試資料裡有什麼
 `data/preview.db` 是打包當下（2026-07-12）家用機 8025 預覽站的完整快照，包含：
 - 5 個內建帳號（ap01~ap04、admin，見下表）
-- 1 個自建測試帳號 **ap10 / 洪似妮（承辦）**——免密碼登入模式下登入頁下拉會看到
+- 1 個自建測試帳號 **ap10 / 黃蓉（承辦）**——免密碼登入模式下登入頁下拉會看到
 - 34 筆案件（含真實匯入的專案資料，如 EDR、AI專案系列等），部分案件負責人顯示「未指派」
   是正常現象（負責人姓名對不到任何登入帳號時，系統刻意留白不瞎猜，不是 bug）
 
@@ -87,7 +87,7 @@ SQLITE_PATH=data/preview.db PILOT_PASSWORDLESS=1 python -m uvicorn app.main:app 
 | ap02 | 主管/助理 | 全功能，含主管儀表板/系統工具等維運功能 |
 | ap03 | 承辦 | 只看自己案件範圍 |
 | ap04 | 助理B | 同 ap02，用於雙人複核 |
-| ap10 | 承辦（洪似妮） | 只看自己案件範圍 |
+| ap10 | 承辦（黃蓉） | 只看自己案件範圍 |
 | admin | 系統管理員 | 只進「系統管理」後台 |
 
 ## 測試（選用）

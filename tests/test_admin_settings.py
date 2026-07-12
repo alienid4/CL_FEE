@@ -54,9 +54,9 @@ def test_test_email_without_smtp(tmp_path):
 
 def test_email_map_wildcard(tmp_path):
     with _client(tmp_path) as client:  # admin
-        client.patch("/api/admin/settings", json={"email_map": "*=alien4job@gmail.com"})
+        client.patch("/api/admin/settings", json={"email_map": "*=test@example.com"})
         from app import notify
-        assert notify._email_map() == {"*": "alien4job@gmail.com"}
+        assert notify._email_map() == {"*": "test@example.com"}
 
 
 def test_recipient_resolution(tmp_path):

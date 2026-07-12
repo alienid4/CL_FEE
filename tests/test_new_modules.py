@@ -106,16 +106,16 @@ def test_payment_project_real_fields_roundtrip(tmp_path):
         ct = client.post("/api/contracts", json={"contract_code": "K-F", "contract_name": "c"}).json()["data"]
         pay = client.post("/api/payments", json={
             "contract_id": ct["id"], "payment_month": "2026-06", "payment_amount": 479848,
-            "item": "APT防護系統 第1期", "settle_no": "CS460038", "ref_no": "WU82483858",
-            "vendor": "中菲電腦", "period": "第1期", "billing_period": "115/6/1-115/6/30",
+            "item": "測試防護系統 第1期", "settle_no": "TEST-460038", "ref_no": "TEST-82483858",
+            "vendor": "測試廠商甲", "period": "第1期", "billing_period": "115/6/1-115/6/30",
             "net_amount": 456998, "tax_amount": 22850, "approval_level": "處長",
-            "settled_by": "蔡維庭", "owner": "黃小姐", "owner_email": "yun@cathaysec.com.tw",
+            "settled_by": "郭靖", "owner": "黃蓉", "owner_email": "test@example.com",
         }).json()["data"]
-        assert pay["item"] == "APT防護系統 第1期" and pay["net_amount"] == 456998 and pay["tax_amount"] == 22850
-        assert pay["vendor"] == "中菲電腦" and pay["settle_no"] == "CS460038"
+        assert pay["item"] == "測試防護系統 第1期" and pay["net_amount"] == 456998 and pay["tax_amount"] == 22850
+        assert pay["vendor"] == "測試廠商甲" and pay["settle_no"] == "TEST-460038"
         # CSV 匯出含新欄位（Excel out）
         csv = client.get("/api/payments.csv").text
-        assert "核銷項目" in csv and "未稅金額" in csv and "營業稅" in csv and "中菲電腦" in csv
+        assert "核銷項目" in csv and "未稅金額" in csv and "營業稅" in csv and "測試廠商甲" in csv
 
         proj = client.post("/api/projects", json={
             "project_code": "P-F", "project_name": "資料庫EOS案", "necessity": "必要",
@@ -258,9 +258,9 @@ def test_project_owner_matched_to_account_auto_assigns_case_owner(tmp_path):
     """方案A：專案負責人若能唯一比對到一個登入帳號，自動生成的案件直接掛該帳號為負責人。"""
     with _client(tmp_path) as client:
         from app import store
-        store.create_db_user("ap10", "handler", "洪似妮", "", "x")
+        store.create_db_user("ap10", "handler", "黃蓉", "", "x")
         p = client.post("/api/projects", json={
-            "project_code": "PJ-OWNER", "project_name": "EDR新專案環境建置", "owner": "陳昱杉/洪似妮",
+            "project_code": "PJ-OWNER", "project_name": "EDR新專案環境建置", "owner": "令狐沖/黃蓉",
         }).json()["data"]
         case = [c for c in client.get("/api/cases").json()["data"] if c["id"] == p["case_id"]][0]
         assert case["owner"] == "ap10"
@@ -284,9 +284,9 @@ def test_backfill_patches_owner_for_existing_orphan_owner_case(tmp_path):
         case = store.insert_row("cases", {"case_code": "EDR-OLD", "title": "EDR新專案環境建置"})
         store.insert_row("projects", {
             "project_code": "OLD-EDR-PJ", "project_name": "EDR新專案環境建置",
-            "owner": "陳昱杉/洪似妮", "case_id": case["id"],
+            "owner": "令狐沖/黃蓉", "case_id": case["id"],
         })
-        store.create_db_user("ap10", "handler", "洪似妮", "", "x")
+        store.create_db_user("ap10", "handler", "黃蓉", "", "x")
 
         result = client.post("/api/dev-console/backfill/run").json()["data"]
         assert result is not None

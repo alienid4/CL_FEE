@@ -31,7 +31,7 @@ def set_owner_scope(scope: str | None) -> None:
 
 def set_owner_display_name(name: str | None) -> None:
     """設定承辦者的顯示名稱（人名），供專案「依負責人隔離」比對用——專案 owner 欄存的是
-    人名（可能用「/」列多個共同負責人，如「陳昱杉/洪似妮」），不是登入帳號，跟案件的
+    人名（可能用「/」列多個共同負責人，如「令狐沖/黃蓉」），不是登入帳號，跟案件的
     owner=帳號 是不同比對基準，分開存。"""
     _owner_display_name.set(name)
 
@@ -516,7 +516,7 @@ SETTLE_PREFIX = "Settle"
 
 
 def _match_owner_username(conn: sqlite3.Connection, owner_display_name: str | None) -> str | None:
-    """把專案的「負責人」欄位（可能是「陳昱杉/洪似妮」這種"/"分隔共同負責人）比對到登入帳號的顯示名稱，
+    """把專案的「負責人」欄位（可能是「令狐沖/黃蓉」這種"/"分隔共同負責人）比對到登入帳號的顯示名稱，
     抓到剛好一個相符帳號才回傳其 username，用來讓自動生成的案件自動掛對承辦人。
     抓不到、或抓到不只一個相符帳號，保守回 None——寧可留白讓人工指派，也不要瞎猜指派錯人。"""
     name = str(owner_display_name or "").strip()
