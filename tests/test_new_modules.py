@@ -157,6 +157,20 @@ def test_search_finds_project_by_owner(tmp_path):
         assert "OWN-1" in codes
 
 
+def test_search_as_handler_with_matched_display_name_does_not_500(tmp_path):
+    """曾經的真bug：承辦(有對應到帳號的顯示名稱)搜尋時，projects的owner-scoping SQL
+    LEFT JOIN cases後兩表都有owner欄，沒加表別名前綴會被SQLite判為ambiguous column
+    name直接500。用有唯一對應帳號的承辦(ap03顯示名稱「承辦」)搜尋觸發scope filter驗證修好。"""
+    with _client(tmp_path) as client:
+        from app import store
+        store.insert_row("projects", {"project_code": "SCOPE-SEARCH", "project_name": "找我沒問題", "owner": "承辦"})
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        resp = client.get("/api/search", params={"q": "找我沒問題"})
+        assert resp.status_code == 200, resp.text
+        codes = {r["code"] for r in resp.json()["data"]}
+        assert "SCOPE-SEARCH" in codes
+
+
 def test_budget_without_case_auto_creates_case(tmp_path):
     """使用者拍板：不需要先手動建案件，建預算沒指定案件就自動生一個同名案件掛上。"""
     with _client(tmp_path) as client:

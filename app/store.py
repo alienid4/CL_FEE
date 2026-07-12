@@ -36,20 +36,25 @@ def set_owner_display_name(name: str | None) -> None:
     _owner_display_name.set(name)
 
 
-def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
-    """把 table 限縮到 scope 擁有案件範圍的 (WHERE 片段, 參數)。"""
+def _scope_where(table: str, scope: str, alias: str = "") -> tuple[str, list[Any]]:
+    """把 table 限縮到 scope 擁有案件範圍的 (WHERE 片段, 參數)。
+    alias：呼叫端 SQL 若把該表取了別名（如 `FROM projects t`）就傳進來，
+    避免欄名跟 JOIN 進來的其他表同名欄位（如 projects.owner 撞 cases.owner）產生
+    SQLite「ambiguous column name」500 錯；大多數呼叫端（如 list_rows）沒有 JOIN、
+    表名本身就是唯一來源，維持不傳（欄名不加前綴）即可。"""
+    prefix = f"{alias}." if alias else ""
     owned = "SELECT id FROM cases WHERE owner = ?"
     if table == "cases":
-        return "owner = ?", [scope]
+        return f"{prefix}owner = ?", [scope]
     if table in ("contracts", "signoffs", "purchases"):
         # 這些靠 case_id 掛在案件上 → 依案件歸屬隔離（承辦只看自己案件下的）。
         # 預算(budgets) 不在此列：是全公司共享資料，不管誰負責、大家都看得到。
-        return f"case_id IN ({owned})", [scope]
+        return f"{prefix}case_id IN ({owned})", [scope]
     if table == "payments":
-        return f"contract_id IN (SELECT id FROM contracts WHERE case_id IN ({owned}))", [scope]
+        return f"{prefix}contract_id IN (SELECT id FROM contracts WHERE case_id IN ({owned}))", [scope]
     if table == "documents":
         return (
-            f"(case_id IN ({owned}) OR contract_id IN "
+            f"({prefix}case_id IN ({owned}) OR {prefix}contract_id IN "
             f"(SELECT id FROM contracts WHERE case_id IN ({owned})))",
             [scope, scope],
         )
@@ -62,7 +67,7 @@ def _scope_where(table: str, scope: str) -> tuple[str, list[Any]]:
         name = _owner_display_name.get()
         if not name:
             return "0", []
-        return "('/' || owner || '/') LIKE ?", [f"%/{name}/%"]
+        return f"('/' || {prefix}owner || '/') LIKE ?", [f"%/{name}/%"]
     return "", []
 
 
@@ -3043,7 +3048,7 @@ def search_records(query: str) -> list[dict[str, Any]]:
                 f"t.{extra_field} AS detail FROM {source} t {join} WHERE ({' OR '.join(ors)})"
             )
             if scope is not None:
-                sw, sp = _scope_where(source, scope)
+                sw, sp = _scope_where(source, scope, alias="t")
                 if sw:
                     sql += f" AND {sw}"
                     params += sp
