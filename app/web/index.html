@@ -734,69 +734,21 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">資料管理 / 資料檢核</p>
-                <div class="tabs" aria-label="資料檢核檢視">
-                  <span class="tab active">檢核總覽</span>
-                  <span class="tab">來源舉證</span>
-                  <span class="tab">待補清單</span>
-                </div>
               </div>
               <div class="head-actions">
-                <div class="status-pills">
-                  <span class="warn">待確認 4筆</span>
-                  <span class="ok">已關聯 12</span>
-                  <span>正式寫入封鎖</span>
-                </div>
                 <button type="button" class="secondary back-to-admin">← 資料管理</button>
               </div>
             </div>
-            <section class="kpi-grid">
-              <article class="kpi-card warn" role="button" tabindex="0" data-drill-target="data-review-missing-row"><span>待補來源</span><strong>4筆</strong><small>需回到 Excel / PDF / 人工來源補證。</small></article>
-              <article class="kpi-card ok" role="button" tabindex="0" data-drill-target="evidence-chain-row"><span>已關聯</span><strong>12筆</strong><small>案件、合約、付款已可追來源。</small></article>
-              <article class="kpi-card danger" role="button" tabindex="0" data-drill-target="data-review-write-block-row"><span>不可正式寫入</span><strong>封鎖</strong><small>正式匯入確認仍需高風險閘門。</small></article>
-              <article class="kpi-card" role="button" tabindex="0" data-drill-target="data-review-action-row"><span>下一步</span><strong>補證</strong><small>保留人工確認，不自動寫入。</small></article>
-            </section>
             <section class="watch-list">
               <div class="section-heading compact">
                 <h2>需處理案件（待辦）<span class="help" data-tip="列出狀態為「審核中」、或已填「下一步」的案件。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <ul class="note-list" id="todo-list"></ul>
             </section>
-            <section class="dashboard-split">
-              <div class="mini-dashboard-card">
-                <h2>來源舉證鏈</h2>
-                <table>
-                  <thead><tr><th>舉證ID</th><th>來源</th><th>對應模組</th><th>可信度</th></tr></thead>
-                  <tbody>
-                    <tr id="evidence-chain-row" tabindex="-1"><td>EVID-2026-0001</td><td>A3 附件 / 115年預算範本</td><td>預算</td><td><span class="badge ok">高</span></td></tr>
-                    <tr><td>EVID-2026-0002</td><td>費用預估明細 sheet</td><td>案件 / 付款</td><td><span class="badge warn">需確認</span></td></tr>
-                    <tr><td>EVID-2026-0003</td><td>合約進度 xlsx</td><td>合約</td><td><span class="badge ok">高</span></td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>待補資料</h2>
-                <ul class="tight-list">
-                  <li><strong>付款期程原因</strong><span>補上預算外原因與付款月份對應。</span></li>
-                  <li><strong>簽呈缺金額</strong><span>回到來源列補齊金額或標示不適用。</span></li>
-                  <li><strong>正式寫入條件</strong><span>完成回滾、來源舉證、操作者與冪等性閘門。</span></li>
-                </ul>
-              </div>
-              <div class="mini-dashboard-card">
-                <h2>下鑽動作</h2>
-                <table>
-                  <thead><tr><th>入口</th><th>用途</th><th>狀態</th></tr></thead>
-                  <tbody>
-                    <tr id="data-review-action-row" tabindex="-1"><td>看來源</td><td>定位 Excel/PDF/人工欄位</td><td><span class="badge ok">可檢視</span></td></tr>
-                    <tr><td>補說明</td><td>記錄人工確認原因</td><td><span class="badge warn">待串接</span></td></tr>
-                    <tr><td>正式寫入</td><td>正式資料寫入</td><td><span class="badge danger">封鎖</span></td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
           </section>
         </section>
 
-        <section class="panel import-workbench module-extra" data-module-parent="data-review" hidden>
+        <section class="panel import-workbench module-extra" data-module-parent="data-review" data-roles="cio manager_assistant" hidden>
           <div class="section-heading compact">
             <h2>匯入 / 確認架構追溯</h2>
           </div>
@@ -1072,6 +1024,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-96"></script>
+    <script src="/static/app.js?v=v0-9-97"></script>
   </body>
 </html>

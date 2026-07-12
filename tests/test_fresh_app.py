@@ -145,16 +145,18 @@ def test_health_openapi_and_web(tmp_path):
         assert "PAY-2025-0001" not in home.text  # 付款假表已移除
         assert 'id="contracts"' in home.text  # 合約真清單容器（後端載入）
         assert 'id="payments"' in home.text  # 付款真清單容器（後端載入）
-        assert "正式寫入封鎖" in home.text
-        assert "來源舉證鏈" in home.text
-        assert "需處理案件（待辦）" in home.text  # 假面板已換成真待辦
+        # 「資料檢核」頁曾經有一批寫死的假KPI/舉證鏈/待補清單資料，使用者發現後確認是未完成
+        # 的設計草稿、會誤導使用者以為是真資料，v0.9.97 拍板整批移除（不是做成真功能）
+        assert "正式寫入封鎖" not in home.text
+        assert "來源舉證鏈" not in home.text
+        assert "需處理案件（待辦）" in home.text  # 唯一保留的是真待辦（/api/todo 動態載入）
         assert "列出狀態為「審核中」" in home.text  # 準則收進「?」tooltip（UI 最高原則：不鋪版面）
         assert 'id="todo-list"' in home.text  # 由 /api/todo 動態載入
         assert "月度支出彙總" in home.text  # 真月度支出面板
         assert 'id="monthly-spending-body"' in home.text
         assert "合約續約提醒" in home.text  # 真合約續約面板
         assert 'id="expiring-list"' in home.text
-        assert "EVID-2026-0001" in home.text
+        assert "EVID-2026-0001" not in home.text  # 假舉證編號已隨假資料一併移除（v0.9.97）
         assert "檢視角色" not in home.text
         assert "使用者：" not in home.text
         assert 'name="viewport" content="width=device-width' in home.text  # 改自適應佈局
