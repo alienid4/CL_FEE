@@ -11,7 +11,7 @@ echo   CL_FEE Update (download latest code)
 echo ============================================
 echo.
 echo Downloading latest code from GitHub...
-curl -L -o "%TMPZIP%" "%REPO_ZIP_URL%"
+curl --ssl-no-revoke -L -o "%TMPZIP%" "%REPO_ZIP_URL%"
 if errorlevel 1 (
     echo.
     echo Download failed. Check your network connection.
