@@ -238,3 +238,44 @@ def test_backfill_case_links_for_existing_orphan_data(tmp_path):
 
         status_after = client.get("/api/dev-console/backfill/status").json()["data"]
         assert status_after["case_link_missing"] == 0
+
+
+def test_project_owner_matched_to_account_auto_assigns_case_owner(tmp_path):
+    """方案A：專案負責人若能唯一比對到一個登入帳號，自動生成的案件直接掛該帳號為負責人。"""
+    with _client(tmp_path) as client:
+        from app import store
+        store.create_db_user("ap10", "handler", "洪似妮", "", "x")
+        p = client.post("/api/projects", json={
+            "project_code": "PJ-OWNER", "project_name": "EDR新專案環境建置", "owner": "陳昱杉/洪似妮",
+        }).json()["data"]
+        case = [c for c in client.get("/api/cases").json()["data"] if c["id"] == p["case_id"]][0]
+        assert case["owner"] == "ap10"
+
+
+def test_project_owner_no_unique_match_leaves_case_owner_blank(tmp_path):
+    """比對不到帳號、或名字對不到任何登入帳號時，不瞎猜，案件負責人留白。"""
+    with _client(tmp_path) as client:
+        p = client.post("/api/projects", json={
+            "project_code": "PJ-NOMATCH", "project_name": "無人對應的專案", "owner": "查無此人",
+        }).json()["data"]
+        case = [c for c in client.get("/api/cases").json()["data"] if c["id"] == p["case_id"]][0]
+        assert not case["owner"]
+
+
+def test_backfill_patches_owner_for_existing_orphan_owner_case(tmp_path):
+    """既有（早於本次功能）已自動建好但負責人空白的案件，只要掛的專案負責人現在能唯一比對到帳號，回填要一併補上。"""
+    with _client(tmp_path) as client:
+        from app import store
+        # 模擬 v0.9.93 之前跑過的回填：案件已建好、掛上專案，但沒有負責人（v0.9.94 之前不會比對負責人）
+        case = store.insert_row("cases", {"case_code": "EDR-OLD", "title": "EDR新專案環境建置"})
+        store.insert_row("projects", {
+            "project_code": "OLD-EDR-PJ", "project_name": "EDR新專案環境建置",
+            "owner": "陳昱杉/洪似妮", "case_id": case["id"],
+        })
+        store.create_db_user("ap10", "handler", "洪似妮", "", "x")
+
+        result = client.post("/api/dev-console/backfill/run").json()["data"]
+        assert result is not None
+
+        case_after = [c for c in client.get("/api/cases").json()["data"] if c["id"] == case["id"]][0]
+        assert case_after["owner"] == "ap10"

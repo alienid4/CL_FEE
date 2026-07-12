@@ -510,11 +510,36 @@ def get_working_year() -> str:
 SETTLE_PREFIX = "Settle"
 
 
-def _ensure_case_for(conn: sqlite3.Connection, name: str | None, code_hint: str | None, fiscal_year: str | None) -> int | None:
+def _match_owner_username(conn: sqlite3.Connection, owner_display_name: str | None) -> str | None:
+    """把專案的「負責人」欄位（可能是「陳昱杉/洪似妮」這種"/"分隔共同負責人）比對到登入帳號的顯示名稱，
+    抓到剛好一個相符帳號才回傳其 username，用來讓自動生成的案件自動掛對承辦人。
+    抓不到、或抓到不只一個相符帳號，保守回 None——寧可留白讓人工指派，也不要瞎猜指派錯人。"""
+    name = str(owner_display_name or "").strip()
+    if not name:
+        return None
+    parts = [p.strip() for p in name.split("/") if p.strip()]
+    if not parts:
+        return None
+    placeholders = ",".join("?" for _ in parts)
+    rows = conn.execute(
+        f"SELECT username FROM users WHERE disabled = 0 AND display_name IN ({placeholders})", parts
+    ).fetchall()
+    usernames = {r["username"] for r in rows}
+    if len(usernames) == 1:
+        return next(iter(usernames))
+    return None
+
+
+def _ensure_case_for(
+    conn: sqlite3.Connection, name: str | None, code_hint: str | None, fiscal_year: str | None,
+    owner_display_name: str | None = None,
+) -> int | None:
     """使用者的心智模型裡沒有「先建一個叫案件的空殼」這一步——「案子」就是那筆預算/專案本身。
     建預算/專案沒給 case_id 時，用這個名稱找或建一個同名案件、自動掛上，讓使用者感覺不到「案件」這層存在。
     標題完全相同才視為同一案（不做模糊比對，避免系統瞎猜合併不相干的東西——命名不一致要靠既有「＋歸戶」人工改掛）。
-    沒有名稱就回 None，呼叫端維持 case_id 為空，不強迫。"""
+    沒有名稱就回 None，呼叫端維持 case_id 為空，不強迫。
+    owner_display_name（僅專案有）：若能唯一比對到一個登入帳號，新案件直接掛該帳號為負責人
+    （若觸發者本身是承辦，_insert_row 既有規則「承辦建案自動歸自己」會再覆蓋一次，維持原本行為）。"""
     name = str(name or "").strip()
     if not name:
         return None
@@ -526,7 +551,11 @@ def _ensure_case_for(conn: sqlite3.Connection, name: str | None, code_hint: str 
     while conn.execute("SELECT 1 FROM cases WHERE case_code = ?", (code,)).fetchone() is not None:
         n += 1
         code = f"{base}-{n}"
-    new_case = _insert_row(conn, "cases", {"case_code": code, "title": name, "fiscal_year": fiscal_year or ""})
+    payload: dict[str, Any] = {"case_code": code, "title": name, "fiscal_year": fiscal_year or ""}
+    matched = _match_owner_username(conn, owner_display_name)
+    if matched:
+        payload["owner"] = matched
+    new_case = _insert_row(conn, "cases", payload)
     return new_case["id"]
 
 
@@ -549,7 +578,8 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         # 建預算/專案時沒指定案件，就用這筆自己的名稱/代碼幫它配一個同名案件。
         name = fields.get("project_name") if table == "projects" else fields.get("budget_code")
         code_hint = fields.get("project_code") if table == "projects" else fields.get("budget_code")
-        cid = _ensure_case_for(conn, name, code_hint, fields.get("fiscal_year"))
+        owner_hint = fields.get("owner") if table == "projects" else None
+        cid = _ensure_case_for(conn, name, code_hint, fields.get("fiscal_year"), owner_hint)
         if cid:
             fields["case_id"] = cid
     if table == "cases":
@@ -1172,7 +1202,10 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 updated.append(name)
             else:
                 if not fields.get("case_id"):
-                    cid = _ensure_case_for(conn, fields.get("project_name"), fields.get("project_code"), fields.get("fiscal_year"))
+                    cid = _ensure_case_for(
+                        conn, fields.get("project_name"), fields.get("project_code"), fields.get("fiscal_year"),
+                        fields.get("owner"),
+                    )
                     if cid:
                         fields["case_id"] = cid
                 columns = ", ".join(fields)
@@ -3373,19 +3406,44 @@ def backfill_settle_numbers() -> int:
 
 def backfill_case_links() -> int:
     """回填舊有預算/專案的案件關聯：使用者拍板「匯進來就該自動配一個案件」不只套新資料、
-    舊的也要補——比照 v0.9.92 新建時的規則（_ensure_case_for），沒 case_id 的就補一個同名案件掛上。"""
+    舊的也要補——比照 v0.9.92 新建時的規則（_ensure_case_for），沒 case_id 的就補一個同名案件掛上。
+    專案有「負責人」欄位，能唯一比對到帳號的話案件負責人一併補上（方案A，見 _match_owner_username）；
+    budgets 沒有負責人欄位，維持只補案件關聯、不補負責人。
+    另外處理「案件已存在但沒負責人」的既有案件（早期回填留下的孤兒）：只要它掛的專案負責人現在能唯一比對到帳號，
+    也一併補上——因為 _ensure_case_for 只在『新建案件』那一刻才會嘗試比對，同名案件已存在時不會回頭補。"""
     filled = 0
     with connect() as conn:
-        for table, name_col, code_col in (("budgets", "budget_code", "budget_code"), ("projects", "project_name", "project_code")):
-            rows = conn.execute(
-                f"SELECT id, {name_col} AS name, {code_col} AS code FROM {table} "
-                f"WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)"
-            ).fetchall()
-            for r in rows:
-                cid = _ensure_case_for(conn, r["name"], r["code"], None)
-                if cid:
-                    conn.execute(f"UPDATE {table} SET case_id = ? WHERE id = ?", (cid, r["id"]))
-                    filled += 1
+        budget_rows = conn.execute(
+            "SELECT id, budget_code AS name, budget_code AS code FROM budgets "
+            "WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)"
+        ).fetchall()
+        for r in budget_rows:
+            cid = _ensure_case_for(conn, r["name"], r["code"], None)
+            if cid:
+                conn.execute("UPDATE budgets SET case_id = ? WHERE id = ?", (cid, r["id"]))
+                filled += 1
+
+        project_rows = conn.execute(
+            "SELECT id, project_name AS name, project_code AS code, owner FROM projects "
+            "WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)"
+        ).fetchall()
+        for r in project_rows:
+            cid = _ensure_case_for(conn, r["name"], r["code"], None, r["owner"])
+            if cid:
+                conn.execute("UPDATE projects SET case_id = ? WHERE id = ?", (cid, r["id"]))
+                filled += 1
+
+        orphan_owner_cases = conn.execute(
+            "SELECT c.id AS case_id, p.owner AS owner FROM cases c "
+            "JOIN projects p ON p.case_id = c.id "
+            "WHERE COALESCE(c.owner, '') = '' AND COALESCE(p.owner, '') <> '' "
+            "AND c.status <> 'disabled' AND p.status <> 'disabled'"
+        ).fetchall()
+        for r in orphan_owner_cases:
+            matched = _match_owner_username(conn, r["owner"])
+            if matched:
+                conn.execute("UPDATE cases SET owner = ? WHERE id = ? AND COALESCE(owner, '') = ''",
+                             (matched, r["case_id"]))
     return filled
 
 
