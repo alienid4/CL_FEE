@@ -52,10 +52,10 @@
           <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
           <a class="module-card" href="#admin-console" data-roles="admin"><span>⚙</span><strong>系統管理</strong><small>設定/稽核</small></a>
           <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
-          <a class="module-card" href="#budget" data-roles="cio manager_assistant"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
+          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
           <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
-          <a class="module-card" href="#signoff" data-roles="cio manager_assistant"><span>▦</span><strong>簽呈</strong><small id="nav-count-signoffs">簽呈 …</small></a>
-          <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
+          <a class="module-card" href="#signoff" data-roles="cio manager_assistant handler"><span>▦</span><strong>簽呈</strong><small id="nav-count-signoffs">簽呈 …</small></a>
+          <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
           <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>請購</strong><small id="nav-count-purchases">請購 …</small></a>
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
           <div class="nav-group-label">資料管理（後台）</div>
@@ -149,7 +149,7 @@
               <div class="tabs" aria-label="案件管理頁籤">
                 <button class="tab active" type="button" data-case-tab="list">案件清單</button>
                 <button class="tab" type="button" data-case-tab="todo">待辦事項</button>
-                <button class="tab" type="button" data-case-tab="dashboard">主管儀表板</button>
+                <button class="tab" type="button" data-case-tab="dashboard" data-roles="cio manager_assistant">主管儀表板</button>
                 <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
                 <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
                 <button class="tab" type="button" data-case-tab="portfolio">進度總表</button>
@@ -1072,6 +1072,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-94"></script>
+    <script src="/static/app.js?v=v0-9-95"></script>
   </body>
 </html>

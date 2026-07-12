@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.94 · 2026-07-12 · 自動生成案件時比對負責人：專案負責人能唯一對應帳號就自動掛上";
+const BUILD_TAG = "v0.9.95 · 2026-07-12 · 承辦補齊7大模組可見範圍＋隱藏主管儀表板＋登入顯示姓名";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -814,6 +814,19 @@ function applyRoleVisibility(user) {
     const allowedByPolicy = allowedModules.size ? allowedModules.has(targetId) : rolesForCard(card).includes(user.role_code);
     card.hidden = !allowedByPolicy;
   }
+  // 案件管理內的分頁：「主管儀表板」是決策彙總資訊（單位別預算vs實付、廠商別合約金額等），
+  // 承辦不需要看到；其餘分頁（案件清單/待辦/線性進度圖/矩陣/進度總表/一條龍新案）不分角色都看得到。
+  let dashboardTabHidden = false;
+  for (const tab of caseTabs) {
+    const roles = tab.getAttribute("data-roles");
+    if (!roles) continue;
+    const allowed = roles.split(/\s+/).includes(user.role_code);
+    tab.hidden = !allowed;
+    if (tab.dataset.caseTab === "dashboard" && !allowed) dashboardTabHidden = true;
+  }
+  if (dashboardTabHidden && document.querySelector('[data-case-tab="dashboard"]')?.classList.contains("active")) {
+    activateCaseTab("list");
+  }
   // 後台「資料管理」磚塊：依 allowed_modules 過濾（承辦只看得到資料檢核）
   for (const tile of document.querySelectorAll(".admin-tile[data-panel-gate]")) {
     const gate = tile.getAttribute("data-panel-gate");
@@ -858,7 +871,7 @@ async function showApp(user) {
   appShell.hidden = false;
   loginUser.hidden = false;
   logoutButton.hidden = false;
-  loginUser.textContent = `登入身分：${user.role_name}（${user.username}）`;
+  loginUser.textContent = `登入身分：${user.display_name || user.username}（${user.role_name}）`;
   loginError.hidden = true;
   applyRoleVisibility(user);
   await refresh();

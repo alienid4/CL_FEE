@@ -52,9 +52,11 @@ def test_local_mock_login_accounts(tmp_path):
             assert data["role_code"] == role_code
             assert "cases-module" in data["allowed_modules"]
             if username == "ap03":
-                assert "budget" not in data["allowed_modules"]
-                assert "signoff" not in data["allowed_modules"]
-                assert "contracts-module" not in data["allowed_modules"]
+                # 承辦要能看到全部 7 個資料模組（即使是 0 筆也該顯示），只是資料本身各自被
+                # owner-scoping（案件/專案/簽呈/請購/合約）或匯入等治理工具（preflight）擋住。
+                assert "budget" in data["allowed_modules"]
+                assert "signoff" in data["allowed_modules"]
+                assert "contracts-module" in data["allowed_modules"]
                 assert "preflight" not in data["allowed_actions"]
 
         assert client.post("/api/auth/logout").status_code == 200
