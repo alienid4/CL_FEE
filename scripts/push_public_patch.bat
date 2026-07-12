@@ -25,6 +25,10 @@ robocopy "%SRC%\tests" "%DEST%\tests" /MIR /NFL /NDL /NJH /NJS >nul
 copy /Y "%SRC%\requirements.txt" "%DEST%\requirements.txt" >nul
 copy /Y "%SRC%\pytest.ini" "%DEST%\pytest.ini" >nul
 
+echo Copying update.bat / service.bat to repo root (so the Notebook can grab them too)...
+copy /Y "%SRC%\notebook-package\update.bat" "%DEST%\update.bat" >nul
+copy /Y "%SRC%\notebook-package\service.bat" "%DEST%\service.bat" >nul
+
 cd /d "%DEST%"
 git add -A
 git commit -m "patch update"
