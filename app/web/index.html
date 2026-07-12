@@ -577,68 +577,94 @@
               </div>
               <button type="button" class="secondary back-to-admin">← 資料管理</button>
             </div>
+            <div class="subtabs" aria-label="匯入／匯出頁籤">
+              <button class="subtab active" type="button" data-io-tab="case">案件</button>
+              <button class="subtab" type="button" data-io-tab="budget">預算</button>
+              <button class="subtab" type="button" data-io-tab="project">專案</button>
+              <button class="subtab" type="button" data-io-tab="signoff">簽呈</button>
+              <button class="subtab" type="button" data-io-tab="contract">合約</button>
+              <button class="subtab" type="button" data-io-tab="purchase">請購</button>
+              <button class="subtab" type="button" data-io-tab="document">文件</button>
+              <button class="subtab" type="button" data-io-tab="payment">付款</button>
+            </div>
             <div class="io-modules">
-              <div class="io-card">
-                <h4>案件</h4>
-                <div class="io-row"><span class="io-label">匯入</span><button type="button" class="secondary btn-sm" data-goto-module="data-review">前往「資料檢核」匯入工作區</button><span class="muted io-hint">有預檢／欄位對應流程</span></div>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/cases.csv">下載 CSV</button></div>
-              </div>
-              <div class="io-card">
-                <h4>合約</h4>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/contracts.csv">下載 CSV</button></div>
-              </div>
-              <div class="io-card">
-                <h4>付款（核銷）</h4>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/payments.csv">下載 CSV</button></div>
-              </div>
-              <div class="io-card">
-                <h4>文件</h4>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/documents.csv">下載 CSV</button></div>
-              </div>
-              <div class="io-card">
-                <h4>預算</h4>
-                <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">費用項目＋分攤＋年度費用明細　<span class="io-file">請選：一、預算.xlsx</span></span>
-                  <input type="file" id="budget-xlsx-file" accept=".xlsx" />
-                  <button type="button" id="budget-xlsx-preview" class="secondary btn-sm">預覽</button>
-                  <button type="button" id="budget-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
-                  <span class="muted" id="budget-xlsx-status" role="status" aria-live="polite"></span>
+              <div class="io-subtab-panel active" data-io-panel="case">
+                <div class="io-card">
+                  <h4>案件</h4>
+                  <div class="io-row"><span class="io-label">匯入</span><button type="button" class="secondary btn-sm" data-goto-module="data-review">前往「資料檢核」匯入工作區</button><span class="muted io-hint">有預檢／欄位對應流程</span></div>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/cases.csv">下載 CSV</button></div>
                 </div>
-                <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">人數基準表　<span class="io-file">請選：費用分攤表NEW…(人數).xlsx</span></span>
-                  <input type="file" id="hc-xlsx-file" accept=".xlsx" />
-                  <button type="button" id="hc-xlsx-preview" class="secondary btn-sm">預覽</button>
-                  <button type="button" id="hc-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
-                  <button type="button" id="hc-view-btn" class="secondary btn-sm">檢視人數表</button>
-                  <span class="muted" id="hc-xlsx-status" role="status" aria-live="polite"></span>
-                </div>
-                <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">類別基準表（按類別分攤用）　<span class="io-file">請選：資訊架構部費用分攤表…（含「對照」表）</span></span>
-                  <input type="file" id="cat-xlsx-file" accept=".xlsx" />
-                  <button type="button" id="cat-xlsx-preview" class="secondary btn-sm">預覽</button>
-                  <button type="button" id="cat-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
-                  <span class="muted" id="cat-xlsx-status" role="status" aria-live="polite"></span>
-                </div>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/budgets.csv">下載 CSV</button></div>
               </div>
-              <div class="io-card">
-                <h4>專案</h4>
-                <div class="io-row"><span class="io-label">匯入</span>
-                  <span class="io-sub">進度總表　<span class="io-file">請選：…處級專案進度追蹤總表.xlsx</span></span>
-                  <input type="file" id="proj-xlsx-file" accept=".xlsx" />
-                  <button type="button" id="proj-xlsx-preview" class="secondary btn-sm">預覽</button>
-                  <button type="button" id="proj-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
-                  <span class="muted" id="proj-xlsx-status" role="status" aria-live="polite"></span>
+              <div class="io-subtab-panel" data-io-panel="budget" hidden>
+                <div class="io-card">
+                  <h4>預算</h4>
+                  <div class="io-row"><span class="io-label">匯入</span>
+                    <span class="io-sub">費用項目＋分攤＋年度費用明細　<span class="io-file">請選：一、預算.xlsx</span></span>
+                    <input type="file" id="budget-xlsx-file" accept=".xlsx" />
+                    <button type="button" id="budget-xlsx-preview" class="secondary btn-sm">預覽</button>
+                    <button type="button" id="budget-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                    <span class="muted" id="budget-xlsx-status" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="io-row"><span class="io-label">匯入</span>
+                    <span class="io-sub">人數基準表　<span class="io-file">請選：費用分攤表NEW…(人數).xlsx</span></span>
+                    <input type="file" id="hc-xlsx-file" accept=".xlsx" />
+                    <button type="button" id="hc-xlsx-preview" class="secondary btn-sm">預覽</button>
+                    <button type="button" id="hc-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                    <button type="button" id="hc-view-btn" class="secondary btn-sm">檢視人數表</button>
+                    <span class="muted" id="hc-xlsx-status" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="io-row"><span class="io-label">匯入</span>
+                    <span class="io-sub">類別基準表（按類別分攤用）　<span class="io-file">請選：資訊架構部費用分攤表…（含「對照」表）</span></span>
+                    <input type="file" id="cat-xlsx-file" accept=".xlsx" />
+                    <button type="button" id="cat-xlsx-preview" class="secondary btn-sm">預覽</button>
+                    <button type="button" id="cat-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                    <span class="muted" id="cat-xlsx-status" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/budgets.csv">下載 CSV</button></div>
                 </div>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/projects.csv">下載 CSV</button></div>
               </div>
-              <div class="io-card">
-                <h4>簽呈</h4>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/signoffs.csv">下載 CSV</button></div>
+              <div class="io-subtab-panel" data-io-panel="project" hidden>
+                <div class="io-card">
+                  <h4>專案</h4>
+                  <div class="io-row"><span class="io-label">匯入</span>
+                    <span class="io-sub">進度總表　<span class="io-file">請選：…處級專案進度追蹤總表.xlsx</span></span>
+                    <input type="file" id="proj-xlsx-file" accept=".xlsx" />
+                    <button type="button" id="proj-xlsx-preview" class="secondary btn-sm">預覽</button>
+                    <button type="button" id="proj-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                    <span class="muted" id="proj-xlsx-status" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/projects.csv">下載 CSV</button></div>
+                </div>
               </div>
-              <div class="io-card">
-                <h4>請購</h4>
-                <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/purchases.csv">下載 CSV</button></div>
+              <div class="io-subtab-panel" data-io-panel="signoff" hidden>
+                <div class="io-card">
+                  <h4>簽呈</h4>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/signoffs.csv">下載 CSV</button></div>
+                </div>
+              </div>
+              <div class="io-subtab-panel" data-io-panel="contract" hidden>
+                <div class="io-card">
+                  <h4>合約</h4>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/contracts.csv">下載 CSV</button></div>
+                </div>
+              </div>
+              <div class="io-subtab-panel" data-io-panel="purchase" hidden>
+                <div class="io-card">
+                  <h4>請購</h4>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/purchases.csv">下載 CSV</button></div>
+                </div>
+              </div>
+              <div class="io-subtab-panel" data-io-panel="document" hidden>
+                <div class="io-card">
+                  <h4>文件</h4>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/documents.csv">下載 CSV</button></div>
+                </div>
+              </div>
+              <div class="io-subtab-panel" data-io-panel="payment" hidden>
+                <div class="io-card">
+                  <h4>付款（核銷）</h4>
+                  <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/payments.csv">下載 CSV</button></div>
+                </div>
               </div>
             </div>
             <div id="io-result"></div>
@@ -1046,6 +1072,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-98"></script>
+    <script src="/static/app.js?v=v0-10-0"></script>
   </body>
 </html>

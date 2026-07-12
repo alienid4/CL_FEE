@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.98 · 2026-07-12 · 主管儀表板拆子頁籤：總覽/月度支出/單位預算/廠商合約/系統工具";
+const BUILD_TAG = "v0.10.0 · 2026-07-12 · 匯入/匯出頁改8個子頁籤：案件/預算/專案/簽呈/合約/請購/文件/付款";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -73,6 +73,8 @@ const caseTabs = [...document.querySelectorAll("[data-case-tab]")];
 const casePanels = [...document.querySelectorAll("[data-case-panel]")];
 const dashTabs = [...document.querySelectorAll("[data-dash-tab]")];
 const dashPanels = [...document.querySelectorAll("[data-dash-panel]")];
+const ioTabs = [...document.querySelectorAll("[data-io-tab]")];
+const ioPanels = [...document.querySelectorAll("[data-io-panel]")];
 const moduleCards = [...document.querySelectorAll(".module-card")];
 const modulePanels = [...document.querySelectorAll(".module-panel")];
 if (modulePanels.length && !document.querySelector("#module-unbuilt")) {
@@ -425,6 +427,19 @@ function activateDashTab(tabName) {
   }
   for (const panel of dashPanels) {
     const isActive = panel.dataset.dashPanel === tabName;
+    panel.hidden = !isActive;
+    panel.classList.toggle("active", isActive);
+  }
+}
+
+// 匯入／匯出（資料管理）底下依模組分子頁籤，順序＝案件→預算→專案→簽呈→合約→請購→文件→付款，
+// 使用者反饋 8 個模組塞成一整排卡片要一直往下滑，改成一次只顯示一個模組。
+function activateIoTab(tabName) {
+  for (const tab of ioTabs) {
+    tab.classList.toggle("active", tab.dataset.ioTab === tabName);
+  }
+  for (const panel of ioPanels) {
+    const isActive = panel.dataset.ioPanel === tabName;
     panel.hidden = !isActive;
     panel.classList.toggle("active", isActive);
   }
@@ -3972,6 +3987,10 @@ for (const tab of caseTabs) {
 
 for (const tab of dashTabs) {
   tab.addEventListener("click", () => activateDashTab(tab.dataset.dashTab));
+}
+
+for (const tab of ioTabs) {
+  tab.addEventListener("click", () => activateIoTab(tab.dataset.ioTab));
 }
 
 for (const card of moduleCards) {

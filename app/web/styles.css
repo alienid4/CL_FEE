@@ -1457,8 +1457,9 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .rem-ctl select { min-width: 220px; }
 .alloc-ctls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
 .alloc-ctls .rem-ctl select { min-width: 160px; }
-/* 匯入/匯出專區：依八大功能分卡，卡內放該模組的匯入＋匯出 */
-.io-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; align-items: start; }
+/* 匯入/匯出專區：依八大功能分頁籤，一次只顯示一個模組（.io-subtab-panel 由 activateIoTab 控制顯隱） */
+.io-modules { display: block; }
+.io-subtab-panel { max-width: 640px; }
 .io-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .io-card h4 { margin: 0 0 8px; font-size: .95rem; color: var(--ink); }
 .io-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--line); }
