@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.9.97 · 2026-07-12 · 資料檢核清掉未完成假資料UI＋匯入工作區承辦不可見";
+const BUILD_TAG = "v0.9.98 · 2026-07-12 · 主管儀表板拆子頁籤：總覽/月度支出/單位預算/廠商合約/系統工具";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -71,6 +71,8 @@ const formalImportResult = document.querySelector("#formal-import-result");
 const preflightResult = document.querySelector("#preflight-result");
 const caseTabs = [...document.querySelectorAll("[data-case-tab]")];
 const casePanels = [...document.querySelectorAll("[data-case-panel]")];
+const dashTabs = [...document.querySelectorAll("[data-dash-tab]")];
+const dashPanels = [...document.querySelectorAll("[data-dash-panel]")];
 const moduleCards = [...document.querySelectorAll(".module-card")];
 const modulePanels = [...document.querySelectorAll(".module-panel")];
 if (modulePanels.length && !document.querySelector("#module-unbuilt")) {
@@ -413,6 +415,19 @@ function activateCaseTab(tabName) {
   }
   if (tabName === "progress" || tabName === "matrix") loadCaseProgress();
   if (tabName === "portfolio") loadPortfolio();  // 進度總表併入案件管理分頁
+}
+
+// 主管儀表板底下再分子頁籤（總覽/月度支出/單位別預算/廠商別合約/系統工具）——
+// 使用者反饋一頁塞太多區塊要一直往下拉，改成一次只顯示一個子功能。
+function activateDashTab(tabName) {
+  for (const tab of dashTabs) {
+    tab.classList.toggle("active", tab.dataset.dashTab === tabName);
+  }
+  for (const panel of dashPanels) {
+    const isActive = panel.dataset.dashPanel === tabName;
+    panel.hidden = !isActive;
+    panel.classList.toggle("active", isActive);
+  }
 }
 
 // ── 線性進度圖／處理優先矩陣：讀 /api/cases/progress，系統自動推導、唯讀 ──
@@ -828,6 +843,19 @@ function applyRoleVisibility(user) {
   }
   if (dashboardTabHidden && document.querySelector('[data-case-tab="dashboard"]')?.classList.contains("active")) {
     activateCaseTab("list");
+  }
+  // 主管儀表板底下的子頁籤：「系統工具」（示範資料/AI測試資料/舊資料補號）只給主管/助理，
+  // CIO 能看主管儀表板但看不到這個維運用子頁籤。
+  let dashToolsTabHidden = false;
+  for (const tab of dashTabs) {
+    const roles = tab.getAttribute("data-roles");
+    if (!roles) continue;
+    const allowed = roles.split(/\s+/).includes(user.role_code);
+    tab.hidden = !allowed;
+    if (tab.dataset.dashTab === "tools" && !allowed) dashToolsTabHidden = true;
+  }
+  if (dashToolsTabHidden && document.querySelector('[data-dash-tab="tools"]')?.classList.contains("active")) {
+    activateDashTab("overview");
   }
   // 後台「資料管理」磚塊：依 allowed_modules 過濾（承辦只看得到資料檢核）
   for (const tile of document.querySelectorAll(".admin-tile[data-panel-gate]")) {
@@ -3940,6 +3968,10 @@ for (const type of Object.keys(resourceForms)) {
 
 for (const tab of caseTabs) {
   tab.addEventListener("click", () => activateCaseTab(tab.dataset.caseTab));
+}
+
+for (const tab of dashTabs) {
+  tab.addEventListener("click", () => activateDashTab(tab.dataset.dashTab));
 }
 
 for (const card of moduleCards) {

@@ -358,6 +358,36 @@ main {
   gap: 10px;
 }
 
+/* 第二層頁籤（如主管儀表板底下再分總覽/月度支出/單位別預算…），比外層 .tabs 淺一階，
+   不搶視覺重量，讓使用者一眼分得出「現在在哪一層」。 */
+.subtabs {
+  align-items: end;
+  display: flex;
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.subtab {
+  background: #f5f5f5;
+  border-bottom: 2px solid transparent;
+  color: #888888;
+  font-size: 13px;
+  min-height: 26px;
+  padding: 6px 10px;
+}
+
+.subtab.active {
+  background: #ffffff;
+  border-bottom-color: #26a889;
+  color: #1e8a6f;
+  font-weight: 700;
+}
+
+.dash-subtab-panel {
+  display: grid;
+  gap: 10px;
+}
+
 .case-tab-panel[hidden] {
   display: none;
 }

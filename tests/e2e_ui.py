@@ -211,10 +211,13 @@ def main() -> int:
             page.wait_for_timeout(200)
             results.append(("選案後合約名稱自動帶入案名", page.input_value('#contract-form input[name="contract_name"]') == "案名沿用驗證案"))
 
-            # 3.7) 示範資料：主管在主管儀表板可一鍵載入（DEMO- 標示）
+            # 3.7) 示範資料：主管在主管儀表板→系統工具子頁籤可一鍵載入（DEMO- 標示）
             page.click('a.module-card[href="#cases-module"]')
             page.wait_for_timeout(300)
             page.click('button[data-case-tab="dashboard"]')
+            page.wait_for_timeout(300)
+            results.append(("主管儀表板出現圖表(SVG)", page.locator("#manager-charts svg").count() >= 1))  # 總覽子頁籤預設開啟
+            page.click('button[data-dash-tab="tools"]')
             page.wait_for_timeout(300)
             demo_visible = page.is_visible("#demo-controls")
             results.append(("主管可見示範資料工具", demo_visible))
@@ -224,7 +227,6 @@ def main() -> int:
             # 催辦清單：demo 有一筆逾期案件（DEMO-C01）；等 refresh 載入完成
             page.wait_for_timeout(1000)
             results.append(("催辦清單出現逾期項目", "已逾期" in page.inner_text("#reminders-list")))
-            results.append(("主管儀表板出現圖表(SVG)", page.locator("#manager-charts svg").count() >= 1))
             # 側欄全文搜尋（接了 /api/search）：搜 DEMO 有結果
             page.fill("#global-search", "DEMO")
             page.wait_for_timeout(600)

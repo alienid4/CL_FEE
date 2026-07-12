@@ -219,77 +219,99 @@
           </section>
 
           <section class="case-tab-panel" data-case-panel="dashboard" hidden>
-            <section class="watch-list" id="demo-controls" aria-label="示範資料" hidden>
-              <div class="section-heading compact">
-                <h2>示範資料（測試用）<span class="help" data-tip="一鍵載入明顯標示「［測試］/ DEMO-」的測試資料；正式上線前請按「清空示範資料」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <div class="demo-actions">
-                <button type="button" id="demo-seed" class="secondary">載入示範資料</button>
-                <button type="button" id="demo-clear" class="secondary">清空示範資料</button>
-                <span class="muted" id="demo-status" role="status" aria-live="polite"></span>
-              </div>
+            <div class="subtabs" aria-label="主管儀表板頁籤">
+              <button class="subtab active" type="button" data-dash-tab="overview">總覽</button>
+              <button class="subtab" type="button" data-dash-tab="monthly">月度支出</button>
+              <button class="subtab" type="button" data-dash-tab="unit-bva">單位別預算</button>
+              <button class="subtab" type="button" data-dash-tab="vendor">廠商別合約</button>
+              <button class="subtab" type="button" data-dash-tab="tools" data-roles="manager_assistant">系統工具</button>
+            </div>
+
+            <section class="dash-subtab-panel active" data-dash-panel="overview">
+              <section class="metrics" id="metrics" aria-label="live system metrics"></section>
+              <section id="manager-charts" class="chart-row" aria-label="儀表板圖表"></section>
             </section>
 
-            <section class="watch-list" id="test-data-controls" aria-label="AI測試資料" hidden>
-              <div class="section-heading compact">
-                <h2>AI 測試資料<span class="help" data-tip="AI 自我測試（cl-fee-selftest）過程建立的資料，跟上面「示範資料」是不同一批。一鍵清除，不影響任何真實資料。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <div class="demo-actions">
-                <button type="button" id="test-data-clear" class="secondary">清除AI測試資料</button>
-                <span class="muted" id="test-data-status" role="status" aria-live="polite"></span>
-              </div>
+            <section class="dash-subtab-panel" data-dash-panel="monthly" hidden>
+              <section class="watch-list" aria-label="monthly spending">
+                <div class="section-heading compact">
+                  <h2>月度支出彙總</h2>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr><th>月份</th><th>筆數</th><th>總額</th><th>已付</th><th>待付</th></tr>
+                    </thead>
+                    <tbody id="monthly-spending-body"></tbody>
+                  </table>
+                </div>
+              </section>
             </section>
 
-            <section class="watch-list" id="backfill-controls" aria-label="舊資料補號" hidden>
-              <div class="section-heading compact">
-                <h2>舊資料補號<span class="help" data-tip="替匯入前就存在、還沒有系統編號／核銷編號的舊資料補上號碼；也會替沒掛案件的舊預算/專案自動配一個同名案件（比照新建資料的規則）。只補缺的、不覆蓋既有關聯，可重複執行。請先在預覽庫試跑、確認無誤再對正式庫執行。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <div class="demo-actions">
-                <button type="button" id="backfill-run" class="secondary">補齊系統編號／核銷編號／案件關聯</button>
-                <span class="muted" id="backfill-status" role="status" aria-live="polite"></span>
-              </div>
+            <section class="dash-subtab-panel" data-dash-panel="unit-bva" hidden>
+              <section class="watch-list" id="unit-bva" aria-label="單位別預算vs實付">
+                <div class="section-heading compact">
+                  <h2>單位別 預算 vs 實付<span class="help" data-tip="各單位年度預算對比實際付款。實付＝付款經合約掛到案件、再經該案預算歸到單位；已付＝已結案付款、待付＝其餘。使用率＝已付÷預算，>100% 標紅（超支）。案件沒掛任何預算的付款列在最後「未歸單位」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                  <select id="unit-bva-year" title="選所屬年度"></select>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr><th>單位</th><th class="num">預算</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
+                    </thead>
+                    <tbody id="unit-bva-body"></tbody>
+                  </table>
+                </div>
+              </section>
             </section>
-            <section class="metrics" id="metrics" aria-label="live system metrics"></section>
-            <section id="manager-charts" class="chart-row" aria-label="儀表板圖表"></section>
-            <section class="watch-list" aria-label="monthly spending">
-              <div class="section-heading compact">
-                <h2>月度支出彙總</h2>
-              </div>
-              <div class="table-shell">
-                <table>
-                  <thead>
-                    <tr><th>月份</th><th>筆數</th><th>總額</th><th>已付</th><th>待付</th></tr>
-                  </thead>
-                  <tbody id="monthly-spending-body"></tbody>
-                </table>
-              </div>
+
+            <section class="dash-subtab-panel" data-dash-panel="vendor" hidden>
+              <section class="watch-list" id="vendor-amt" aria-label="廠商別金額彙總">
+                <div class="section-heading compact">
+                  <h2>廠商別 合約金額 vs 實付<span class="help" data-tip="各廠商合約金額對比實際付款（依合約直接歸戶，不經案件）。已付＝已結案付款、待付＝其餘。使用率＝已付÷合約金額，>100% 標紅（實付超過合約金額）。合約沒填廠商的併入「（未填廠商）」。不分年度：合約金額是存續期間總額。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr><th>廠商</th><th class="num">合約金額</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
+                    </thead>
+                    <tbody id="vendor-amt-body"></tbody>
+                  </table>
+                </div>
+              </section>
             </section>
-            <section class="watch-list" id="unit-bva" aria-label="單位別預算vs實付">
-              <div class="section-heading compact">
-                <h2>單位別 預算 vs 實付<span class="help" data-tip="各單位年度預算對比實際付款。實付＝付款經合約掛到案件、再經該案預算歸到單位；已付＝已結案付款、待付＝其餘。使用率＝已付÷預算，>100% 標紅（超支）。案件沒掛任何預算的付款列在最後「未歸單位」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-                <select id="unit-bva-year" title="選所屬年度"></select>
-              </div>
-              <div class="table-shell">
-                <table>
-                  <thead>
-                    <tr><th>單位</th><th class="num">預算</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
-                  </thead>
-                  <tbody id="unit-bva-body"></tbody>
-                </table>
-              </div>
-            </section>
-            <section class="watch-list" id="vendor-amt" aria-label="廠商別金額彙總">
-              <div class="section-heading compact">
-                <h2>廠商別 合約金額 vs 實付<span class="help" data-tip="各廠商合約金額對比實際付款（依合約直接歸戶，不經案件）。已付＝已結案付款、待付＝其餘。使用率＝已付÷合約金額，>100% 標紅（實付超過合約金額）。合約沒填廠商的併入「（未填廠商）」。不分年度：合約金額是存續期間總額。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <div class="table-shell">
-                <table>
-                  <thead>
-                    <tr><th>廠商</th><th class="num">合約金額</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
-                  </thead>
-                  <tbody id="vendor-amt-body"></tbody>
-                </table>
-              </div>
+
+            <section class="dash-subtab-panel" data-dash-panel="tools" hidden>
+              <section class="watch-list" id="demo-controls" aria-label="示範資料" hidden>
+                <div class="section-heading compact">
+                  <h2>示範資料（測試用）<span class="help" data-tip="一鍵載入明顯標示「［測試］/ DEMO-」的測試資料；正式上線前請按「清空示範資料」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                </div>
+                <div class="demo-actions">
+                  <button type="button" id="demo-seed" class="secondary">載入示範資料</button>
+                  <button type="button" id="demo-clear" class="secondary">清空示範資料</button>
+                  <span class="muted" id="demo-status" role="status" aria-live="polite"></span>
+                </div>
+              </section>
+
+              <section class="watch-list" id="test-data-controls" aria-label="AI測試資料" hidden>
+                <div class="section-heading compact">
+                  <h2>AI 測試資料<span class="help" data-tip="AI 自我測試（cl-fee-selftest）過程建立的資料，跟上面「示範資料」是不同一批。一鍵清除，不影響任何真實資料。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                </div>
+                <div class="demo-actions">
+                  <button type="button" id="test-data-clear" class="secondary">清除AI測試資料</button>
+                  <span class="muted" id="test-data-status" role="status" aria-live="polite"></span>
+                </div>
+              </section>
+
+              <section class="watch-list" id="backfill-controls" aria-label="舊資料補號" hidden>
+                <div class="section-heading compact">
+                  <h2>舊資料補號<span class="help" data-tip="替匯入前就存在、還沒有系統編號／核銷編號的舊資料補上號碼；也會替沒掛案件的舊預算/專案自動配一個同名案件（比照新建資料的規則）。只補缺的、不覆蓋既有關聯，可重複執行。請先在預覽庫試跑、確認無誤再對正式庫執行。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                </div>
+                <div class="demo-actions">
+                  <button type="button" id="backfill-run" class="secondary">補齊系統編號／核銷編號／案件關聯</button>
+                  <span class="muted" id="backfill-status" role="status" aria-live="polite"></span>
+                </div>
+              </section>
             </section>
           </section>
 
@@ -1024,6 +1046,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-9-97"></script>
+    <script src="/static/app.js?v=v0-9-98"></script>
   </body>
 </html>
