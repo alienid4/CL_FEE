@@ -1,7 +1,24 @@
 #!/bin/sh
 # C1 強制層 pre-commit hook。
 # 安裝方式：複製到 <專案>/.git/hooks/pre-commit（若已有 pre-commit，改成在既有腳本尾端呼叫下面這行）。
-python .project/checks.py
+#
+# Windows 常見地雷：有些機器的 PATH 把 `python` 指到 WindowsApps 的
+# App Execution Alias 假樁（不會真的執行、直接非 0 離開、也沒有錯誤訊息），
+# 導致這支 hook 誤判成 checks 失敗、擋下正常的 commit。
+# 這裡依序試「py -3」「python3」「python」，挑第一個真的能跑的直譯器。
+PYEXEC=""
+for CAND in "py -3" python3 python; do
+  if $CAND -c "import sys" >/dev/null 2>&1; then
+    PYEXEC="$CAND"
+    break
+  fi
+done
+if [ -z "$PYEXEC" ]; then
+  echo ">> 找不到可用的 Python 直譯器，無法跑 checks.py，commit 擋下。"
+  exit 1
+fi
+
+$PYEXEC .project/checks.py
 if [ $? -ne 0 ]; then
   echo ""
   echo ">> C1 強制層擋下這次 commit：先讓 checks 全 PASS，再 commit。"

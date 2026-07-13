@@ -57,3 +57,8 @@ python .project/checks.py    # C1 關卡：git/密鑰/測試/決策一致
 - 預設 SQLite 檔（路徑由 `SQLITE_PATH` 環境變數決定，未設則用專案內建路徑）。
 - 備份＝複製該 .db 檔；還原＝覆蓋回去。
 - 遷 MSSQL 為未來規劃，見 [KNOWN_LIMITS.md](KNOWN_LIMITS.md)。
+
+## 8. Windows + OneDrive 這台機器常見的 commit 地雷
+- **`git commit` 卡在 `unable to append to '.git/logs/HEAD'`**：專案放在 OneDrive 同步資料夾裡，OneDrive 偶爾會鎖住 log 檔造成 git 寫不進去。一次性修：`git config windows.appendAtomically false`（本機 repo 設定，不影響其他機器）。
+- **pre-commit hook 明明 checks 會過卻還是擋下**：這台的 PATH 把 `python` 指到 WindowsApps 的假樁執行檔（不會真的執行、也不報錯）。`.git/hooks/pre-commit` 已經改成自動找「py -3 / python3 / python」第一個能跑的直譯器，來源在 [docs/一次性開發提示詞_C1/kit/pre-commit](docs/一次性開發提示詞_C1/kit/pre-commit)；換新機器要重裝這個 hook 時記得從這份複製，不要抄舊版。
+- **改完 pptx 之後 git add 說 Permission denied**：檔案還開在 PowerPoint（或被 OneDrive 同步中）。關掉檔案再重試，或另存一份帶時間戳記的檔名先進版控，之後再取代。
