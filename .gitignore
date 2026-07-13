@@ -44,6 +44,8 @@ DOC/
 *.pdf
 *.docx
 *.pptx
+# 例外：對外簡報成品，跟已版控的 PPT/*.md 文字稿是同一份內容，故意進 git
+!PPT/03_AI用法你在第幾代.pptx
 *.xlsx
 *.xls
 *.xlsm
