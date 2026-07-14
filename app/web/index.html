@@ -495,6 +495,9 @@
               <div class="demo-actions">
                 <button type="button" id="admin-backup" class="secondary">下載資料庫備份</button><span class="help" data-tip="下載目前整個資料庫（.db 檔）。還原方式：把檔案放回原位並重啟服務。" role="button" tabindex="0" aria-label="說明">?</span>
               </div>
+              <div class="demo-actions" id="admin-db-reset-wrap" hidden>
+                <button type="button" id="admin-db-reset" class="danger">整個資料庫重置（測試用）</button><span class="help" data-tip="清空所有資料表、流水號歸零，只留空白結構。會自動先備份一份到 data/reset_backups/ 才清。僅供測試環境，正式環境不會出現這顆按鈕（.env 沒開 ALLOW_DB_RESET）。" role="button" tabindex="0" aria-label="說明">?</span>
+              </div>
             </section>
             <section class="watch-list">
               <div class="section-heading compact"><h2>帳號與權限</h2></div>

@@ -28,6 +28,7 @@ from app.store import (
     backfill_all_numbers,
     backfill_status,
     backup_database,
+    reset_database,
     budget_annual_comparison,
     set_budget_periods,
     set_budget_year_note,
@@ -1089,6 +1090,7 @@ def create_app() -> FastAPI:
     def _settings_view() -> dict[str, Any]:
         vals = store_get_settings(SETTINGS_PUBLIC_KEYS)
         vals["smtp_password_set"] = bool(store_get_settings(["smtp_password"])["smtp_password"])
+        vals["allow_db_reset"] = get_settings().allow_db_reset
         return vals
 
     @app.get("/api/admin/settings")
@@ -1117,6 +1119,14 @@ def create_app() -> FastAPI:
         dest = str(Path(tempfile.gettempdir()) / "cl_fee_backup.db")
         backup_database(dest)
         return FileResponse(dest, filename="cl_fee_backup.db", media_type="application/octet-stream")
+
+    # 整個資料庫重置（測試用危險鈕）：預設關閉，要開要在 .env 設 ALLOW_DB_RESET=1。
+    # 會自動先備份到 data/reset_backups/ 才清空，清空前後都不用重啟服務。
+    @app.post("/api/admin/db-reset", include_in_schema=False)
+    def admin_db_reset() -> dict[str, Any]:
+        if not get_settings().allow_db_reset:
+            raise HTTPException(status_code=403, detail="資料庫重置功能未開啟（.env 設 ALLOW_DB_RESET=1 才能用）。")
+        return ok(reset_database())
 
     # ---- 帳號與權限管理（內建帳號唯讀，DB 帳號可增/改/停用/刪）----
     @app.get("/api/admin/users")

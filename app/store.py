@@ -2990,6 +2990,35 @@ def backup_database(dest_path: str) -> None:
             dst.close()
 
 
+def reset_database() -> dict[str, Any]:
+    """整個資料庫重置（測試用危險操作）：先自動備份現有 .db，再清空所有資料表、流水號歸零。
+    只清「資料」，不動 schema 本身——重置後結構還在，不用重開服務。呼叫端（main.py）要先擋
+    settings.allow_db_reset，這裡不重複檢查。"""
+    settings = get_settings()
+    db_path = Path(settings.database_path)
+    backup_path = ""
+    if db_path.exists():
+        backup_dir = db_path.parent / "reset_backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        dest = backup_dir / f"{db_path.stem}_before_reset_{stamp}.db"
+        backup_database(str(dest))
+        backup_path = str(dest)
+
+    with connect() as conn:
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()]
+        for t in tables:
+            conn.execute(f"DELETE FROM {t}")
+        has_seq = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'"
+        ).fetchone()
+        if has_seq:
+            conn.execute("DELETE FROM sqlite_sequence")  # 自增流水號歸零，重置後 id 從 1 開始
+    return {"reset": True, "tables_cleared": len(tables), "backup_path": backup_path}
+
+
 def read_setting(key: str, default: str = "") -> str:
     with connect() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()

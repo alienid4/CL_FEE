@@ -9,6 +9,7 @@ class Settings:
     app_host: str = "127.0.0.1"
     app_port: int = 8888
     database_path: str = "data/fee_control.db"
+    allow_db_reset: bool = False
 
 
 def get_settings() -> Settings:
@@ -18,5 +19,7 @@ def get_settings() -> Settings:
         app_host=os.getenv("APP_HOST", "127.0.0.1"),
         app_port=int(os.getenv("APP_PORT", "8888")),
         database_path=os.getenv("SQLITE_PATH", "data/fee_control.db"),
+        # 整個資料庫重置鈕的總開關：預設關閉，測試環境要用才手動開，避免正式環境誤觸。
+        allow_db_reset=os.getenv("ALLOW_DB_RESET", "0") == "1",
     )
 

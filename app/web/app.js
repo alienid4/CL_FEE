@@ -2641,6 +2641,8 @@ async function loadAdminConsole() {
     if (form.elements[k]) form.elements[k].value = s[k] ?? "";
   }
   if (form.elements.smtp_password) form.elements.smtp_password.placeholder = s.smtp_password_set ? "已設定（留空＝不變更）" : "SMTP 密碼（留空＝不變更）";
+  const resetWrap = document.querySelector("#admin-db-reset-wrap");
+  if (resetWrap) resetWrap.hidden = !s.allow_db_reset;
   const opt = (await api("/api/options")).data || {};
   if (form.elements.opt_budget_categories) form.elements.opt_budget_categories.value = (opt.budget_categories || []).join(",");
   if (form.elements.opt_project_necessity) form.elements.opt_project_necessity.value = (opt.project_necessity || []).join(",");
@@ -3581,6 +3583,21 @@ document.querySelector("#unitdecisions-result")?.addEventListener("click", async
     if (document.querySelector("#budget-alloc")?.innerHTML) loadBudgetUnitRollup();
   } catch (error) {
     window.alert(`復原失敗：${error.message}`);
+  }
+});
+
+// 整個資料庫重置（測試用危險鈕）：比照後端一樣只在 ALLOW_DB_RESET 開著時看得到按鈕；
+// 動作不可逆（雖然後端有自動備份），要求手動打字確認，不是按一下就送出。
+document.querySelector("#admin-db-reset")?.addEventListener("click", async () => {
+  if (!window.confirm("整個資料庫重置：會清空所有案件/合約/預算/專案/簽呈/請購/付款…全部資料，只留空白結構。\n會自動先備份一份到 data/reset_backups/ 才清空，但這是測試用的危險操作，正式資料請勿使用。確定要繼續嗎？")) return;
+  const typed = window.prompt('請輸入「RESET」以確認執行（防止手滑）：');
+  if (typed !== "RESET") { window.alert("已取消（輸入不符）。"); return; }
+  try {
+    const r = (await api("/api/admin/db-reset", { method: "POST" })).data || {};
+    window.alert(`已重置：清空 ${r.tables_cleared} 張表。備份存在：${r.backup_path || "（原本沒有 db 檔可備份）"}`);
+    await refresh();
+  } catch (error) {
+    window.alert(`重置失敗：${error.message}`);
   }
 });
 

@@ -17,6 +17,7 @@ env/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/reset_backups/
 logs/
 *.log
 
