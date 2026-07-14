@@ -1253,6 +1253,15 @@ def list_project_items(project_id: int) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
+def next_project_item_seq(project_id: int) -> int:
+    """該專案下一個工作項標號＝目前最大標號＋1（手動新增不用自己想編號，系統自動排）。"""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) AS n FROM project_items WHERE project_id = ?", (project_id,)
+        ).fetchone()
+        return int(row["n"]) + 1
+
+
 def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
     """解析『預算』.xlsx → 預算清單。此檔為『表單型』：一張工作表＝一筆預算，
     內容是「標籤：值」（預算項目／費用內容／填寫部門／預估人員…）＋右側各年度費用表。

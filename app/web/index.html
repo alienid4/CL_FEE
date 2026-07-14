@@ -386,7 +386,7 @@
                   <select name="fiscal_year" class="fiscal-year-select" data-placeholder="所屬年度（空＝作業年度）"><option value="">所屬年度（空＝作業年度）</option></select>
                   <input name="note" placeholder="備註" />
                   <input name="next_step" placeholder="下一步" />
-                  <input name="due_date" placeholder="預計完成日 YYYY-MM-DD" />
+                  <input name="due_date" placeholder="預計完成日" type="date" />
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="budget">
@@ -407,7 +407,7 @@
                     <input name="subject" placeholder="主旨 *" />
                     <select name="applicant" class="personnel-select" data-placeholder="申請人"><option value="">（未選擇）申請人</option></select>
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                    <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
+                    <input name="sign_date" placeholder="簽核日" type="date" />
                     <input name="note" placeholder="備註" />
                   </div>
                 </fieldset>
@@ -431,7 +431,7 @@
                     <input name="contract_name" placeholder="合約名稱 *" />
                     <input name="vendor_name" placeholder="廠商" />
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                    <input name="end_date" placeholder="到期日 YYYY-MM-DD" />
+                    <input name="end_date" placeholder="到期日" type="date" />
                   </div>
                 </fieldset>
 
@@ -860,7 +860,7 @@
             </select>
             <input name="note" placeholder="備註（自由文字說明）" />
             <input name="next_step" placeholder="下一步 / 待辦動作" />
-            <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供逾期催辦）" />
+            <input name="due_date" placeholder="預計完成日（供逾期催辦）" type="date" />
             <button type="submit" id="submit-case">儲存</button>
             <button type="button" id="cancel-edit" class="secondary" hidden>取消</button>
           </form>
@@ -883,7 +883,7 @@
               <option value="closed">已結案</option>
               <option value="disabled">已停用</option>
             </select>
-            <input name="end_date" placeholder="到期日 YYYY-MM-DD" />
+            <input name="end_date" placeholder="到期日" type="date" />
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
@@ -1006,9 +1006,9 @@
             <input name="rag_status" placeholder="燈號（如期執行/延遲…）" list="opt-project-rag" />
             <datalist id="opt-project-rag"></datalist>
             <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
-            <input name="start_date" placeholder="開始日 YYYY-MM-DD" />
-            <input name="end_date" placeholder="結束日 YYYY-MM-DD" />
-            <input name="due_date" placeholder="預計完成日 YYYY-MM-DD（供催辦）" />
+            <input name="start_date" placeholder="開始日" type="date" />
+            <input name="end_date" placeholder="結束日" type="date" />
+            <input name="due_date" placeholder="預計完成日（供催辦）" type="date" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
               <option value="active">進行中</option>
@@ -1030,7 +1030,7 @@
             <input name="subject" placeholder="主旨" required />
             <select name="applicant" class="personnel-select" data-placeholder="申請人"><option value="">（未選擇）申請人</option></select>
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-            <input name="sign_date" placeholder="簽核日 YYYY-MM-DD" />
+            <input name="sign_date" placeholder="簽核日" type="date" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <input name="attachment_ref" placeholder="簽呈連結／檔案位置（選填，貼簽呈系統連結或路徑）" />
             <select name="status">

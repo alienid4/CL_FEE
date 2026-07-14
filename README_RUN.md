@@ -62,3 +62,4 @@ python .project/checks.py    # C1 關卡：git/密鑰/測試/決策一致
 - **`git commit` 卡在 `unable to append to '.git/logs/HEAD'`**：專案放在 OneDrive 同步資料夾裡，OneDrive 偶爾會鎖住 log 檔造成 git 寫不進去。一次性修：`git config windows.appendAtomically false`（本機 repo 設定，不影響其他機器）。
 - **pre-commit hook 明明 checks 會過卻還是擋下**：這台的 PATH 把 `python` 指到 WindowsApps 的假樁執行檔（不會真的執行、也不報錯）。`.git/hooks/pre-commit` 已經改成自動找「py -3 / python3 / python」第一個能跑的直譯器，來源在 [docs/一次性開發提示詞_C1/kit/pre-commit](docs/一次性開發提示詞_C1/kit/pre-commit)；換新機器要重裝這個 hook 時記得從這份複製，不要抄舊版。
 - **改完 pptx 之後 git add 說 Permission denied**：檔案還開在 PowerPoint（或被 OneDrive 同步中）。關掉檔案再重試，或另存一份帶時間戳記的檔名先進版控，之後再取代。
+- **`git status` 突然把整個專案的檔案都列成「D」（刪除）又同時列成「??」（未追蹤），數量多到嚇人**：不是真的刪檔、也沒有真的資料遺失，是 `.git/index` 這個 git 內部的記帳檔被 OneDrive 同步搞丟了（可能是雲端佔位檔/搬移衝突弄的）。確認方式：`ls .git/index` 顯示不存在。修法很安全、不會動到任何工作目錄裡的檔案：`git reset`（不加 `--hard`，預設 mixed 模式只重建 index、不碰檔案）。修完 `git status` 應該只剩你真正動過的檔案。**看到這種「全專案突然整批 D+??」的畫面，先別慌、更別下 `git checkout .`/`git clean -f` 這類指令，先檢查 `.git/index` 是不是不見了。**

@@ -1852,9 +1852,9 @@ function pfDetail(p) {
 // 工作項清單（可維護）：進度總表點進去看到的 Excel 細節
 const PF_ITEM_FIELDS = [
   ["item_name", "工作主項目", "text", true],
-  ["owner", "負責人", "text"],
-  ["start_date", "開始日 YYYY-MM-DD", "text"],
-  ["end_date", "結束日 YYYY-MM-DD", "text"],
+  ["owner", "負責人", "personnel"],
+  ["start_date", "開始日", "date"],
+  ["end_date", "結束日", "date"],
   ["exec_status", "執行進度（如：進行中/已完成）", "text"],
   ["progress", "完成度 %", "number"],
   ["rag", "燈號（綠/黃/紅）", "text"],
@@ -1878,6 +1878,7 @@ async function loadProjectItems(projectId) {
 // 工作項表格：開始日/結束日拆兩欄才能各自排序；預設依「結束日離今天的遠近」排，越急迫的越前面
 // （跟處理優先矩陣「橫軸=急迫度」同一個邏輯，不是單純日期由小到大)。
 const PF_ITEM_COLUMNS = [
+  { label: "標號", key: "seq", cls: "num" },
   { label: "工作主項目", key: "item_name" },
   { label: "負責人", key: "owner" },
   { label: "開始日", key: "start_date", cls: "num" },
@@ -1908,8 +1909,8 @@ function sortPfItems(items) {
   const arr = [...items];
   arr.sort((a, b) => {
     let r;
-    if (key === "progress") {
-      r = Number(a.progress || 0) - Number(b.progress || 0);
+    if (key === "progress" || key === "seq") {
+      r = Number(a[key] || 0) - Number(b[key] || 0);
     } else if (key === "start_date" || key === "end_date") {
       const da = a[key] ? new Date(a[key]).getTime() : Infinity;
       const db = b[key] ? new Date(b[key]).getTime() : Infinity;
@@ -1947,7 +1948,8 @@ function renderItemsSection(projectId, items) {
         const ops = editable
           ? `<button type="button" class="secondary" data-item-edit="${it.id}">編輯</button> <button type="button" class="danger" data-item-del="${it.id}">刪除</button>`
           : "—";
-        return `<tr data-item-id="${it.id}">
+        return `<tr data-item-id="${it.id}"${editable ? ' class="clickable" title="雙擊編輯"' : ""}>
+          <td class="num">${Number(it.seq || 0)}</td>
           <td>${escapeHtml(it.item_name)}</td>
           <td>${escapeHtml(valueOrDash(it.owner))}</td>
           <td class="num">${escapeHtml(valueOrDash(it.start_date))}</td>
@@ -1958,7 +1960,7 @@ function renderItemsSection(projectId, items) {
           <td class="col-actions">${ops}</td>
         </tr>`;
       }).join("")
-    : `<tr><td colspan="8" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
+    : `<tr><td colspan="9" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
   return `
     <div class="pf-items-head"><strong>工作項（${items.length}）</strong>${addBtn}</div>
     <div class="grid-scroll">
@@ -1978,15 +1980,27 @@ function ragTone(v) {
   return "muted";
 }
 
+// 負責人：跟其他表單一樣接人員主檔，但用 datalist（可選也可打）而非鎖死的 select——
+// 工作項的負責人常是「吳承翰&楊凡」這種多人組合，硬性 select 只能選一個人會擋掉這種真實案例。
+function personnelDatalistOptions() {
+  return (personnelMasterCache || []).map((p) => `<option value="${escapeHtml(p.name)}"></option>`).join("");
+}
+
 function openItemEditor(projectId, item) {
   const box = document.querySelector("#pf-item-editor");
   if (!box) return;
-  const inputs = PF_ITEM_FIELDS.map(([name, ph, type, req]) =>
-    `<input name="${name}" placeholder="${ph}" ${type === "number" ? 'type="number" min="0" max="100" step="1"' : ""} ${req ? "required" : ""} value="${item ? escapeHtml(item[name] ?? "") : ""}" />`).join("");
+  const inputs = PF_ITEM_FIELDS.map(([name, ph, type, req]) => {
+    const val = item ? escapeHtml(item[name] ?? "") : "";
+    const reqAttr = req ? "required" : "";
+    if (type === "date") return `<input name="${name}" placeholder="${ph}" type="date" ${reqAttr} value="${val}" />`;
+    if (type === "personnel") return `<input name="${name}" placeholder="${ph}" list="pf-item-personnel-list" ${reqAttr} value="${val}" />`;
+    return `<input name="${name}" placeholder="${ph}" ${type === "number" ? 'type="number" min="0" max="100" step="1"' : ""} ${reqAttr} value="${val}" />`;
+  }).join("");
   box.innerHTML = `
     <form class="pf-item-form" data-project-id="${projectId}" data-item-id="${item ? item.id : ""}">
       <div class="pf-item-form-title">${item ? "編輯工作項" : "新增工作項"}</div>
       <div class="pf-item-grid">${inputs}</div>
+      <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>
       <div class="pf-item-actions">
         <button type="submit">儲存</button>
         <button type="button" class="secondary" data-item-cancel>取消</button>
@@ -2031,6 +2045,14 @@ function renderPortfolio() {
 }
 
 // 工作項維護：新增/編輯/刪除/儲存（承辦也可，直接生效）
+async function editItemById(itemId) {
+  const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
+  if (!pid) return;
+  const items = (await api(`/api/projects/${pid}/items`)).data || [];
+  const it = items.find((x) => String(x.id) === String(itemId));
+  if (it) openItemEditor(Number(pid), it);
+}
+
 document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   const sortTh = event.target.closest("th.sortable[data-pf-sort-col]");
   if (sortTh) {
@@ -2047,13 +2069,7 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   const del = event.target.closest("[data-item-del]");
   const cancel = event.target.closest("[data-item-cancel]");
   if (add) { openItemEditor(Number(add.getAttribute("data-item-add")), null); return; }
-  if (edit) {
-    const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
-    const items = (await api(`/api/projects/${pid}/items`)).data || [];
-    const it = items.find((x) => String(x.id) === edit.getAttribute("data-item-edit"));
-    if (it) openItemEditor(Number(pid), it);
-    return;
-  }
+  if (edit) { await editItemById(edit.getAttribute("data-item-edit")); return; }
   if (del) {
     if (!window.confirm("確定刪除這個工作項？")) return;
     await api(`/api/project-items/${del.getAttribute("data-item-del")}`, { method: "DELETE" });
@@ -2064,6 +2080,15 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   if (cancel) { const b = document.querySelector("#pf-item-editor"); if (b) b.innerHTML = ""; return; }
 });
 
+// 雙擊工作項那一列＝直接進編輯（跟按「編輯」鈕同一套邏輯），比較貼近 Excel 的操作直覺；
+// 按鈕本身仍保留，滑鼠雙擊不方便的情境（觸控/鍵盤）還是點得到。
+document.querySelector("#pf-view")?.addEventListener("dblclick", async (event) => {
+  if (!canEditPortfolio()) return;
+  if (event.target.closest("button")) return;  // 雙擊在按鈕上不要跟 click handler 打架
+  const row = event.target.closest("tr[data-item-id]");
+  if (row) await editItemById(row.getAttribute("data-item-id"));
+});
+
 document.querySelector("#pf-view")?.addEventListener("submit", async (event) => {
   const form = event.target.closest(".pf-item-form");
   if (!form) return;
@@ -2071,7 +2096,7 @@ document.querySelector("#pf-view")?.addEventListener("submit", async (event) => 
   const projectId = form.getAttribute("data-project-id");
   const itemId = form.getAttribute("data-item-id");
   const data = Object.fromEntries(new FormData(form).entries());
-  if (data.progress !== undefined && data.progress !== "") data.progress = Number(data.progress);
+  if (data.progress !== undefined) data.progress = data.progress === "" ? 0 : Number(data.progress);
   try {
     if (itemId) {
       await api(`/api/project-items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -2792,7 +2817,10 @@ function serializeResourceForm(type) {
   const id = data.id;
   delete data.id;
   for (const field of config.numberFields) {
-    data[field] = data[field] === "" ? null : Number(data[field]);
+    // _id 結尾＝可為空的關聯外鍵，留空要送 null（不能送 0，0 不是合法的關聯目標）；
+    // 其餘（金額/進度/數量…）留空視同 0，避免後端 float 欄位收到 null 報 422。
+    const isFk = field.endsWith("_id");
+    data[field] = data[field] === "" ? (isFk ? null : 0) : Number(data[field]);
   }
   return { id, data };
 }

@@ -46,6 +46,7 @@ from app.store import (
     parse_budget_xlsx,
     commit_budgets_import,
     list_project_items,
+    next_project_item_seq,
     list_budget_allocations,
     budget_unit_rollup,
     unit_conflicts,
@@ -1777,6 +1778,8 @@ def create_app() -> FastAPI:
     def create_project_item(project_id: int, payload: ProjectItemIn) -> dict[str, Any]:
         data = payload.model_dump()
         data["project_id"] = project_id
+        if not data.get("seq"):
+            data["seq"] = next_project_item_seq(project_id)  # 標號自動排，不用使用者自己打
         return handle_create("project_items", data)
 
     @app.patch("/api/project-items/{item_id}")
