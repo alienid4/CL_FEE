@@ -1440,7 +1440,8 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 /* ── 工作項表格：緊湊、內容置中、寬度依內容，超出容器可左右捲；直接點格子 inline 編輯 ── */
 .pf-items-hint { font-size: .74rem; margin: 0 0 8px; }
 .pf-items .grid-scroll { max-width: 100%; }  /* 綁住寬度，表格超寬時在容器內出捲軸，而不是把版面撐爆切掉 */
-.pf-items-table { table-layout: auto; width: auto; min-width: 100%; }
+/* width:max-content＝只用內容寬度、不隨容器脹（auto 對 table 會等同填滿容器）；min-width:0 蓋掉全域 table{min-width:1300px}。太寬時 grid-scroll 出左右捲軸 */
+.pf-items-table { table-layout: auto; width: max-content; min-width: 0; }
 /* 用 thead/tbody 提高特異度，才蓋得過 .grid-table tbody td 的預設 padding，真的把間距縮小 */
 .pf-items-table thead th, .pf-items-table tbody td { white-space: nowrap; text-align: center; padding: 4px 8px; }
 .pf-items-table tbody td.num, .pf-items-table thead th.num { text-align: center; }  /* 蓋掉 grid-table 預設的靠右，統一置中 */
