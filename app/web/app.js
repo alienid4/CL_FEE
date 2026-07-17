@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.16.0 · 2026-07-17 15:38 · 工作項表格改 width:max-content（只用內容寬度、不隨容器撐大），欄位靠緊不浪費空間";
+const BUILD_TAG = "v0.17.0 · 2026-07-17 16:05 · 追蹤事項欄固定寬度(22rem)、太長自動換行成多行，不再撐成一超長行把表格拉爆";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;

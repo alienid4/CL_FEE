@@ -8,6 +8,11 @@
 
 ---
 
+## v0.17.0 — 2026-07-17 16:05
+- **追蹤事項欄固定寬度 + 自動換行**：`.pf-items-table .w-track` 設 `width/max-width: 22rem; white-space: normal; overflow-wrap: anywhere`，長文字換行成多行而非撐成一超長行。
+- 只針對追蹤事項這一欄，其他欄維持 `nowrap`、依內容寬度。
+- 為什麼：v0.16.0 改 max-content 後，若追蹤事項塞很長的文字（風險/決策/支援），會撐成一條超長行把整表拉爆；此欄改成固定寬度、超長就換 2~5 行。
+
 ## v0.16.0 — 2026-07-17 15:38
 - **工作項表格改只用內容寬度**：`.pf-items-table` 設 `width: max-content; min-width: 0`，欄位靠緊、不再被拉開留空隙。
 - 為什麼：使用者反映欄位間距太浪費空間。踩到兩個坑（實測才發現）：① 全域 `table { min-width: 1300px }` 逼所有表格至少 1300px；② `width: auto` 對 `<table>` 會等同填滿容器、不是縮到內容。最終用 `width: max-content` 才真的只用內容寬度、不隨容器脹大；內容太寬時仍由 `grid-scroll`（`overflow-x:auto`）出左右捲軸。

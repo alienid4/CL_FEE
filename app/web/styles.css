@@ -1445,6 +1445,13 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 /* 用 thead/tbody 提高特異度，才蓋得過 .grid-table tbody td 的預設 padding，真的把間距縮小 */
 .pf-items-table thead th, .pf-items-table tbody td { white-space: nowrap; text-align: center; padding: 4px 8px; }
 .pf-items-table tbody td.num, .pf-items-table thead th.num { text-align: center; }  /* 蓋掉 grid-table 預設的靠右，統一置中 */
+/* 追蹤事項：固定寬度、太長自動換行（2~5行）而不是撐成一超長行；只針對這一欄，其他欄維持 nowrap */
+.pf-items-table th.w-track, .pf-items-table td.w-track {
+  white-space: normal;
+  width: 22rem; max-width: 22rem;
+  text-align: left;
+  overflow-wrap: anywhere; word-break: break-word;
+}
 .pf-items-table td { vertical-align: middle; }
 /* 可編輯的格子：滑鼠移上去給提示，讓使用者知道點了能改 */
 .pf-items-table td.editable { cursor: text; }
