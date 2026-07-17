@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.17.0 · 2026-07-17 16:05 · 追蹤事項欄固定寬度(22rem)、太長自動換行成多行，不再撐成一超長行把表格拉爆";
+const BUILD_TAG = "v0.18.0 · 2026-07-17 16:35 · 追蹤事項拆成風險/決策/支援三個獨立欄，各自一格 inline 編、不再擠在一起";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1877,27 +1877,14 @@ const PF_ITEM_COLUMNS = [
   { label: "結束日", key: "end_date", cls: "num w-date" },
   { label: "執行進度", key: "exec_status", cls: "w-status" },
   { label: "完成度", key: "progress", cls: "num w-prog" },
-  { label: "追蹤事項", key: "track", cls: "w-track" },
+  { label: "風險", key: "risk_note", cls: "w-note" },
+  { label: "決策", key: "decision_needed", cls: "w-note" },
+  { label: "支援", key: "support_needed", cls: "w-note" },
 ];
 let pfItemSort = null;  // {col, dir}；null＝用預設的「離今天近的先」排序
 // 目前這個專案在畫面上的工作項快照，key=id。inline 編輯就地改一格時要用它重建那一格顯示，
 // 不必整表重載（重載會重排、閃動、還會把焦點搶走）。
 let pfItemCache = new Map();
-
-function pfItemTrackText(it) {
-  return [it.risk_note, it.decision_needed, it.support_needed].filter(Boolean).join(" ");
-}
-
-// 「追蹤事項」欄的顯示：把風險/決策/支援三個欄位合併成一行；三個都空就顯示破折號。
-function pfTrackHtml(it) {
-  return pfItemTrackText(it)
-    ? [
-        it.risk_note && `風險：${escapeHtml(it.risk_note)}`,
-        it.decision_needed && `決策：${escapeHtml(it.decision_needed)}`,
-        it.support_needed && `支援：${escapeHtml(it.support_needed)}`,
-      ].filter(Boolean).join("　")
-    : '<span class="muted">—</span>';
-}
 
 // 單一欄的「顯示模式」HTML（非編輯狀態）。inline 存檔成功後用它把該格畫回唯讀樣子。
 function pfCellHtml(field, it) {
@@ -1909,8 +1896,7 @@ function pfCellHtml(field, it) {
     case "end_date": return escapeHtml(valueOrDash(it.end_date));
     case "exec_status": return `<span class="pf-dot ${pfItemRag(it)}" title="燈號依開始/結束日與完成度自動判定"></span> ${escapeHtml(valueOrDash(it.exec_status))}`;
     case "progress": return `${Number(it.progress || 0)}%`;
-    case "track": return pfTrackHtml(it);
-    default: return "";
+    default: return escapeHtml(valueOrDash(it[field]));  // 風險/決策/支援等純文字欄，各自獨立一欄
   }
 }
 
@@ -1937,8 +1923,8 @@ function sortPfItems(items) {
       const db = b[key] ? new Date(b[key]).getTime() : Infinity;
       r = da - db;
     } else {
-      const va = key === "track" ? pfItemTrackText(a) : String(a[key] || "");
-      const vb = key === "track" ? pfItemTrackText(b) : String(b[key] || "");
+      const va = String(a[key] || "");
+      const vb = String(b[key] || "");
       r = va.localeCompare(vb, "zh-Hant");
     }
     return dir === "desc" ? -r : r;
@@ -2110,14 +2096,8 @@ function pfEditorHtml(field, it) {
       return `<input class="cell-input" type="number" min="0" max="100" step="1" data-k="progress" value="${Number(it.progress || 0)}" />`;
     case "exec_status":  // 只改執行進度文字；燈號改自動判定，不再手選
       return `<input class="cell-input" data-k="exec_status" value="${v("exec_status")}" placeholder="如：進行中/已完成" />`;
-    case "track":  // 追蹤事項＝風險/決策/支援三欄，點下去展開分開改
-      return `<div class="cell-track">`
-        + `<label>風險<input class="cell-input" data-k="risk_note" value="${v("risk_note")}" /></label>`
-        + `<label>決策<input class="cell-input" data-k="decision_needed" value="${v("decision_needed")}" /></label>`
-        + `<label>支援<input class="cell-input" data-k="support_needed" value="${v("support_needed")}" /></label>`
-        + `</div>`;
-    default:
-      return "";
+    default:  // 風險/決策/支援等純文字欄，各自一格單一輸入
+      return `<input class="cell-input" data-k="${field}" value="${v(field)}" />`;
   }
 }
 

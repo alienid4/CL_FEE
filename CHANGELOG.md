@@ -8,6 +8,12 @@
 
 ---
 
+## v0.18.0 — 2026-07-17 16:35
+- **追蹤事項拆成三個獨立欄**：「風險 / 決策 / 支援」各自一欄（key: risk_note / decision_needed / support_needed），各自 inline 單格編輯、各自固定寬度(13rem)＋太長換行。
+- 移除舊的合併「追蹤事項」欄與 pfItemTrackText/pfTrackHtml/cell-track（三格擠一欄的展開編輯）。
+- 為什麼：三個欄位擠在同一欄裡（顯示與編輯）看起來很擠、不好讀；拆開各自成欄更清楚。
+- 後端欄位不變（仍是 risk_note/decision_needed/support_needed），只改前端呈現與編輯。
+
 ## v0.17.0 — 2026-07-17 16:05
 - **追蹤事項欄固定寬度 + 自動換行**：`.pf-items-table .w-track` 設 `width/max-width: 22rem; white-space: normal; overflow-wrap: anywhere`，長文字換行成多行而非撐成一超長行。
 - 只針對追蹤事項這一欄，其他欄維持 `nowrap`、依內容寬度。

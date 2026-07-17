@@ -1445,22 +1445,20 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 /* 用 thead/tbody 提高特異度，才蓋得過 .grid-table tbody td 的預設 padding，真的把間距縮小 */
 .pf-items-table thead th, .pf-items-table tbody td { white-space: nowrap; text-align: center; padding: 4px 8px; }
 .pf-items-table tbody td.num, .pf-items-table thead th.num { text-align: center; }  /* 蓋掉 grid-table 預設的靠右，統一置中 */
-/* 追蹤事項：固定寬度、太長自動換行（2~5行）而不是撐成一超長行；只針對這一欄，其他欄維持 nowrap */
-.pf-items-table th.w-track, .pf-items-table td.w-track {
+/* 風險/決策/支援各自獨立一欄：固定寬度、太長自動換行（2~5行），不擠在一起；其他欄維持 nowrap */
+.pf-items-table th.w-note, .pf-items-table td.w-note {
   white-space: normal;
-  width: 22rem; max-width: 22rem;
+  width: 13rem; max-width: 13rem;
   text-align: left;
   overflow-wrap: anywhere; word-break: break-word;
 }
+.pf-items-table td.w-note .cell-input { text-align: left; }
 .pf-items-table td { vertical-align: middle; }
 /* 可編輯的格子：滑鼠移上去給提示，讓使用者知道點了能改 */
 .pf-items-table td.editable { cursor: text; }
 .pf-items-table td.editable:hover { background: var(--accent-weak); box-shadow: inset 0 0 0 1px var(--accent); }
 .pf-items-table td.editing { background: var(--surface); box-shadow: inset 0 0 0 2px var(--accent); }
 .pf-items-table td.editing .cell-input { width: 100%; min-width: 6rem; font-size: .8rem; padding: 3px 5px; box-sizing: border-box; text-align: center; }
-.cell-track { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 12rem; }
-.cell-track label { display: flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--ink-3); }
-.cell-track label .cell-input { flex: 1; text-align: left; }
 /* 存檔三態回饋（async-feedback）：儲存中 / 成功一閃 / 失敗回紅 */
 .pf-items-table td.saving { opacity: .55; }
 .pf-items-table td.saved { animation: pf-cell-saved 900ms ease-out; }
