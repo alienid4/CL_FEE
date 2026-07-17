@@ -854,6 +854,31 @@ def list_rows(table: str, limit: int = 100) -> list[dict[str, Any]]:
         return conn.execute(sql, [*params, max(1, min(limit, 500))]).fetchall()
 
 
+def list_projects(limit: int = 100) -> list[dict[str, Any]]:
+    """專案清單：沿用 list_rows（保留承辦 owner scope），再用一次 grouped COUNT 補上
+    每個專案的工作項數（item_count＝子項目總數、item_done＝完成度 100% 的數），
+    讓清單一眼看得出每案有幾個子項目、完成幾個，不必逐案點進去。"""
+    rows = list_rows("projects", limit)
+    if not rows:
+        return rows
+    ids = [r["id"] for r in rows]
+    placeholders = ",".join("?" * len(ids))
+    with connect() as conn:
+        counts = conn.execute(
+            f"SELECT project_id, COUNT(*) AS total, "
+            f"SUM(CASE WHEN progress >= 100 THEN 1 ELSE 0 END) AS done "
+            f"FROM project_items WHERE project_id IN ({placeholders}) AND status != 'disabled' "
+            f"GROUP BY project_id",
+            ids,
+        ).fetchall()
+    cmap = {c["project_id"]: c for c in counts}
+    for r in rows:
+        c = cmap.get(r["id"])
+        r["item_count"] = int(c["total"]) if c else 0
+        r["item_done"] = int(c["done"] or 0) if c else 0
+    return rows
+
+
 def create_import_batch(source_name: str, status: str = "created") -> dict[str, Any]:
     source = source_name.strip()
     if not source:

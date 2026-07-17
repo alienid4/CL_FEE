@@ -88,3 +88,18 @@ def test_work_item_add_blocked_for_cio(tmp_path):
     with _client(tmp_path, login="ap01") as client:  # CIO 唯讀
         pj_resp = client.post("/api/projects", json={"project_code": "WI-X", "project_name": "x"})
         assert pj_resp.status_code == 403  # CIO 不能建，工作項自然也不行
+
+
+def test_project_list_includes_item_counts(tmp_path):
+    """專案清單要帶每案的工作項計數：item_count＝總數、item_done＝完成度100%的數。"""
+    with _client(tmp_path) as client:
+        pid = client.post("/api/projects", json={"project_code": "WI-C", "project_name": "計數專案"}).json()["data"]["id"]
+        client.post(f"/api/projects/{pid}/items", json={"item_name": "甲", "progress": 100})  # 完成
+        client.post(f"/api/projects/{pid}/items", json={"item_name": "乙", "progress": 30})   # 未完成
+        proj = next(p for p in client.get("/api/projects").json()["data"] if p["id"] == pid)
+        assert proj["item_count"] == 2
+        assert proj["item_done"] == 1
+        # 沒有工作項的專案，計數為 0（不是缺欄位）
+        empty = client.post("/api/projects", json={"project_code": "WI-E", "project_name": "空專案"}).json()["data"]["id"]
+        proj_e = next(p for p in client.get("/api/projects").json()["data"] if p["id"] == empty)
+        assert proj_e["item_count"] == 0 and proj_e["item_done"] == 0

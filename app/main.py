@@ -96,6 +96,7 @@ from app.store import (
     list_import_rows,
     list_audit_logs,
     list_rows,
+    list_projects,
     cio_changes_since_last_view,
     create_case_wizard,
     monthly_spending_summary,
@@ -642,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.14.0 · 2026-07-17 14:45 · 後台人員管理移到單位管理旁、專案進度欄拆成進度條/預計/實際三欄"
+BACKEND_BUILD = "v0.15.0 · 2026-07-17 15:08 · 專案清單加「子項目」欄（完成/總數），一眼看出每案有幾個工作項"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1765,7 +1766,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/projects")
     def projects(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
-        return ok(list_rows("projects", limit))
+        return ok(list_projects(limit))
 
     @app.patch("/api/projects/{project_id}")
     def update_project(project_id: int, payload: ProjectPatch) -> dict[str, Any]:

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.14.0 · 2026-07-17 14:45 · 後台人員管理移到單位管理旁、專案進度欄拆成進度條/預計/實際三欄";
+const BUILD_TAG = "v0.15.0 · 2026-07-17 15:08 · 專案清單加「子項目」欄（完成/總數），一眼看出每案有幾個工作項";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -276,6 +276,10 @@ const resourceConfig = {
       { label: "層級", cell: (i) => escapeHtml(valueOrDash(i.level)) },
       { label: "必要性", cell: (i) => escapeHtml(valueOrDash(i.necessity)) },
       { label: "負責人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.owner))}</span>` },
+      { label: "子項目", cls: "num", cell: (i) => {
+          const t = Number(i.item_count || 0), d = Number(i.item_done || 0);
+          return t ? `<span title="完成 ${d} / 共 ${t} 個工作項">${d}/${t}</span>` : '<span class="muted" title="尚無工作項">0</span>';
+        } },
       { label: "進度", cls: "num", cell: (i) => progressBarOnly(i.progress_planned, i.progress) },
       { label: "預計", cls: "num", cell: (i) => `${Number(i.progress_planned || 0)}%` },
       { label: "實際", cls: "num", cell: (i) => `${Number(i.progress || 0)}%` },
