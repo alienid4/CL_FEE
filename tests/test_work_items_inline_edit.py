@@ -78,7 +78,8 @@ def test_inline_edit_frontend_contract():
     assert "function pfCommitEdit" in app_js
     assert "/api/project-items/${id}" in app_js
     assert 'data-field="' in app_js  # 可編輯格帶欄位標記
-    assert "pfRagOptions" in app_js  # 燈號在執行進度格一起改
+    assert "function pfItemRag" in app_js  # 燈號依開始/結束日與完成度自動判定
+    assert "pfRagOptions" not in app_js  # 手動燈號選單已移除（改自動）
 
     # 舊的逐列「編輯」按鈕已拿掉，改成直接點格子
     assert "data-item-edit" not in app_js

@@ -1,24 +1,25 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.11.0 · 2026-07-17 · 工作項改 Excel 式 inline 編輯：點格子直接改/自動存、欄位縮小不橫捲";
+const BUILD_TAG = "v0.12.0 · 2026-07-17 13:55 · 工作項燈號改自動判定（未開始/執行中/警告/過期）＋版本徽章加日期時間";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
-  const verOf = (s) => (String(s).split("·")[0] || "?").trim();  // 取「vX.Y.Z」那段
+  const verOf = (s) => (String(s).split("·")[0] || "?").trim();  // 取「vX.Y.Z」那段（比對用）
+  const stampOf = (s) => (String(s).split("·").slice(0, 2).join("·").trim() || "?");  // 「vX.Y.Z · 日期 時間」（顯示用）
   const front = verOf(BUILD_TAG);
-  badge.textContent = `前端 ${front} ｜ 後端 …`;
+  badge.textContent = `前端 ${stampOf(BUILD_TAG)} ｜ 後端 …`;
   try {
     const h = await fetch("/health", { credentials: "same-origin", cache: "no-store" }).then((r) => r.json());
     const back = verOf(h.build || "");
     const mismatch = front !== back;
-    badge.textContent = `前端 ${front} ｜ 後端 ${back}`;
+    badge.textContent = `前端 ${stampOf(BUILD_TAG)} ｜ 後端 ${stampOf(h.build || "")}`;
     badge.classList.toggle("mismatch", mismatch);
     badge.title = mismatch
       ? `前後端版本不一致：前端 ${BUILD_TAG}、後端 ${h.build || "未知"}。請重啟 uvicorn 後端。`
       : `版本一致（${BUILD_TAG}）`;
   } catch (_e) {
-    badge.textContent = `前端 ${front} ｜ 後端 ?`;
+    badge.textContent = `前端 ${stampOf(BUILD_TAG)} ｜ 後端 ?`;
   }
 })();
 
@@ -1857,7 +1858,6 @@ const PF_ITEM_FIELDS = [
   ["end_date", "結束日", "date"],
   ["exec_status", "執行進度（如：進行中/已完成）", "text"],
   ["progress", "完成度 %", "number"],
-  ["rag", "燈號（綠/黃/紅）", "text"],
   ["risk_note", "關鍵風險點／備註", "text"],
   ["decision_needed", "需決策項目", "text"],
   ["support_needed", "需支援項目", "text"],
@@ -1915,7 +1915,7 @@ function pfCellHtml(field, it) {
     case "owner": return escapeHtml(valueOrDash(it.owner));
     case "start_date": return escapeHtml(valueOrDash(it.start_date));
     case "end_date": return escapeHtml(valueOrDash(it.end_date));
-    case "exec_status": return `<span class="pf-dot ${ragTone(it.rag)}"></span> ${escapeHtml(valueOrDash(it.exec_status))}`;
+    case "exec_status": return `<span class="pf-dot ${pfItemRag(it)}" title="燈號依開始/結束日與完成度自動判定"></span> ${escapeHtml(valueOrDash(it.exec_status))}`;
     case "progress": return `${Number(it.progress || 0)}%`;
     case "track": return pfTrackHtml(it);
     default: return "";
@@ -1992,12 +1992,27 @@ function renderItemsSection(projectId, items) {
     <div id="pf-item-editor"></div>`;
 }
 
-function ragTone(v) {
-  const s = String(v || "").trim();
-  if (/紅|red|^r$/i.test(s)) return "danger";
-  if (/黃|橘|amber|^a$/i.test(s)) return "warn";
-  if (/綠|green|^g$/i.test(s)) return "ok";
-  return "muted";
+// 工作項燈號＝依「開始日/結束日/完成度/今天」自動判定，不讓人手選：
+// 綠=完成或執行中正常；黃=快到期(≤3天) 或 進度落後預期>10%；紅=已過結束日未完成；灰=未開始。
+function pfItemRag(it) {
+  const progress = Number(it.progress || 0);
+  if (progress >= 100) return "ok";  // 完成
+  const DAY = 86400000;
+  const parse = (d) => { const t = d ? new Date(d).getTime() : NaN; return Number.isNaN(t) ? null : t; };
+  const start = parse(it.start_date), end = parse(it.end_date), now = Date.now();
+  // 未開始：0% 且（今天還沒到開始日，或完全沒排程）
+  if (progress === 0 && ((start !== null && now < start) || (start === null && end === null))) return "muted";
+  // 過期：已過結束日還沒完成
+  if (end !== null && now > end) return "danger";
+  // 警告：快到期(≤3天) 或 進度落後依時間推算的預期>10%
+  const nearDue = end !== null && (end - now) >= 0 && (end - now) <= 3 * DAY;
+  let behind = false;
+  if (start !== null && end !== null && end > start) {
+    const expected = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
+    behind = (expected - progress) > 10;
+  }
+  if (nearDue || behind) return "warn";
+  return "ok";  // 執行中
 }
 
 // 負責人：跟其他表單一樣接人員主檔，但用 datalist（可選也可打）而非鎖死的 select——
@@ -2114,9 +2129,8 @@ function pfEditorHtml(field, it) {
       return `<input class="cell-input" type="date" data-k="end_date" value="${dateVal("end_date")}" />`;
     case "progress":
       return `<input class="cell-input" type="number" min="0" max="100" step="1" data-k="progress" value="${Number(it.progress || 0)}" />`;
-    case "exec_status":  // 執行進度文字 + 燈號（綠/黃/紅）併在同一格改
-      return `<input class="cell-input" data-k="exec_status" value="${v("exec_status")}" placeholder="如：進行中/已完成" />`
-        + `<select class="cell-input cell-rag" data-k="rag">${pfRagOptions(it.rag)}</select>`;
+    case "exec_status":  // 只改執行進度文字；燈號改自動判定，不再手選
+      return `<input class="cell-input" data-k="exec_status" value="${v("exec_status")}" placeholder="如：進行中/已完成" />`;
     case "track":  // 追蹤事項＝風險/決策/支援三欄，點下去展開分開改
       return `<div class="cell-track">`
         + `<label>風險<input class="cell-input" data-k="risk_note" value="${v("risk_note")}" /></label>`
@@ -2126,13 +2140,6 @@ function pfEditorHtml(field, it) {
     default:
       return "";
   }
-}
-
-function pfRagOptions(current) {
-  const cur = String(current ?? "");
-  return [["", "—（無）"], ["綠", "🟢 綠"], ["黃", "🟡 黃"], ["紅", "🔴 紅"]]
-    .map(([val, label]) => `<option value="${val}"${val === cur ? " selected" : ""}>${label}</option>`)
-    .join("");
 }
 
 function pfBeginEdit(td) {
