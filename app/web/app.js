@@ -1878,19 +1878,48 @@ async function loadProjectItems(projectId) {
 // 工作項表格：開始日/結束日拆兩欄才能各自排序；預設依「結束日離今天的遠近」排，越急迫的越前面
 // （跟處理優先矩陣「橫軸=急迫度」同一個邏輯，不是單純日期由小到大)。
 const PF_ITEM_COLUMNS = [
-  { label: "標號", key: "seq", cls: "num" },
-  { label: "工作主項目", key: "item_name" },
-  { label: "負責人", key: "owner" },
-  { label: "開始日", key: "start_date", cls: "num" },
-  { label: "結束日", key: "end_date", cls: "num" },
-  { label: "執行進度", key: "exec_status" },
-  { label: "完成度", key: "progress", cls: "num" },
-  { label: "追蹤事項", key: "track" },
+  { label: "標號", key: "seq", cls: "num w-seq" },
+  { label: "工作主項目", key: "item_name", cls: "w-name" },
+  { label: "負責人", key: "owner", cls: "w-owner" },
+  { label: "開始日", key: "start_date", cls: "num w-date" },
+  { label: "結束日", key: "end_date", cls: "num w-date" },
+  { label: "執行進度", key: "exec_status", cls: "w-status" },
+  { label: "完成度", key: "progress", cls: "num w-prog" },
+  { label: "追蹤事項", key: "track", cls: "w-track" },
 ];
 let pfItemSort = null;  // {col, dir}；null＝用預設的「離今天近的先」排序
+// 目前這個專案在畫面上的工作項快照，key=id。inline 編輯就地改一格時要用它重建那一格顯示，
+// 不必整表重載（重載會重排、閃動、還會把焦點搶走）。
+let pfItemCache = new Map();
 
 function pfItemTrackText(it) {
   return [it.risk_note, it.decision_needed, it.support_needed].filter(Boolean).join(" ");
+}
+
+// 「追蹤事項」欄的顯示：把風險/決策/支援三個欄位合併成一行；三個都空就顯示破折號。
+function pfTrackHtml(it) {
+  return pfItemTrackText(it)
+    ? [
+        it.risk_note && `風險：${escapeHtml(it.risk_note)}`,
+        it.decision_needed && `決策：${escapeHtml(it.decision_needed)}`,
+        it.support_needed && `支援：${escapeHtml(it.support_needed)}`,
+      ].filter(Boolean).join("　")
+    : '<span class="muted">—</span>';
+}
+
+// 單一欄的「顯示模式」HTML（非編輯狀態）。inline 存檔成功後用它把該格畫回唯讀樣子。
+function pfCellHtml(field, it) {
+  switch (field) {
+    case "seq": return String(Number(it.seq || 0));
+    case "item_name": return escapeHtml(valueOrDash(it.item_name));
+    case "owner": return escapeHtml(valueOrDash(it.owner));
+    case "start_date": return escapeHtml(valueOrDash(it.start_date));
+    case "end_date": return escapeHtml(valueOrDash(it.end_date));
+    case "exec_status": return `<span class="pf-dot ${ragTone(it.rag)}"></span> ${escapeHtml(valueOrDash(it.exec_status))}`;
+    case "progress": return `${Number(it.progress || 0)}%`;
+    case "track": return pfTrackHtml(it);
+    default: return "";
+  }
 }
 
 function pfItemDefaultSort(items) {
@@ -1927,6 +1956,7 @@ function sortPfItems(items) {
 
 function renderItemsSection(projectId, items) {
   const editable = canEditPortfolio();
+  pfItemCache = new Map(items.map((it) => [String(it.id), it]));  // inline 就地重建那一格要用
   const addBtn = editable
     ? `<button type="button" class="secondary" data-item-add="${projectId}"><span aria-hidden="true">＋</span> 新增工作項</button>`
     : "";
@@ -1937,38 +1967,28 @@ function renderItemsSection(projectId, items) {
   }).join("");
   const rows = sorted.length
     ? sorted.map((it) => {
-        const tone = ragTone(it.rag);
-        const track = pfItemTrackText(it)
-          ? [
-              it.risk_note && `風險：${escapeHtml(it.risk_note)}`,
-              it.decision_needed && `決策：${escapeHtml(it.decision_needed)}`,
-              it.support_needed && `支援：${escapeHtml(it.support_needed)}`,
-            ].filter(Boolean).join("　")
-          : '<span class="muted">—</span>';
+        const cells = PF_ITEM_COLUMNS.map((c) => {
+          const canEditCell = editable && c.key !== "seq";  // 標號系統自動排，不給手改
+          const cls = [c.cls, canEditCell ? "editable" : ""].filter(Boolean).join(" ");
+          const attrs = `${cls ? ` class="${cls}"` : ""}${canEditCell ? ` data-field="${c.key}" title="點一下即可修改"` : ""}`;
+          return `<td${attrs}>${pfCellHtml(c.key, it)}</td>`;
+        }).join("");
         const ops = editable
-          ? `<button type="button" class="secondary" data-item-edit="${it.id}">編輯</button> <button type="button" class="danger" data-item-del="${it.id}">刪除</button>`
+          ? `<button type="button" class="danger btn-sm" data-item-del="${it.id}">刪除</button>`
           : "—";
-        return `<tr data-item-id="${it.id}"${editable ? ' class="clickable" title="雙擊編輯"' : ""}>
-          <td class="num">${Number(it.seq || 0)}</td>
-          <td>${escapeHtml(it.item_name)}</td>
-          <td>${escapeHtml(valueOrDash(it.owner))}</td>
-          <td class="num">${escapeHtml(valueOrDash(it.start_date))}</td>
-          <td class="num">${escapeHtml(valueOrDash(it.end_date))}</td>
-          <td><span class="pf-dot ${tone}"></span> ${escapeHtml(valueOrDash(it.exec_status))}</td>
-          <td class="num">${Number(it.progress || 0)}%</td>
-          <td>${track}</td>
-          <td class="col-actions">${ops}</td>
-        </tr>`;
+        return `<tr data-item-id="${it.id}">${cells}<td class="col-actions">${ops}</td></tr>`;
       }).join("")
-    : `<tr><td colspan="9" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
+    : `<tr><td colspan="${PF_ITEM_COLUMNS.length + 1}" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
   return `
     <div class="pf-items-head"><strong>工作項（${items.length}）</strong>${addBtn}</div>
+    ${editable ? '<p class="pf-items-hint muted">直接點格子即可修改，改完按 Enter 或點別處自動儲存，按 Esc 取消。</p>' : ""}
     <div class="grid-scroll">
-      <table class="grid-table">
+      <table class="grid-table pf-items-table">
         <thead><tr>${head}<th class="col-actions">操作</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>
     <div id="pf-item-editor"></div>`;
 }
 
@@ -2000,7 +2020,6 @@ function openItemEditor(projectId, item) {
     <form class="pf-item-form" data-project-id="${projectId}" data-item-id="${item ? item.id : ""}">
       <div class="pf-item-form-title">${item ? "編輯工作項" : "新增工作項"}</div>
       <div class="pf-item-grid">${inputs}</div>
-      <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>
       <div class="pf-item-actions">
         <button type="submit">儲存</button>
         <button type="button" class="secondary" data-item-cancel>取消</button>
@@ -2044,15 +2063,7 @@ function renderPortfolio() {
   }
 }
 
-// 工作項維護：新增/編輯/刪除/儲存（承辦也可，直接生效）
-async function editItemById(itemId) {
-  const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
-  if (!pid) return;
-  const items = (await api(`/api/projects/${pid}/items`)).data || [];
-  const it = items.find((x) => String(x.id) === String(itemId));
-  if (it) openItemEditor(Number(pid), it);
-}
-
+// 工作項維護：新增用表單、既有項目用 inline 就地編輯、刪除；承辦也可，直接生效。
 document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   const sortTh = event.target.closest("th.sortable[data-pf-sort-col]");
   if (sortTh) {
@@ -2064,12 +2075,16 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
     if (pid) await loadProjectItems(Number(pid));
     return;
   }
+  // 點可編輯的格子＝就地進入 inline 編輯（Excel 式）。點在已編輯中的格子（輸入框上）不重進。
+  const cell = event.target.closest("td.editable");
+  if (cell) {
+    if (!cell.classList.contains("editing")) pfBeginEdit(cell);
+    return;
+  }
   const add = event.target.closest("[data-item-add]");
-  const edit = event.target.closest("[data-item-edit]");
   const del = event.target.closest("[data-item-del]");
   const cancel = event.target.closest("[data-item-cancel]");
   if (add) { openItemEditor(Number(add.getAttribute("data-item-add")), null); return; }
-  if (edit) { await editItemById(edit.getAttribute("data-item-edit")); return; }
   if (del) {
     if (!window.confirm("確定刪除這個工作項？")) return;
     await api(`/api/project-items/${del.getAttribute("data-item-del")}`, { method: "DELETE" });
@@ -2080,13 +2095,113 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   if (cancel) { const b = document.querySelector("#pf-item-editor"); if (b) b.innerHTML = ""; return; }
 });
 
-// 雙擊工作項那一列＝直接進編輯（跟按「編輯」鈕同一套邏輯），比較貼近 Excel 的操作直覺；
-// 按鈕本身仍保留，滑鼠雙擊不方便的情境（觸控/鍵盤）還是點得到。
-document.querySelector("#pf-view")?.addEventListener("dblclick", async (event) => {
-  if (!canEditPortfolio()) return;
-  if (event.target.closest("button")) return;  // 雙擊在按鈕上不要跟 click handler 打架
-  const row = event.target.closest("tr[data-item-id]");
-  if (row) await editItemById(row.getAttribute("data-item-id"));
+// ── 工作項 inline 編輯（Excel 式：點格子就改，Enter/失焦自動存，Esc 取消）──────────────
+// 後端 PATCH /api/project-items/{id} 支援單欄更新，所以每格只送有動到的欄位。
+let pfEditingCell = null;  // { td, id, field } 或 null
+
+// 各欄在「編輯模式」放什麼輸入元件；input 上用 data-k 標記對應的後端欄位。
+function pfEditorHtml(field, it) {
+  const v = (k) => escapeHtml(it[k] ?? "");
+  const dateVal = (k) => escapeHtml(String(it[k] ?? "").replaceAll("/", "-"));  // 讓 <input type=date> 吃得下 2026/06/01
+  switch (field) {
+    case "item_name":
+      return `<input class="cell-input" data-k="item_name" value="${v("item_name")}" />`;
+    case "owner":
+      return `<input class="cell-input" data-k="owner" list="pf-item-personnel-list" value="${v("owner")}" />`;
+    case "start_date":
+      return `<input class="cell-input" type="date" data-k="start_date" value="${dateVal("start_date")}" />`;
+    case "end_date":
+      return `<input class="cell-input" type="date" data-k="end_date" value="${dateVal("end_date")}" />`;
+    case "progress":
+      return `<input class="cell-input" type="number" min="0" max="100" step="1" data-k="progress" value="${Number(it.progress || 0)}" />`;
+    case "exec_status":  // 執行進度文字 + 燈號（綠/黃/紅）併在同一格改
+      return `<input class="cell-input" data-k="exec_status" value="${v("exec_status")}" placeholder="如：進行中/已完成" />`
+        + `<select class="cell-input cell-rag" data-k="rag">${pfRagOptions(it.rag)}</select>`;
+    case "track":  // 追蹤事項＝風險/決策/支援三欄，點下去展開分開改
+      return `<div class="cell-track">`
+        + `<label>風險<input class="cell-input" data-k="risk_note" value="${v("risk_note")}" /></label>`
+        + `<label>決策<input class="cell-input" data-k="decision_needed" value="${v("decision_needed")}" /></label>`
+        + `<label>支援<input class="cell-input" data-k="support_needed" value="${v("support_needed")}" /></label>`
+        + `</div>`;
+    default:
+      return "";
+  }
+}
+
+function pfRagOptions(current) {
+  const cur = String(current ?? "");
+  return [["", "—（無）"], ["綠", "🟢 綠"], ["黃", "🟡 黃"], ["紅", "🔴 紅"]]
+    .map(([val, label]) => `<option value="${val}"${val === cur ? " selected" : ""}>${label}</option>`)
+    .join("");
+}
+
+function pfBeginEdit(td) {
+  if (pfEditingCell && pfEditingCell.td === td) return;
+  if (pfEditingCell) pfCommitEdit(pfEditingCell);  // 先把上一格存掉（非同步，內部會先釋放鎖）
+  const field = td.getAttribute("data-field");
+  const id = td.closest("tr[data-item-id]")?.getAttribute("data-item-id");
+  const it = pfItemCache.get(String(id));
+  if (!field || !it) return;
+  pfEditingCell = { td, id, field };
+  td.classList.add("editing");
+  td.innerHTML = pfEditorHtml(field, it);
+  const first = td.querySelector("input, select");
+  if (first) { first.focus(); if (first.select) first.select(); }
+}
+
+async function pfCommitEdit(cell = pfEditingCell) {
+  if (!cell) return;
+  if (pfEditingCell === cell) pfEditingCell = null;  // 先釋放鎖，允許馬上編下一格
+  const { td, id, field } = cell;
+  const it = pfItemCache.get(String(id)) || {};
+  const patch = {};
+  td.querySelectorAll("[data-k]").forEach((el) => {
+    const k = el.getAttribute("data-k");
+    patch[k] = k === "progress" ? (el.value === "" ? 0 : Number(el.value)) : el.value;
+  });
+  const changed = Object.keys(patch).some((k) => String(patch[k] ?? "") !== String(it[k] ?? ""));
+  if (!changed) { td.classList.remove("editing"); td.innerHTML = pfCellHtml(field, it); return; }
+  td.classList.add("saving");
+  try {
+    await api(`/api/project-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    Object.assign(it, patch);
+    pfItemCache.set(String(id), it);
+    td.classList.remove("editing", "saving");
+    td.innerHTML = pfCellHtml(field, it);
+    td.classList.add("saved");
+    setTimeout(() => td.classList.remove("saved"), 900);
+  } catch (error) {
+    td.classList.remove("editing", "saving");
+    td.innerHTML = pfCellHtml(field, it);  // 存失敗就還原成原值，不吃掉使用者的資料
+    td.classList.add("save-error");
+    td.setAttribute("title", `儲存失敗：${error.message}`);
+    setTimeout(() => { td.classList.remove("save-error"); td.setAttribute("title", "點一下即可修改"); }, 2600);
+  }
+}
+
+function pfCancelEdit() {
+  if (!pfEditingCell) return;
+  const { td, id, field } = pfEditingCell;
+  pfEditingCell = null;
+  const it = pfItemCache.get(String(id)) || {};
+  td.classList.remove("editing");
+  td.innerHTML = pfCellHtml(field, it);
+}
+
+// Enter 存、Esc 取消（多欄的追蹤事項也是 Enter 一次全存）
+document.querySelector("#pf-view")?.addEventListener("keydown", (event) => {
+  if (!pfEditingCell) return;
+  if (event.key === "Enter") { event.preventDefault(); pfCommitEdit(); }
+  else if (event.key === "Escape") { event.preventDefault(); pfCancelEdit(); }
+});
+
+// 失焦離開整個格子＝自動存；在同一格的多個輸入框之間跳不算（setTimeout 等焦點落定後再判斷）
+document.querySelector("#pf-view")?.addEventListener("focusout", () => {
+  const cell = pfEditingCell;
+  if (!cell) return;
+  setTimeout(() => {
+    if (pfEditingCell === cell && !cell.td.contains(document.activeElement)) pfCommitEdit(cell);
+  }, 0);
 });
 
 document.querySelector("#pf-view")?.addEventListener("submit", async (event) => {
