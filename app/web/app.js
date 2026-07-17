@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.13.0 · 2026-07-17 14:20 · 工作項表格緊湊置中可左右捲、新增改直接加列 inline 編、燈號警告改14天";
+const BUILD_TAG = "v0.14.0 · 2026-07-17 14:45 · 後台人員管理移到單位管理旁、專案進度欄拆成進度條/預計/實際三欄";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -276,7 +276,9 @@ const resourceConfig = {
       { label: "層級", cell: (i) => escapeHtml(valueOrDash(i.level)) },
       { label: "必要性", cell: (i) => escapeHtml(valueOrDash(i.necessity)) },
       { label: "負責人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.owner))}</span>` },
-      { label: "進度（預計／實際）", cls: "num", cell: (i) => progressCell(i.progress_planned, i.progress) },
+      { label: "進度", cls: "num", cell: (i) => progressBarOnly(i.progress_planned, i.progress) },
+      { label: "預計", cls: "num", cell: (i) => `${Number(i.progress_planned || 0)}%` },
+      { label: "實際", cls: "num", cell: (i) => `${Number(i.progress || 0)}%` },
       { label: "燈號", cell: (i) => ragChip(valueOrDash(i.rag_status) === "-" ? labelStatus(i.status) : i.rag_status) },
     ],
   },
@@ -1741,15 +1743,13 @@ function statusChip(value) {
   return `<span class="badge ${tone}">${escapeHtml(labelStatus(value))}</span>`;
 }
 
-// 進度：預計 vs 實際，含一條迷你進度條
-function progressCell(planned, actual) {
+// 進度條（只出條，不帶文字）：預計/實際數字改各自獨立成欄，這裡只負責視覺化實際完成度。
+// 顏色：實際≥預計綠、落後<20%黃、落後≥20%紅。
+function progressBarOnly(planned, actual) {
   const p = Number(planned || 0);
   const a = Number(actual || 0);
   const tone = a >= p ? "ok" : (p - a) >= 20 ? "danger" : "warn";
-  return `<span class="progress-cell">
-      <span class="progress-bar"><i class="progress-fill ${tone}" style="width:${Math.min(100, Math.max(0, a))}%"></i></span>
-      <span class="progress-num">預計 ${p}%／實際 ${a}%</span>
-    </span>`;
+  return `<span class="progress-bar"><i class="progress-fill ${tone}" style="width:${Math.min(100, Math.max(0, a))}%"></i></span>`;
 }
 
 // 燈號：只認紅/黃/綠或 R/A/G；認不出來（空、數字、雜訊）一律顯示 — 不秀原始值
