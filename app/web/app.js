@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.12.0 · 2026-07-17 13:55 · 工作項燈號改自動判定（未開始/執行中/警告/過期）＋版本徽章加日期時間";
+const BUILD_TAG = "v0.13.0 · 2026-07-17 14:20 · 工作項表格緊湊置中可左右捲、新增改直接加列 inline 編、燈號警告改14天";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1850,18 +1850,6 @@ function pfDetail(p) {
     </div>`;
 }
 
-// 工作項清單（可維護）：進度總表點進去看到的 Excel 細節
-const PF_ITEM_FIELDS = [
-  ["item_name", "工作主項目", "text", true],
-  ["owner", "負責人", "personnel"],
-  ["start_date", "開始日", "date"],
-  ["end_date", "結束日", "date"],
-  ["exec_status", "執行進度（如：進行中/已完成）", "text"],
-  ["progress", "完成度 %", "number"],
-  ["risk_note", "關鍵風險點／備註", "text"],
-  ["decision_needed", "需決策項目", "text"],
-  ["support_needed", "需支援項目", "text"],
-];
 const canEditPortfolio = () => currentUser && (currentUser.allowed_actions || []).includes("edit");
 
 async function loadProjectItems(projectId) {
@@ -1981,15 +1969,14 @@ function renderItemsSection(projectId, items) {
     : `<tr><td colspan="${PF_ITEM_COLUMNS.length + 1}" class="muted">尚無工作項${editable ? "，可按右上「新增工作項」建立。" : "。"}</td></tr>`;
   return `
     <div class="pf-items-head"><strong>工作項（${items.length}）</strong>${addBtn}</div>
-    ${editable ? '<p class="pf-items-hint muted">直接點格子即可修改，改完按 Enter 或點別處自動儲存，按 Esc 取消。</p>' : ""}
+    ${editable ? '<p class="pf-items-hint muted">直接點格子即可修改，改完按 Enter 或點別處自動儲存，按 Esc 取消；點欄名可排序；表格太寬可左右捲。</p>' : ""}
     <div class="grid-scroll">
       <table class="grid-table pf-items-table">
         <thead><tr>${head}<th class="col-actions">操作</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>
-    <div id="pf-item-editor"></div>`;
+    <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>`;
 }
 
 // 工作項燈號＝依「開始日/結束日/完成度/今天」自動判定，不讓人手選：
@@ -2004,8 +1991,8 @@ function pfItemRag(it) {
   if (progress === 0 && ((start !== null && now < start) || (start === null && end === null))) return "muted";
   // 過期：已過結束日還沒完成
   if (end !== null && now > end) return "danger";
-  // 警告：快到期(≤3天) 或 進度落後依時間推算的預期>10%
-  const nearDue = end !== null && (end - now) >= 0 && (end - now) <= 3 * DAY;
+  // 警告：快到期(≤14天) 或 進度落後依時間推算的預期>10%
+  const nearDue = end !== null && (end - now) >= 0 && (end - now) <= 14 * DAY;
   let behind = false;
   if (start !== null && end !== null && end > start) {
     const expected = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
@@ -2021,27 +2008,6 @@ function personnelDatalistOptions() {
   return (personnelMasterCache || []).map((p) => `<option value="${escapeHtml(p.name)}"></option>`).join("");
 }
 
-function openItemEditor(projectId, item) {
-  const box = document.querySelector("#pf-item-editor");
-  if (!box) return;
-  const inputs = PF_ITEM_FIELDS.map(([name, ph, type, req]) => {
-    const val = item ? escapeHtml(item[name] ?? "") : "";
-    const reqAttr = req ? "required" : "";
-    if (type === "date") return `<input name="${name}" placeholder="${ph}" type="date" ${reqAttr} value="${val}" />`;
-    if (type === "personnel") return `<input name="${name}" placeholder="${ph}" list="pf-item-personnel-list" ${reqAttr} value="${val}" />`;
-    return `<input name="${name}" placeholder="${ph}" ${type === "number" ? 'type="number" min="0" max="100" step="1"' : ""} ${reqAttr} value="${val}" />`;
-  }).join("");
-  box.innerHTML = `
-    <form class="pf-item-form" data-project-id="${projectId}" data-item-id="${item ? item.id : ""}">
-      <div class="pf-item-form-title">${item ? "編輯工作項" : "新增工作項"}</div>
-      <div class="pf-item-grid">${inputs}</div>
-      <div class="pf-item-actions">
-        <button type="submit">儲存</button>
-        <button type="button" class="secondary" data-item-cancel>取消</button>
-      </div>
-    </form>`;
-  box.querySelector("input")?.focus();
-}
 
 function pfSubPill(label, active, dot) {
   const d = dot ? `<span class="pf-dot ${dot}"></span>` : "";
@@ -2098,8 +2064,18 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   }
   const add = event.target.closest("[data-item-add]");
   const del = event.target.closest("[data-item-del]");
-  const cancel = event.target.closest("[data-item-cancel]");
-  if (add) { openItemEditor(Number(add.getAttribute("data-item-add")), null); return; }
+  // 新增＝直接在表格多一列（帶預設名），再自動聚焦「工作主項目」讓使用者當場 inline 改，不開表單
+  if (add) {
+    const pid = Number(add.getAttribute("data-item-add"));
+    try {
+      const created = await api(`/api/projects/${pid}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ item_name: "未命名工作項" }) });
+      await loadProjectItems(pid);
+      const newCell = [...document.querySelectorAll('#pf-items td.editable[data-field="item_name"]')]
+        .find((td) => td.closest(`tr[data-item-id="${created.data.id}"]`));
+      if (newCell) pfBeginEdit(newCell);
+    } catch (error) { window.alert(`新增失敗：${error.message}`); }
+    return;
+  }
   if (del) {
     if (!window.confirm("確定刪除這個工作項？")) return;
     await api(`/api/project-items/${del.getAttribute("data-item-del")}`, { method: "DELETE" });
@@ -2107,7 +2083,6 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
     await loadProjectItems(Number(pid));
     return;
   }
-  if (cancel) { const b = document.querySelector("#pf-item-editor"); if (b) b.innerHTML = ""; return; }
 });
 
 // ── 工作項 inline 編輯（Excel 式：點格子就改，Enter/失焦自動存，Esc 取消）──────────────
@@ -2211,25 +2186,6 @@ document.querySelector("#pf-view")?.addEventListener("focusout", () => {
   }, 0);
 });
 
-document.querySelector("#pf-view")?.addEventListener("submit", async (event) => {
-  const form = event.target.closest(".pf-item-form");
-  if (!form) return;
-  event.preventDefault();
-  const projectId = form.getAttribute("data-project-id");
-  const itemId = form.getAttribute("data-item-id");
-  const data = Object.fromEntries(new FormData(form).entries());
-  if (data.progress !== undefined) data.progress = data.progress === "" ? 0 : Number(data.progress);
-  try {
-    if (itemId) {
-      await api(`/api/project-items/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    } else {
-      await api(`/api/projects/${projectId}/items`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    }
-    await loadProjectItems(Number(projectId));
-  } catch (error) {
-    window.alert(`儲存失敗：${error.message}`);
-  }
-});
 
 // 全文搜尋比對到專案「工作項」子項時，導去進度總表點開那個專案（子項細節在這裡才看得到，
 // 不是專案模組的基本編輯表單）——找到所屬組別/子分頁後設定 portfolioState 再重繪。

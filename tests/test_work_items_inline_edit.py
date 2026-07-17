@@ -80,6 +80,8 @@ def test_inline_edit_frontend_contract():
     assert 'data-field="' in app_js  # 可編輯格帶欄位標記
     assert "function pfItemRag" in app_js  # 燈號依開始/結束日與完成度自動判定
     assert "pfRagOptions" not in app_js  # 手動燈號選單已移除（改自動）
+    assert "openItemEditor" not in app_js  # 綠色「新增工作項」表單已移除
+    assert "未命名工作項" in app_js  # 新增＝直接加一列再 inline 編（帶預設名）
 
     # 舊的逐列「編輯」按鈕已拿掉，改成直接點格子
     assert "data-item-edit" not in app_js
