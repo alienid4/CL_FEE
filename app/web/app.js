@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.23.0 · 2026-07-20 16:57 · update.bat 顯示版本前後對照並靜音無害雜訊（curl進度表與pip警告讓人誤以為更新失敗）";
+const BUILD_TAG = "v0.24.0 · 2026-07-21 07:50 · update.bat 改名為 download.bat（upload/download 才是天然一組，方向不會記錯），舊名保留為轉接檔";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;

@@ -66,7 +66,7 @@ $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
 if ($branch -ne "main") {
     Write-Host ""
     Write-Host "  注意：目前在分支「$branch」，不是 main。" -ForegroundColor Yellow
-    Write-Host "  部署端的 update.bat 只抓 main，推到別的分支對方拿不到。"
+    Write-Host "  部署端的 download.bat 只抓 main，推到別的分支對方拿不到。"
     $go = Read-Host "  仍要繼續嗎？（Y=繼續 / 其他=取消）"
     if ($go -notmatch '^[Yy]') { Quit 0 }
 }
@@ -278,6 +278,6 @@ Write-Head "上傳完成"
 Write-Host "  版本：$newVer" -ForegroundColor Green
 Write-Host "  檔案：$($final.Count) 個"
 Write-Host ""
-Write-Host "  對方現在可以執行 update.bat 取得這一版。"
+Write-Host "  對方現在可以執行 download.bat 取得這一版。"
 Write-Host "  提醒：對方開啟畫面後若還是舊的，請按 Ctrl+Shift+R 強制重新整理。"
 Quit 0
