@@ -26,13 +26,42 @@ if not exist "%PS1%" (
     exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
-
+where powershell >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo   The control panel exited with an error. See logs\service.log
+    echo   ERROR: powershell.exe not found on this machine.
+    echo   This tool needs Windows PowerShell 5.1 or later.
     echo.
     pause
+    exit /b 1
 )
 
+if not exist "%~dp0logs" mkdir "%~dp0logs" >nul 2>&1
+set "ERRLOG=%~dp0logs\service_error.log"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" 2>"%ERRLOG%"
+set "RC=%ERRORLEVEL%"
+
+REM Unconditional pause: if PowerShell fails to start at all (blocked execution
+REM policy, syntax error in the .ps1), the window would otherwise close instantly
+REM and the user would see nothing. Never let this window vanish silently.
+if not "%RC%"=="0" (
+    echo.
+    echo ============================================================
+    echo   The control panel stopped with exit code %RC%.
+    echo ============================================================
+    echo.
+    echo   Error output ^(also saved to logs\service_error.log^):
+    echo ------------------------------------------------------------
+    type "%ERRLOG%" 2>nul
+    echo ------------------------------------------------------------
+    echo.
+    echo   Common causes:
+    echo     - PowerShell execution policy blocked by company Group Policy
+    echo     - service.ps1 was edited and now has a syntax error
+    echo.
+)
+
+echo.
+pause
 endlocal

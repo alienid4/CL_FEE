@@ -6,8 +6,29 @@
 # .bat 裡遲早會炸。PowerShell 走 UTF-8，沒有這個問題，也有真正的錯誤處理。
 # service.bat 只保留純英文，負責把這支叫起來。
 
-$ErrorActionPreference = "Stop"
+# 用 Continue 而非 Stop：這支大量呼叫外部程式（python/netstat/git），而 PowerShell 5.1
+# 在對原生程式重導 stderr 時會把輸出包成 ErrorRecord。搭配 Stop 會變成終止性錯誤，
+# 整支腳本瞬間結束、視窗跟著關掉，使用者什麼都看不到。改為自己檢查離開碼。
+$ErrorActionPreference = "Continue"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+
+# 任何沒被預期到的錯誤都要看得見，否則就變成「點下去閃一下就不見」。
+trap {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host "  發生未預期的錯誤" -ForegroundColor Red
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  訊息：$($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  位置：$($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)"
+    Write-Host "  程式碼：$($_.InvocationInfo.Line.Trim())"
+    Write-Host ""
+    Write-Host "  請把上面的訊息回報給維護人員。"
+    Write-Host ""
+    Write-Host "  按 Enter 結束..." -ForegroundColor DarkGray
+    [void](Read-Host)
+    exit 1
+}
 
 $HERE     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PORT     = 8888

@@ -11,11 +11,34 @@
 # 部分中文字的第二個位元組是反斜線，cmd 會當跳脫字元導致整行散掉。
 # upload.bat 只保留純英文，負責叫起這支。
 
-$ErrorActionPreference = "Stop"
+# 用 Continue 而非 Stop：這支大量呼叫 git 這類外部程式，而 PowerShell 5.1 在
+# 對原生程式做 2>$null 重導時會把 stderr 包成 ErrorRecord。搭配 Stop 會變成終止性
+# 錯誤，整支腳本瞬間結束、視窗跟著關掉，使用者什麼都看不到。這裡改為自己檢查
+# $LASTEXITCODE，不倚賴例外。
+$ErrorActionPreference = "Continue"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 $HERE = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $HERE
+
+# 任何沒被預期到的錯誤都要看得見。沒有這層的話，例外會讓 PowerShell 直接結束，
+# 呼叫端的視窗一起關閉，就變成「點下去閃一下就不見」。
+trap {
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host "  發生未預期的錯誤，上傳已中止" -ForegroundColor Red
+    Write-Host "============================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  訊息：$($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  位置：$($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber)"
+    Write-Host "  程式碼：$($_.InvocationInfo.Line.Trim())"
+    Write-Host ""
+    Write-Host "  你的檔案沒有被推上 GitHub。請把上面的訊息回報給維護人員。"
+    Write-Host ""
+    Write-Host "  按 Enter 結束..." -ForegroundColor DarkGray
+    [void](Read-Host)
+    exit 1
+}
 
 function Write-Head($text) {
     Write-Host ""
