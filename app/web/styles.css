@@ -1231,6 +1231,13 @@ tr.clickable { cursor: pointer; }
 .badge.ok { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
 .badge.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
 .badge.danger { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
+
+/* 統一燈號的標籤配色（對應 done/todo/live/soon/over 五態） */
+.badge.done { background: var(--surface-2); color: var(--ink-2); border-color: transparent; }
+.badge.todo { background: var(--surface); color: var(--ink-2); border-color: var(--line); }
+.badge.live { background: var(--ok-bg); color: var(--ok); border-color: transparent; }
+.badge.soon { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.badge.over { background: var(--danger-bg); color: var(--danger); border-color: transparent; }
 .badge.neutral { background: var(--surface-2); color: var(--ink-3); }
 
 /* 頁籤 */
@@ -1386,8 +1393,19 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .pf-pill.active { border-color: var(--accent); background: var(--accent-weak); color: var(--accent-2); font-weight: 600; }
 
 .pf-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; background: var(--ink-3); }
-.pf-dot.ok { background: #0ca30c; } .pf-dot.warn { background: #d9860b; } .pf-dot.danger { background: var(--danger); }
-.pf-dot.muted { background: var(--line-2); }
+/* 工作項燈號：沿用上面「全站統一燈號」那套語意，class 名稱也一致 */
+.pf-dot.done { background: #c9c6c0; }                                       /* 灰＝已完成 */
+.pf-dot.todo { background: var(--surface); border: 2px solid var(--line); } /* 白＝未開始 */
+.pf-dot.live { background: #0ca30c; }                                       /* 綠＝執行中正常 */
+.pf-dot.soon { background: #d9860b; }                                       /* 橘＝快到期 */
+.pf-dot.over { background: var(--danger); }                                 /* 紅＝過期 */
+
+/* 專案清單「燈號」欄：圓點＋文字，讓整欄可以一眼掃過去 */
+.rag { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: .82rem; }
+.rag .case-dot { width: 11px; height: 11px; }
+.rag.done { color: var(--ink-2); opacity: .75; }
+.rag.over { color: var(--danger); font-weight: 600; }
+.rag.soon { color: var(--warn); font-weight: 600; }
 
 .pf-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
 .pf-card-head { font-size: .82rem; margin-bottom: 14px; }
@@ -1616,14 +1634,23 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .source-tag { cursor: help; font-size: .85em; opacity: .75; }
 .source-tag:hover { opacity: 1; }
 
-/* ── 線性進度圖：四色燈號（綠完成/白未到/橘快逾期/紅逾期） ── */
+/* ── 全站統一燈號（線性進度圖／工作項／專案清單共用同一套語意） ──
+   灰＝已完成       做完了，不用再看，所以刻意淡出
+   白＝未開始       還沒輪到
+   綠＝執行中正常   在跑而且沒問題
+   橘＝快到期       ≤14 天，或進度落後預期 >10%
+   紅＝過期         過了結束日還沒完成
+   虛線空心＝不適用 這案用不到此階段
+   原則：有顏色的才需要看。完成的東西不該用綠色跟「正常」搶注意力。 */
 .case-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box; }
-.case-dot.green { background: var(--ok); }
-.case-dot.white { background: var(--surface); border: 2px solid var(--line); }
-.case-dot.orange { background: var(--warn); }
-.case-dot.red { background: var(--danger); }
-.case-dot.na { background: #d8d5cf; }   /* 灰＝不適用（這案用不到此階段） */
+.case-dot.done { background: #c9c6c0; }                                       /* 灰＝已完成 */
+.case-dot.todo { background: var(--surface); border: 2px solid var(--line); } /* 白＝未開始 */
+.case-dot.live { background: var(--ok); }                                     /* 綠＝執行中正常 */
+.case-dot.soon { background: var(--warn); }                                   /* 橘＝快到期 */
+.case-dot.over { background: var(--danger); }                                 /* 紅＝過期 */
+.case-dot.na { background: transparent; border: 2px dashed var(--line-2); }   /* 虛線空心＝不適用 */
 .case-step.na, .case-step[data-na] { opacity: .55; }
+.case-step.done { opacity: .7; }   /* 完成的階段整格淡一點，視線自然略過 */
 .matrix-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .phase-chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;

@@ -2788,6 +2788,31 @@ def overdue_reminders(within_days: int = 14) -> list[dict[str, Any]]:
                 "days": _days(r["end_date"]), "severity": "overdue" if r["end_date"] < today_s else "soon",
             })
 
+        # 專案工作項：真正在跑的最小單位。原本催辦只看案件/專案/合約，工作項逾期
+        # 只能逐案點進專案才看得到，等於最容易卡住的那一層反而沒有主動提醒。
+        # progress < 100 才算未完成——做完的不追，才不會讓催辦清單被完成項灌滿。
+        i_where = ("i.end_date <> '' AND i.end_date <= ? AND i.progress < 100 "
+                   "AND i.status <> 'disabled' AND p.status <> 'disabled'")
+        i_params: list[Any] = [horizon]
+        if scope is not None:
+            i_where = f"({i_where}) AND i.owner = ?"
+            i_params.append(scope)
+        for r in conn.execute(
+            "SELECT i.id, i.item_name, i.owner, i.end_date, i.exec_status, i.progress, "
+            "p.project_code, p.project_name "
+            f"FROM project_items i JOIN projects p ON p.id = i.project_id WHERE {i_where} "
+            "ORDER BY i.end_date ASC LIMIT 100",
+            i_params,
+        ).fetchall():
+            items.append({
+                "type": "project_item", "id": r["id"],
+                "code": r["project_code"] or r["project_name"],
+                # 帶上專案名，否則清單只看到「安裝與上線」這種工作項名稱，認不出是哪一案
+                "title": f'{r["item_name"]}（{r["project_name"]}）',
+                "owner": r["owner"], "date": r["end_date"], "status": r["exec_status"],
+                "days": _days(r["end_date"]), "severity": "overdue" if r["end_date"] < today_s else "soon",
+            })
+
     items.sort(key=lambda x: x["date"])
     return items
 

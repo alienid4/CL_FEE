@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.18.0 · 2026-07-17 16:35 · 追蹤事項拆成風險/決策/支援三個獨立欄，各自一格 inline 編、不再擠在一起";
+const BUILD_TAG = "v0.19.0 · 2026-07-20 · 燈號全站統一（灰完成/白未開始/綠執行中/橘快到期/紅過期）＋專案清單燈號自動判定＋催辦納入工作項＋完成的項目不再顯示逾期";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -283,7 +283,9 @@ const resourceConfig = {
       { label: "進度", cls: "num", cell: (i) => progressBarOnly(i.progress_planned, i.progress) },
       { label: "預計", cls: "num", cell: (i) => `${Number(i.progress_planned || 0)}%` },
       { label: "實際", cls: "num", cell: (i) => `${Number(i.progress || 0)}%` },
-      { label: "燈號", cell: (i) => ragChip(valueOrDash(i.rag_status) === "-" ? labelStatus(i.status) : i.rag_status) },
+      // 燈號改自動判定：原本讀人工欄位 rag_status，沒人填就整欄都是「—」，等於白佔一欄。
+      // 現在依起訖日與完成度即時算，跟工作項、線性圖同一套規則。
+      { label: "燈號", cell: (i) => ragCell(ragOf(i)) },
     ],
   },
   signoff: {
@@ -452,6 +454,49 @@ function activateIoTab(tabName) {
   }
 }
 
+// ══ 全站統一燈號 ══════════════════════════════════════════════════════════
+// 線性進度圖、工作項、專案清單共用同一套語意，避免同一個顏色在不同畫面代表不同事。
+//   done 灰＝已完成   todo 白＝未開始   live 綠＝執行中正常
+//   soon 橘＝快到期   over 紅＝過期     na 虛線＝不適用
+// 原則：有顏色的才需要看。完成的東西淡出，不跟「正常」搶注意力。
+const RAG_LABEL = {
+  done: "已完成", todo: "未開始", live: "執行中",
+  soon: "快到期", over: "已過期", na: "不適用",
+};
+
+// 後端階段燈號沿用舊名（green＝該階段已完成…）。在這裡集中轉成統一語意，
+// 就不必動後端契約，也不會弄壞既有測試。
+const STAGE_TONE_TO_RAG = { green: "done", white: "todo", orange: "soon", red: "over", na: "na" };
+
+// 依「開始日／結束日／完成度／今天」判定燈號；工作項與專案共用同一套判斷。
+// 完成度 100 一律回 done，不看日期——做完的東西不該再被標成逾期。
+function ragOf({ progress, start_date, end_date }) {
+  const pct = Number(progress || 0);
+  if (pct >= 100) return "done";
+
+  const DAY = 86400000;
+  const parse = (d) => { const t = d ? new Date(d).getTime() : NaN; return Number.isNaN(t) ? null : t; };
+  const start = parse(start_date), end = parse(end_date), now = Date.now();
+
+  // 未開始：一點進度都沒有，而且還沒到開始日（或根本沒排程）
+  if (pct === 0 && ((start !== null && now < start) || (start === null && end === null))) return "todo";
+  if (end !== null && now > end) return "over";     // 過了結束日還沒完成
+
+  const nearDue = end !== null && (end - now) >= 0 && (end - now) <= 14 * DAY;
+  let behind = false;
+  if (start !== null && end !== null && end > start) {
+    const expected = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
+    behind = (expected - pct) > 10;                 // 落後時間軸推算的預期進度
+  }
+  return (nearDue || behind) ? "soon" : "live";
+}
+
+// 圓點＋文字，供清單欄位直接使用
+function ragCell(rag) {
+  const label = RAG_LABEL[rag] || rag;
+  return `<span class="rag ${rag}" title="${label}"><span class="case-dot ${rag}"></span>${label}</span>`;
+}
+
 // ── 線性進度圖／處理優先矩陣：讀 /api/cases/progress，系統自動推導、唯讀 ──
 const TONE_LABEL = { green: "完成", white: "還沒輪到", orange: "快逾期待處理", red: "已逾期", na: "不適用" };
 let lastProgressItems = [];  // 快取最近一次進度資料，供矩陣過濾器不重打 API 重繪
@@ -472,9 +517,11 @@ function urgencyText(days) {
 }
 
 function renderProgressRow(it) {
-  const dots = (it.stages || []).map((s) =>
-    `<span class="case-step ${s.tone}" title="${escapeHtml(s.label)}：${TONE_LABEL[s.tone] || s.tone}${s.days != null ? "（" + urgencyText(s.days) + "）" : ""}">`
-    + `<span class="case-dot ${s.tone}"></span><span>${escapeHtml(s.label)}</span></span>`).join("");
+  const dots = (it.stages || []).map((s) => {
+    const rag = STAGE_TONE_TO_RAG[s.tone] || s.tone;   // 後端舊名 → 統一語意
+    return `<span class="case-step ${rag}" title="${escapeHtml(s.label)}：${RAG_LABEL[rag] || s.tone}${s.days != null ? "（" + urgencyText(s.days) + "）" : ""}">`
+      + `<span class="case-dot ${rag}"></span><span>${escapeHtml(s.label)}</span></span>`;
+  }).join("");
   const amt = it.amount ? `${money(it.amount)} 元` : "—";
   return `<div class="case-progress-row" data-case-id="${it.case_id}">
     <div class="case-progress-name"><b>${escapeHtml(it.case_code)}　${escapeHtml(it.title)}</b>
@@ -1786,13 +1833,19 @@ function pfStatus(p) {
   }
   const noBasis = !hasDates && planned <= 0;  // 既無起訖日、也無預計% → 沒有比對基準
   const gap = expected - actual;
-  let st, label;
-  if (actual >= 100) { st = "ok"; label = "完成"; }
-  else if (noBasis) { st = "muted"; label = "未排程"; }
-  else if (gap <= 2) { st = "ok"; label = actual > expected + 8 ? "超前" : "準時"; }
-  else if (gap <= 18) { st = "warn"; label = "落後 " + Math.round(gap) + "%"; }
-  else { st = "danger"; label = "落後 " + Math.round(gap) + "%"; }
-  return { actual, planned, expected, gap, tone: st, label, hasDates, days, noBasis };
+
+  // 燈號一律走統一的 ragOf()，確保專案清單、進度總表、工作項、線性圖顏色語意一致；
+  // 但落後幅度只有這裡算得出來，所以文字標籤仍保留在本函式。
+  let tone = ragOf(p);
+  if (noBasis) tone = "todo";        // 沒有任何比對基準時當「還沒排」，不誤報成正常或落後
+  else if (tone === "live" && gap > 2) tone = gap > 18 ? "over" : "soon";  // 期限還沒到但進度落後
+
+  let label;
+  if (actual >= 100) label = "完成";
+  else if (noBasis) label = "未排程";
+  else if (gap <= 2) label = actual > expected + 8 ? "超前" : "準時";
+  else label = "落後 " + Math.round(gap) + "%";
+  return { actual, planned, expected, gap, tone, label, hasDates, days, noBasis };
 }
 
 // 單條＝專案的時間軸（左端=開始日、右端=結束日）：填色＝實際完成%，紅色▼=今天在時間軸上的位置
@@ -1831,14 +1884,21 @@ function pfOverview(group) {
 
 function pfDetail(p) {
   const c = pfStatus(p);
+  // 「剩餘」原本只拿結束日跟今天比，沒看完成度，所以 100% 做完的專案照樣被標紅
+  // 「逾期 N 天」，跟旁邊綠色的「完成」自相矛盾。做完就顯示已完成，不再倒數。
+  const isDone = Number(p.progress || 0) >= 100;
+  const overdue = !isDone && c.hasDates && c.days < 0;
+  const remainText = isDone
+    ? "已完成"
+    : (c.hasDates ? (c.days >= 0 ? c.days + " 天" : "逾期 " + (-c.days) + " 天") : "—");
   const metas = [
     ["負責人", valueOrDash(p.owner)],
     ["開始", valueOrDash(p.start_date)],
     ["結束", valueOrDash(p.end_date)],
-    ["剩餘", c.hasDates ? (c.days >= 0 ? c.days + " 天" : "逾期 " + (-c.days) + " 天") : "—"],
+    ["剩餘", remainText],
   ];
   const metaHtml = metas.map(([k, v]) =>
-    `<div class="pf-meta"><span class="pf-meta-k">${k}</span><span class="pf-meta-v${k === "剩餘" && c.hasDates && c.days < 0 ? " pf-danger" : ""}">${escapeHtml(v)}</span></div>`).join("");
+    `<div class="pf-meta"><span class="pf-meta-k">${k}</span><span class="pf-meta-v${k === "剩餘" && overdue ? " pf-danger" : ""}">${escapeHtml(v)}</span></div>`).join("");
   const hint = c.hasDates ? "" : `<span class="muted pf-hint">未設定起訖日，落後以「預計%」估算</span>`;
   return `
     <div class="pf-card pf-detail">
@@ -1969,27 +2029,11 @@ function renderItemsSection(projectId, items) {
     <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>`;
 }
 
-// 工作項燈號＝依「開始日/結束日/完成度/今天」自動判定，不讓人手選：
-// 綠=完成或執行中正常；黃=快到期(≤3天) 或 進度落後預期>10%；紅=已過結束日未完成；灰=未開始。
+// 工作項燈號＝依「開始日/結束日/完成度/今天」自動判定，不讓人手選。
+// 判斷邏輯與配色統一收在上方的 ragOf()，工作項、專案清單、線性圖共用一套，
+// 以免三個畫面各自演化出不同結果。
 function pfItemRag(it) {
-  const progress = Number(it.progress || 0);
-  if (progress >= 100) return "ok";  // 完成
-  const DAY = 86400000;
-  const parse = (d) => { const t = d ? new Date(d).getTime() : NaN; return Number.isNaN(t) ? null : t; };
-  const start = parse(it.start_date), end = parse(it.end_date), now = Date.now();
-  // 未開始：0% 且（今天還沒到開始日，或完全沒排程）
-  if (progress === 0 && ((start !== null && now < start) || (start === null && end === null))) return "muted";
-  // 過期：已過結束日還沒完成
-  if (end !== null && now > end) return "danger";
-  // 警告：快到期(≤14天) 或 進度落後依時間推算的預期>10%
-  const nearDue = end !== null && (end - now) >= 0 && (end - now) <= 14 * DAY;
-  let behind = false;
-  if (start !== null && end !== null && end > start) {
-    const expected = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
-    behind = (expected - progress) > 10;
-  }
-  if (nearDue || behind) return "warn";
-  return "ok";  // 執行中
+  return ragOf(it);
 }
 
 // 負責人：跟其他表單一樣接人員主檔，但用 datalist（可選也可打）而非鎖死的 select——
@@ -2647,7 +2691,7 @@ async function loadReminders() {
     countEl.textContent = overdue ? `${overdue} 逾期 / 共 ${items.length}` : `${items.length}`;
   }
   renderExpandableList(el, "reminders", items, (i) => {
-    const kind = i.type === "case" ? "案件" : i.type === "project" ? "專案" : "合約";
+    const kind = { case: "案件", project: "專案", project_item: "工作項", contract: "合約" }[i.type] || i.type;
     const tag = i.severity === "overdue" ? `已逾期 ${Math.abs(i.days)} 天` : `剩 ${i.days} 天`;
     return `
       <li>

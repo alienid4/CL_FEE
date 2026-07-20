@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-18-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-19-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -324,10 +324,11 @@
                 </div>
               </div>
               <div class="case-legend" aria-label="燈號說明">
-                <span class="case-legend-item"><span class="case-dot green"></span>完成</span>
-                <span class="case-legend-item"><span class="case-dot white"></span>還沒輪到</span>
-                <span class="case-legend-item"><span class="case-dot orange"></span>快逾期待處理</span>
-                <span class="case-legend-item"><span class="case-dot red"></span>已逾期</span>
+                <span class="case-legend-item"><span class="case-dot done"></span>已完成</span>
+                <span class="case-legend-item"><span class="case-dot todo"></span>未開始</span>
+                <span class="case-legend-item"><span class="case-dot live"></span>執行中</span>
+                <span class="case-legend-item"><span class="case-dot soon"></span>快到期</span>
+                <span class="case-legend-item"><span class="case-dot over"></span>已過期</span>
                 <span class="case-legend-item"><span class="case-dot na"></span>不適用</span>
               </div>
               <div class="case-progress-list" id="case-progress-list"></div>
@@ -1075,6 +1076,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-18-0"></script>
+    <script src="/static/app.js?v=v0-19-0"></script>
   </body>
 </html>
