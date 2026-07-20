@@ -61,6 +61,21 @@ PPT/_舊版草稿/
 .project/run_report.md
 .project/backlog.json
 
+# 只留本機的開發筆記。CL_FEE 是公開 repo，交接摘要屬於內部工作紀錄，
+# 不進公開歷史；跨裝置靠 OneDrive 同步即可。
+交接摘要_*.md
+
+# 外部 skill 壓縮包：跟程式無關，且可能含公司內部素材
+*.skill
+
+# notebook-package 的執行期內容：app/ 與 tests/ 由 update.bat 從 GitHub 下載，
+# data/ 是本機資料庫、logs/ 是執行紀錄。這些是部署產物，不該回頭進版控，
+# 否則會跟來源目錄互相覆蓋。
+notebook-package/app/
+notebook-package/tests/
+notebook-package/data/
+notebook-package/logs/
+
 # 根目錄舊檔歸檔：git 歷史已保留被刪原檔，備份不重複進版控
 archive/
 
