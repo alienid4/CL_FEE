@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.20.0 · 2026-07-20 16:10 · 新增 upload.bat 上傳工具：列出變更檔案、自動打版本號、擋敏感檔";
+const BUILD_TAG = "v0.21.0 · 2026-07-20 16:17 · 修正 upload 寫入 CHANGELOG 的比對方式（CRLF 檔案會靜靜略過）並補回 v0.19/v0.20 版本紀錄";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;

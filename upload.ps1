@@ -186,11 +186,12 @@ if (Test-Path $html) {
 }
 if (Test-Path $chlog) {
     $t = [System.IO.File]::ReadAllText($chlog)
-    $entry = "## $newVer — $stamp`r`n- $desc`r`n`r`n"
-    $idx = $t.IndexOf("`n---`n")
-    if ($idx -ge 0) {
-        $cut = $idx + 5
-        $t = $t.Substring(0, $cut) + "`r`n" + $entry + $t.Substring($cut).TrimStart("`r", "`n")
+    $entry = "## $newVer — $stamp`r`n- $desc`r`n"
+    # 插在第一個版本標題之前，而不是去比對分隔線——檔案可能是 CRLF，
+    # 直接找 "`n---`n" 會因為換行符不同而找不到，結果整段被靜靜略過。
+    $m = [regex]::Match($t, '(?m)^##\s')
+    if ($m.Success) {
+        $t = $t.Substring(0, $m.Index) + $entry + "`r`n" + $t.Substring($m.Index)
     } else {
         $t = $t.TrimEnd() + "`r`n`r`n" + $entry
     }
