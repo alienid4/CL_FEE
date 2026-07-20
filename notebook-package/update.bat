@@ -35,8 +35,27 @@ rmdir /s /q "%TMPDIR%" >nul 2>&1
 
 echo.
 echo Reinstalling dependencies (in case new packages were added)...
-python -m pip install -q -r requirements.txt
 
+REM On some Windows setups "python" is the Microsoft Store App Execution Alias, which
+REM exits with 9009 without running anything. Probe for an interpreter that really works.
+set "PY="
+py -3 --version >nul 2>&1
+if not errorlevel 1 (set "PY=py -3" & goto :py_ok)
+python --version >nul 2>&1
+if not errorlevel 1 (set "PY=python" & goto :py_ok)
+python3 --version >nul 2>&1
+if not errorlevel 1 (set "PY=python3" & goto :py_ok)
+echo.
+echo WARNING: no working Python 3 found ^(tried py -3, python, python3^).
+echo The code was still updated; only the dependency install was skipped.
+goto :deps_done
+
+:py_ok
+echo Using Python: %PY%
+%PY% -m pip install -q -r requirements.txt
+if errorlevel 1 echo WARNING: dependency install failed. The code itself was still updated.
+
+:deps_done
 echo.
 echo ============================================
 echo   Update complete!
