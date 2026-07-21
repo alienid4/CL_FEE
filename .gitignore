@@ -83,6 +83,9 @@ archive/
 *.zip
 *.rar
 *.7z
+# 派送包的改名副本（package_notebook_full.ps1 -ForMail 產生，用來閃過郵件閘道
+# 對 .zip 夾帶 .bat 的封鎖）。它就是上面那個 zip，一樣是生成物。
+*.rename-to-zip
 project-baseline-kit_v*/
 
 # Frontend / package caches if added later

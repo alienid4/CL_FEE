@@ -100,9 +100,12 @@ function Test-Ready {
         return $false
     }
 
-    Invoke-Py @("-c", "import fastapi, uvicorn") 2>$null | Out-Null
+    # openpyxl 一起檢查：它是 Excel 匯入匯出的執行時相依，但寫成函式內 import，
+    # 少了它系統照常啟動，要等使用者真的按下匯入才會炸。在這裡一起擋，
+    # 才不會讓人以為系統是好的、用到一半才發現壞掉。
+    Invoke-Py @("-c", "import fastapi, uvicorn, openpyxl") 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Head "缺少必要套件（fastapi / uvicorn）"
+        Write-Head "缺少必要套件（fastapi / uvicorn / openpyxl）"
         Write-Host "  這台電腦有 Python，但還沒安裝本系統需要的套件。" -ForegroundColor Yellow
         Write-Host ""
         $ans = Read-Host "  現在要自動安裝嗎？（Y=安裝 / 其他=取消）"
@@ -110,8 +113,12 @@ function Test-Ready {
 
         Write-Host ""
         Write-Host "  安裝中，請稍候..."
-        Invoke-Py @("-m", "pip", "install", "-r", (Join-Path $HERE "requirements.txt"))
-        Invoke-Py @("-c", "import fastapi, uvicorn") 2>$null | Out-Null
+        # 只裝執行時要的三個套件，不裝 pytest / httpx / playwright。
+        # 部署端不跑測試（選單裡也沒有這個功能），而 playwright 裝完還會再去抓
+        # 瀏覽器二進位檔，在連不到外網的公司網路幾乎必敗——為了跑一個 Web 服務
+        # 去裝它，等於平白多一個失敗點。
+        Invoke-Py @("-m", "pip", "install", "-r", (Join-Path $HERE "requirements-runtime.txt"))
+        Invoke-Py @("-c", "import fastapi, uvicorn, openpyxl") 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host ""
             Write-Host "  安裝後仍然找不到套件。" -ForegroundColor Red
@@ -221,12 +228,12 @@ function New-DiagReport {
     $lines += "---- 套件 ----"
     if ($PY) {
         try {
-            $lines += (Invoke-Py @("-c", "import fastapi, uvicorn, sys; print('python', sys.version); print('fastapi', fastapi.__version__); print('uvicorn', uvicorn.__version__)") 2>&1)
-        } catch { $lines += "（無法載入 fastapi / uvicorn）" }
+            $lines += (Invoke-Py @("-c", "import fastapi, uvicorn, openpyxl, sys; print('python', sys.version); print('fastapi', fastapi.__version__); print('uvicorn', uvicorn.__version__); print('openpyxl', openpyxl.__version__)") 2>&1)
+        } catch { $lines += "（無法載入 fastapi / uvicorn / openpyxl）" }
     }
     $lines += ""
     $lines += "---- 必要檔案 ----"
-    foreach ($f in @("app\main.py", ".env", "requirements.txt", "data")) {
+    foreach ($f in @("app\main.py", ".env", "requirements.txt", "requirements-runtime.txt", "data")) {
         $exists = Test-Path (Join-Path $HERE $f)
         $mark = "缺少"
         if ($exists) { $mark = "有" }

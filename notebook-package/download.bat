@@ -71,6 +71,11 @@ if errorlevel 8 (
 )
 robocopy "%SRC%\tests" "%~dp0tests" /MIR /NFL /NDL /NJH /NJS >nul
 copy /Y "%SRC%\requirements.txt" "%~dp0requirements.txt" >nul
+REM  requirements.txt pulls in requirements-runtime.txt with a -r line, so the
+REM  two files must always travel together. Copying only the first one leaves a
+REM  requirements.txt pointing at a file that is missing (or worse, stale), and
+REM  pip fails with an error that says nothing about the real cause.
+copy /Y "%SRC%\requirements-runtime.txt" "%~dp0requirements-runtime.txt" >nul
 copy /Y "%SRC%\pytest.ini" "%~dp0pytest.ini" >nul
 
 REM --- Helper scripts (service.bat / service.ps1 / docs) ----------------------
@@ -133,7 +138,11 @@ echo         No working Python found - skipped ^(code was still updated^).
 goto :deps_done
 
 :py_ok
-%PY% -m pip install -q --disable-pip-version-check --no-warn-script-location -r requirements.txt >nul 2>&1
+REM  Runtime deps only, matching service.ps1. A deployed machine only has to run
+REM  the system, not test it; playwright in particular downloads browser binaries
+REM  on top of a large wheel, which is an extra failure point on a locked-down
+REM  corporate network for something this machine never uses.
+%PY% -m pip install -q --disable-pip-version-check --no-warn-script-location -r requirements-runtime.txt >nul 2>&1
 if errorlevel 1 (
     echo         Dependency install failed - skipped ^(code was still updated^).
     echo         If the system does not start, open service.bat and choose 6.

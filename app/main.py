@@ -643,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.32.0 · 2026-07-21 13:22 · 專案搬離 OneDrive 到 C:\AiProject\CL_FEE（雲端同步會把檔案變成佔位符、弄壞 .git/index）；同步修掉 launch.json 用 python 空殼的問題與過期路徑說明"
+BACKEND_BUILD = "v0.33.0 · 2026-07-21 15:10 · 拆出 requirements-runtime.txt：部署端只裝 fastapi/uvicorn/openpyxl 三個，不再連 playwright 一起裝（它會另外抓瀏覽器，在連不到外網的公司網路必敗）；requirements.txt 改用 -r 引入，兩份清單不再各自漂移；啟動前檢查一併驗 openpyxl"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。

@@ -19,6 +19,8 @@ New-Item -ItemType Directory -Path $stage | Out-Null
 Copy-Item -Path "$root\app" -Destination "$stage\app" -Recurse
 Copy-Item -Path "$root\tests" -Destination "$stage\tests" -Recurse
 Copy-Item -Path "$root\requirements.txt" -Destination "$stage\requirements.txt"
+# Must ship alongside requirements.txt, which pulls it in with a -r line.
+Copy-Item -Path "$root\requirements-runtime.txt" -Destination "$stage\requirements-runtime.txt"
 Copy-Item -Path "$root\pytest.ini" -Destination "$stage\pytest.ini"
 
 Get-ChildItem -Path $stage -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
