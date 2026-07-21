@@ -68,7 +68,18 @@ test_files = list(test_dir.rglob("test_*.py")) if test_dir.exists() else []
 if not test_files:
     rec("驗收測試", False, "tests/ 內沒有 test_*.py；沒有測試不得宣稱切片完成")
 else:
-    r = run([sys.executable, "-m", "pytest", "-q"])
+    # 平行跑。這些測試各自建自己的 app 與資料庫、互不共用狀態，所以可以安全平行；
+    # 時間幾乎全花在「每個測試的固定啟動開銷」而不是少數慢測試（最慢的單一測試才
+    # 3.75 秒，235 個卻要 4 分半），所以平行化是唯一有感的加速方式。
+    # 8 核實測：275 秒 -> 106 秒，通過/跳過的數量完全相同。
+    # 沒裝 pytest-xdist 時自動退回序列執行，不讓 hook 因為缺套件就擋下 commit。
+    pytest_args = [sys.executable, "-m", "pytest", "-q"]
+    try:
+        import xdist  # noqa: F401
+        pytest_args += ["-n", "auto"]
+    except ImportError:
+        pass
+    r = run(pytest_args)
     out = (r.stdout + r.stderr).strip().splitlines()
     summary = next((ln.strip() for ln in reversed(out) if "passed" in ln or "failed" in ln or "error" in ln), out[-1].strip() if out else "")
     rec("驗收測試通過", r.returncode == 0, summary)
