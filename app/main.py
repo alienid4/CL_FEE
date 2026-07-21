@@ -643,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.26.0 · 2026-07-21 09:39 · start.bat 改用實際執行驗證的 Python 偵測（原本 where python 會找到微軟商店空殼而誤判通過，之後靜默失敗還叫人看空白的上方訊息）"
+BACKEND_BUILD = "v0.27.0 · 2026-07-21 09:46 · download.bat 不再同步 start.bat/start.sh（它們跑的是 8025 試用模式配空的 preview.db，名字卻像主要入口，派送到部署機器等於邀請人點錯看到空系統）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。

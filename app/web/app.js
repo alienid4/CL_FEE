@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.26.0 · 2026-07-21 09:39 · start.bat 改用實際執行驗證的 Python 偵測（原本 where python 會找到微軟商店空殼而誤判通過，之後靜默失敗還叫人看空白的上方訊息）";
+const BUILD_TAG = "v0.27.0 · 2026-07-21 09:46 · download.bat 不再同步 start.bat/start.sh（它們跑的是 8025 試用模式配空的 preview.db，名字卻像主要入口，派送到部署機器等於邀請人點錯看到空系統）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;

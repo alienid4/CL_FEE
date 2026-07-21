@@ -85,7 +85,13 @@ if not exist "%PKG%\service.ps1" (
     echo         The code is updated; only the helper scripts were left as-is.
     goto :helpers_done
 )
-for %%F in (service.bat service.ps1 start.bat start.sh NOTEBOOK_SETUP.md) do (
+REM  start.bat / start.sh are deliberately NOT synced. They launch a different
+REM  thing: port 8025 against data\preview.db (a throwaway demo database that
+REM  gets auto-created empty), while service.bat runs the real system on 8888
+REM  against data\fee_control.db. The name "start" reads like the obvious button
+REM  to press, so shipping it to a deployment machine invites someone to open an
+REM  empty system and report that all the data vanished.
+for %%F in (service.bat service.ps1 NOTEBOOK_SETUP.md) do (
     if exist "%PKG%\%%F" copy /Y "%PKG%\%%F" "%~dp0%%F" >nul
 )
 
