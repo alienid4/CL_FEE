@@ -643,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.29.0 · 2026-07-21 10:24 · 修好長期紅燈的 local-ci：styles.css 斷言比對前先正規化換行符（工作區剛好是 LF 才會過，乾淨 checkout 轉 CRLF 必失敗）"
+BACKEND_BUILD = "v0.30.0 · 2026-07-21 11:05 · requirements.txt 補上遺漏的 openpyxl：Excel 匯入匯出是執行時相依，因寫成函式內 import 而在裝過它的機器上永遠看不出來，新部署的機器一用 Excel 就會炸"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。

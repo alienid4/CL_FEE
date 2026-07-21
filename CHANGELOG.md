@@ -8,6 +8,9 @@
 
 ---
 
+## v0.30.0 — 2026-07-21 11:05
+- requirements.txt 補上遺漏的 openpyxl：Excel 匯入匯出是執行時相依，因寫成函式內 import 而在裝過它的機器上永遠看不出來，新部署的機器一用 Excel 就會炸
+
 ## v0.29.0 — 2026-07-21 10:24
 - 修好長期紅燈的 local-ci：styles.css 斷言比對前先正規化換行符（工作區剛好是 LF 才會過，乾淨 checkout 轉 CRLF 必失敗）
 
