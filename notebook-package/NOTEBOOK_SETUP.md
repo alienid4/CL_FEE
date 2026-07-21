@@ -1,13 +1,19 @@
-# 這份打包內容說明（給另一台 Notebook 用）
+# 這份打包內容說明（展示／試用副本專用）
 
-這是從家用機打包出來的**測試用副本**，不含 `.git` 版控歷史（沒有設定 GitHub remote，
-以後更新走「重新打包 patch zip」的方式，見下方「以後怎麼更新」），
-也**不含 `.env`**（裡面有真實密碼／SESSION_SECRET，基於安全考量沒放進來——一鍵啟動腳本會自動幫你補一份測試用的）。
+> **這份文件講的是 8025 埠的展示模式，不是正式系統。**
+> 正式使用請看 `怎麼用_腳本對照表.md`：用 `service.bat`（8888 埠、真實資料庫）。
+> 兩者用的是**不同的資料庫**，別搞混。
 
-## 一鍵啟動（推薦）
+這是**展示／試用用的副本**，用內附的 `data/preview.db` 測試資料、免密碼登入，
+方便給人看畫面或自己試操作，不含 `.env`（啟動腳本會自動補一份測試用的）。
 
-- **Windows**：直接雙擊 **`start.bat`**
-- **macOS / Linux / Git Bash**：終端機執行 `bash start.sh`
+## 一鍵啟動（展示模式）
+
+- **Windows**：雙擊 **`demo_start.bat`**
+- **macOS / Linux / Git Bash**：終端機執行 `bash demo_start.sh`
+
+（2026-07-21 前叫 `start.bat` / `start.sh`。改名是因為 `start` 看起來像正式入口，
+太容易被誤點成主系統——點下去看到的是空的試用資料，很像「資料全不見了」。）
 
 腳本會自動：① 裝套件 ② 沒有 `.env` 就自動生一份（密碼都是 `1qaz@WSX`）③ 用內附的
 `data/preview.db` 啟動伺服器 ④（Windows 版）自動開瀏覽器連 http://127.0.0.1:8025 。
@@ -19,17 +25,17 @@
 
 ---
 
-## 以後怎麼更新（上 patch）
+## 以後怎麼更新
 
-沒有設定 git remote，所以更新走「重新打包只含程式碼的 patch zip」：
+**直接點 `download.bat`**，會從 GitHub 抓最新的程式碼與控制台腳本。
 
-1. 家用機這邊改完、確認測試過後，跑 `scripts/package_notebook_patch.ps1`，
-   會在專案根目錄生出 `CL_FEE_patch_<版本號>.zip`（**只含 `app/`、`tests/`、
-   `requirements.txt`、`pytest.ini`**，不含 `data/`、`.env`、`.claude`）。
-2. 把這個 patch zip 傳到 Notebook 上，**直接解壓縮覆蓋**到現有的專案資料夾。
-   因為 patch zip 裡沒有 `data/`、`.env` 這些檔案，Notebook 上原本的測試資料
-   跟帳號密碼設定**不會被動到**，可以放心覆蓋。
-3. 重新執行 `start.bat` / `start.sh`（會自動重裝套件，若有新增依賴會一併裝上）。
+（這段以前寫的是「沒有 git remote，更新走重新打包 patch zip」——那是 `download.bat`
+出現之前的作法，已經過期。現在 repo 有 GitHub 遠端 `alienid4/CL_FEE`，不用再手動打包。）
+
+`download.bat` 只會覆蓋程式碼與腳本，**不會動到 `data/` 與 `.env`**，
+所以這台累積的試用資料與設定會原封不動保留。
+
+更新完重新執行 `demo_start.bat` / `demo_start.sh` 即可（會自動補裝新增的套件）。
 
 > 提醒：Notebook 上如果自己新增/修改過測試資料（`data/preview.db`），
 > 這個更新方式完全不會碰到它，資料會維持 Notebook 自己累積的狀態。

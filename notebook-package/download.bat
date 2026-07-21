@@ -73,7 +73,7 @@ robocopy "%SRC%\tests" "%~dp0tests" /MIR /NFL /NDL /NJH /NJS >nul
 copy /Y "%SRC%\requirements.txt" "%~dp0requirements.txt" >nul
 copy /Y "%SRC%\pytest.ini" "%~dp0pytest.ini" >nul
 
-REM --- Helper scripts (service.bat / service.ps1 / start.bat / docs) ----------
+REM --- Helper scripts (service.bat / service.ps1 / docs) ----------------------
 REM  These used to be left behind: only app\ and tests\ were mirrored, so a fix
 REM  to the control panel itself could never reach the machines that needed it.
 REM  The scripts live in notebook-package\ inside the repo, so they are already
@@ -85,13 +85,16 @@ if not exist "%PKG%\service.ps1" (
     echo         The code is updated; only the helper scripts were left as-is.
     goto :helpers_done
 )
-REM  start.bat / start.sh are deliberately NOT synced. They launch a different
-REM  thing: port 8025 against data\preview.db (a throwaway demo database that
-REM  gets auto-created empty), while service.bat runs the real system on 8888
-REM  against data\fee_control.db. The name "start" reads like the obvious button
-REM  to press, so shipping it to a deployment machine invites someone to open an
-REM  empty system and report that all the data vanished.
-for %%F in (service.bat service.ps1 NOTEBOOK_SETUP.md) do (
+REM  demo_start.bat / demo_start.sh are deliberately NOT synced. They launch a
+REM  different thing: port 8025 against data\preview.db (a throwaway demo
+REM  database that gets auto-created empty), while service.bat runs the real
+REM  system on 8888 against data\fee_control.db. They used to be called
+REM  start.bat / start.sh, which read like the obvious button to press - the
+REM  demo_ prefix is there so nobody has to read a document to tell them apart.
+REM  NOTEBOOK_SETUP.md is also skipped: it documents the 8025 demo mode, which
+REM  is not what a deployment machine runs. Shipping it there just invites
+REM  someone to follow instructions for the wrong system.
+for %%F in (service.bat service.ps1) do (
     if exist "%PKG%\%%F" copy /Y "%PKG%\%%F" "%~dp0%%F" >nul
 )
 

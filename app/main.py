@@ -643,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.27.0 · 2026-07-21 09:46 · download.bat 不再同步 start.bat/start.sh（它們跑的是 8025 試用模式配空的 preview.db，名字卻像主要入口，派送到部署機器等於邀請人點錯看到空系統）"
+BACKEND_BUILD = "v0.28.0 · 2026-07-21 09:58 · start.bat/start.sh 改名為 demo_start.bat/demo_start.sh，檔名直接說明它是 8025 展示模式而非正式入口；文件同步更新，download.bat 不再派送展示用檔案與文件"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
