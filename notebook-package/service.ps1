@@ -160,9 +160,14 @@ function Start-Service-Now {
         Stop-Service-OnPort
     }
 
-    Add-Content -Path $LOGFILE -Value "---- 啟動 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ----"
+    Add-Content -Path $LOGFILE -Value "---- 啟動 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ----" -Encoding utf8
     $pyCmd = ($PY.Exe + " " + ($PY.Args -join " ")).Trim()
-    $inner = "$pyCmd -m uvicorn app.main:app --host 127.0.0.1 --port $PORT 2>&1 | Tee-Object -FilePath '$LOGFILE' -Append"
+    # 不用 Tee-Object：PowerShell 5.1 的 Tee-Object 沒有 -Encoding，一律寫 UTF-16LE，
+    # 但同一個檔的表頭是 Add-Content 寫的單位元組文字。兩種編碼混在一份 log 裡，
+    # 診斷報告讀出來會變成「每個字元中間夾一個空白」——而那段正是最需要看的錯誤訊息。
+    # 改用 ForEach-Object 手動轉發：畫面照樣有輸出，寫檔則跟其他地方統一走 utf8。
+    $inner = "$pyCmd -m uvicorn app.main:app --host 127.0.0.1 --port $PORT 2>&1 | " +
+             "ForEach-Object { `$_; Add-Content -Path '$LOGFILE' -Value `$_ -Encoding utf8 }"
     Start-Process -FilePath "powershell" -ArgumentList @("-NoProfile", "-Command", $inner) `
                   -WorkingDirectory $HERE -WindowStyle Hidden | Out-Null
 
@@ -190,7 +195,7 @@ function Start-Service-Now {
     Write-Host "  以下是紀錄檔最後 25 行，失敗原因通常就在裡面：" -ForegroundColor Yellow
     Write-Host ("-" * 60) -ForegroundColor DarkGray
     if (Test-Path $LOGFILE) {
-        Get-Content -Path $LOGFILE -Tail 25
+        Get-Content -Path $LOGFILE -Tail 25 -Encoding utf8
     } else {
         Write-Host "（沒有紀錄檔，代表 Python 連啟動都沒啟動起來）"
     }
@@ -231,6 +236,46 @@ function New-DiagReport {
             $lines += (Invoke-Py @("-c", "import fastapi, uvicorn, openpyxl, sys; print('python', sys.version); print('fastapi', fastapi.__version__); print('uvicorn', uvicorn.__version__); print('openpyxl', openpyxl.__version__)") 2>&1)
         } catch { $lines += "（無法載入 fastapi / uvicorn / openpyxl）" }
     }
+    # 這一段是為了「一趟 mail 問完」而存在的。維護端拿不到這台機器，每問一件事就是
+    # 一趟來回、好幾天。所以要一次收齊「下一步該送什麼」需要的全部資訊：
+    #   - wheel 標籤：離線輪子是綁 Python 版本與平台的，cp311 跟 cp313 不通用。
+    #     沒有這行就沒辦法先打好離線包，只能再問一次。
+    #   - PyPI 通不通：決定「叫他按 Y 自動安裝」還是「改送離線輪子」。
+    #   - Proxy：公司網路多半要走 proxy，pip 沒設就是連不出去，但錯誤訊息看起來
+    #     跟「完全沒網路」一模一樣。
+    $lines += ""
+    $lines += "---- 安裝環境（決定下一步要送什麼）----"
+    if ($PY) {
+        try {
+            $lines += (Invoke-Py @("-c", "import sys, sysconfig; print('python 版本:', '.'.join(map(str, sys.version_info[:3]))); print('平台:', sysconfig.get_platform()); print('wheel 標籤: cp%d%d-%s' % (sys.version_info[0], sys.version_info[1], sysconfig.get_platform().replace('-','_').replace('.','_')))") 2>&1)
+        } catch { $lines += "（無法取得平台資訊）" }
+        try {
+            $lines += ("pip: " + (Invoke-Py @("-m", "pip", "--version") 2>&1))
+        } catch { $lines += "pip: （無法執行，可能沒裝 pip）" }
+    }
+    foreach ($v in @("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")) {
+        $val = [Environment]::GetEnvironmentVariable($v)
+        if ($val) { $lines += ("{0}: {1}" -f $v, $val) } else { $lines += ("{0}: （未設定）" -f $v) }
+    }
+    try {
+        $sysProxy = ([System.Net.WebRequest]::GetSystemWebProxy()).GetProxy("https://pypi.org")
+        $lines += ("系統 Proxy 設定: " + $sysProxy.AbsoluteUri)
+    } catch { $lines += "系統 Proxy 設定: （讀不到）" }
+
+    $lines += ""
+    $lines += "---- 網路連通性 ----"
+    foreach ($probe in @(
+        @{ Name = "PyPI（pip 抓套件的來源）"; Url = "https://pypi.org/simple/" },
+        @{ Name = "GitHub（自動更新的來源）"; Url = "https://github.com" }
+    )) {
+        try {
+            $resp = Invoke-WebRequest -Uri $probe.Url -Method Head -TimeoutSec 8 -UseBasicParsing -ErrorAction Stop
+            $lines += ("{0,-26} 通（HTTP {1}）" -f $probe.Name, [int]$resp.StatusCode)
+        } catch {
+            $lines += ("{0,-26} 不通：{1}" -f $probe.Name, $_.Exception.Message)
+        }
+    }
+
     $lines += ""
     $lines += "---- 必要檔案 ----"
     foreach ($f in @("app\main.py", ".env", "requirements.txt", "requirements-runtime.txt", "data")) {
@@ -244,7 +289,7 @@ function New-DiagReport {
     try { $lines += (cmd /c "netstat -ano | findstr :$PORT 2>&1") } catch {}
     $lines += ""
     $lines += "---- 服務紀錄檔最後 60 行 ----"
-    if (Test-Path $LOGFILE) { $lines += (Get-Content -Path $LOGFILE -Tail 60) } else { $lines += "（沒有紀錄檔）" }
+    if (Test-Path $LOGFILE) { $lines += (Get-Content -Path $LOGFILE -Tail 60 -Encoding utf8) } else { $lines += "（沒有紀錄檔）" }
 
     $lines | Set-Content -Path $DIAGFILE -Encoding utf8
     Write-Host ""
@@ -299,13 +344,13 @@ while ($true) {
         "1" { Start-Service-Now }
         "2" {
             Write-Host "  停止 $PORT 上的服務..."
-            Add-Content -Path $LOGFILE -Value "---- 停止 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ----"
+            Add-Content -Path $LOGFILE -Value "---- 停止 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ----" -Encoding utf8
             Stop-Service-OnPort
             Write-Host "  已停止。" -ForegroundColor Green
             Pause-Back
         }
         "3" {
-            Add-Content -Path $LOGFILE -Value "---- 重新啟動 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ----"
+            Add-Content -Path $LOGFILE -Value "---- 重新啟動 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ----" -Encoding utf8
             Stop-Service-OnPort
             Start-Service-Now
         }
@@ -325,7 +370,7 @@ while ($true) {
         }
         "5" {
             Write-Host ""
-            if (Test-Path $LOGFILE) { Get-Content -Path $LOGFILE -Tail 50 } else { Write-Host "  還沒有紀錄檔，請先啟動一次服務。" }
+            if (Test-Path $LOGFILE) { Get-Content -Path $LOGFILE -Tail 50 -Encoding utf8 } else { Write-Host "  還沒有紀錄檔，請先啟動一次服務。" }
             Pause-Back
         }
         "6" { New-DiagReport; Pause-Back }
