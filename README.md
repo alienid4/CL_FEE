@@ -2,7 +2,7 @@
 
 Version: 2026-07-02
 
-Enterprise addendum: `README_ENTERPRISE_ADDONS.md`
+Enterprise addendum: `docs/README_ENTERPRISE_ADDONS.md`
 
 2026-07-03 補強重點：
 
@@ -43,7 +43,7 @@ Enterprise addendum: `README_ENTERPRISE_ADDONS.md`
 ## 內容
 
 ```text
-templates/
+AI/templates/
   AGENTS.md
   HANDOFF_INDEX.md
   Memory.md
@@ -76,7 +76,7 @@ templates/
     workflow_state.md
     adr/
       0001-template.md
-skills/
+AI/skills/
   project-foundation/
   coding-guardrails/
   debug-release-loop/
@@ -91,7 +91,7 @@ scripts/
   diagnostics_safe.ps1
   diagnostics_safe.sh
   install_skills.ps1
-examples/
+AI/examples/
   project_inventory.csv
   agent_run_report.md
 ```
