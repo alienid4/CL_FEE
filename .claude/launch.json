@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "cl-fee",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8025", "--log-level", "warning"],
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3", "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8025", "--log-level", "warning"],
       "port": 8025,
       "env": {
         "SQLITE_PATH": "data/preview.db",
@@ -18,8 +18,8 @@
     },
     {
       "name": "cl-fee-selftest",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8027", "--log-level", "warning"],
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3", "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8027", "--log-level", "warning"],
       "port": 8027,
       "env": {
         "SQLITE_PATH": "data/preview.db",

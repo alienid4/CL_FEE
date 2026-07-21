@@ -58,8 +58,14 @@ python .project/checks.py    # C1 關卡：git/密鑰/測試/決策一致
 - 備份＝複製該 .db 檔；還原＝覆蓋回去。
 - 遷 MSSQL 為未來規劃，見 [KNOWN_LIMITS.md](KNOWN_LIMITS.md)。
 
-## 8. Windows + OneDrive 這台機器常見的 commit 地雷
-- **`git commit` 卡在 `unable to append to '.git/logs/HEAD'`**：專案放在 OneDrive 同步資料夾裡，OneDrive 偶爾會鎖住 log 檔造成 git 寫不進去。一次性修：`git config windows.appendAtomically false`（本機 repo 設定，不影響其他機器）。
+## 8. Windows 這台機器常見的 commit 地雷
+
+> **2026-07-21：專案已從 OneDrive 搬到 `C:\AiProject\CL_FEE`。**
+> 下面標「OneDrive」的三項因此**不會再發生**，保留是為了：(1) 萬一日後有人又把 repo 放進
+> 雲端同步資料夾，能認出症狀；(2) 記住為什麼不要那樣做。
+> **只有「pre-commit hook」那項與 OneDrive 無關，現在仍然有效。**
+
+- ~~**`git commit` 卡在 `unable to append to '.git/logs/HEAD'`**~~（搬離 OneDrive 後不再發生）：專案放在 OneDrive 同步資料夾裡，OneDrive 偶爾會鎖住 log 檔造成 git 寫不進去。一次性修：`git config windows.appendAtomically false`（本機 repo 設定，不影響其他機器）。
 - **pre-commit hook 明明 checks 會過卻還是擋下**：這台的 PATH 把 `python` 指到 WindowsApps 的假樁執行檔（不會真的執行、也不報錯）。`.git/hooks/pre-commit` 已經改成自動找「py -3 / python3 / python」第一個能跑的直譯器，來源在 [docs/一次性開發提示詞_C1/kit/pre-commit](docs/一次性開發提示詞_C1/kit/pre-commit)；換新機器要重裝這個 hook 時記得從這份複製，不要抄舊版。
-- **改完 pptx 之後 git add 說 Permission denied**：檔案還開在 PowerPoint（或被 OneDrive 同步中）。關掉檔案再重試，或另存一份帶時間戳記的檔名先進版控，之後再取代。
-- **`git status` 突然把整個專案的檔案都列成「D」（刪除）又同時列成「??」（未追蹤），數量多到嚇人**：不是真的刪檔、也沒有真的資料遺失，是 `.git/index` 這個 git 內部的記帳檔被 OneDrive 同步搞丟了（可能是雲端佔位檔/搬移衝突弄的）。確認方式：`ls .git/index` 顯示不存在。修法很安全、不會動到任何工作目錄裡的檔案：`git reset`（不加 `--hard`，預設 mixed 模式只重建 index、不碰檔案）。修完 `git status` 應該只剩你真正動過的檔案。**看到這種「全專案突然整批 D+??」的畫面，先別慌、更別下 `git checkout .`/`git clean -f` 這類指令，先檢查 `.git/index` 是不是不見了。**
+- **改完 pptx 之後 git add 說 Permission denied**：檔案還開在 PowerPoint（搬家前也可能是 OneDrive 正在同步）。關掉檔案再重試，或另存一份帶時間戳記的檔名先進版控，之後再取代。
+- ~~**`git status` 突然把整個專案的檔案都列成「D」又同時列成「??」**~~（搬離 OneDrive 後不再發生）：不是真的刪檔、也沒有資料遺失，是 `.git/index` 這個 git 內部的記帳檔被 OneDrive 同步搞丟了（雲端佔位檔／搬移衝突造成）。確認方式：`ls .git/index` 顯示不存在。修法很安全、不會動到工作目錄裡的檔案：`git reset`（不加 `--hard`，預設 mixed 模式只重建 index、不碰檔案）。**看到「全專案突然整批 D+??」先別慌，更別下 `git checkout .` / `git clean -f`，先檢查 `.git/index` 是不是不見了。**
