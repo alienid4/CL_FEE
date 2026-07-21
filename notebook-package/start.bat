@@ -8,23 +8,49 @@ echo   CL_FEE 費用合約控管系統 - 一鍵啟動
 echo ============================================
 echo.
 
-REM 1) 檢查 Python
-where python >nul 2>nul
-if errorlevel 1 (
-    echo [錯誤] 找不到 python，請先安裝 Python 3.11+ 並確認已加入 PATH。
-    pause
-    exit /b 1
-)
+REM 1) 找出一個「真的能跑」的 Python
+REM    不能用 where python 判斷：Windows 預設在 WindowsApps 放了一個微軟商店的
+REM    空殼 python.exe，where 找得到、執行卻立刻以 9009 結束且不印任何東西。
+REM    舊版就是這樣「檢查通過、後面才silently失敗」，錯誤訊息叫人看上方訊息，
+REM    但上方是空的。這裡改成實際執行 --version 驗證，能跑才算數。
+set "PY="
+py -3 --version >nul 2>&1
+if not errorlevel 1 (set "PY=py -3" & goto :py_ok)
+python --version >nul 2>&1
+if not errorlevel 1 (set "PY=python" & goto :py_ok)
+python3 --version >nul 2>&1
+if not errorlevel 1 (set "PY=python3" & goto :py_ok)
 
-REM 2) 安裝套件（已裝過會很快跳過）
-echo [1/4] 安裝套件中...
-python -m pip install -q -r requirements.txt
-python -m pip install -q httpx pytest
-if errorlevel 1 (
-    echo [錯誤] 套件安裝失敗，請檢查上方訊息。
-    pause
-    exit /b 1
-)
+echo [錯誤] 這台電腦找不到可以執行的 Python。
+echo.
+echo        注意：即使「開始功能表」看得到 Python，也可能是微軟商店的空殼程式
+echo        （執行後立刻結束、不做任何事），那個不算數。
+echo.
+echo        請到 https://www.python.org/downloads/ 安裝 Python 3.11 以上，
+echo        安裝時務必勾選「Add python.exe to PATH」。
+echo.
+pause
+exit /b 1
+
+:py_ok
+echo [1/4] 使用 Python：!PY!
+%PY% -m pip install -q -r requirements.txt
+if errorlevel 1 goto :pip_failed
+%PY% -m pip install -q httpx pytest
+if errorlevel 1 goto :pip_failed
+goto :pip_ok
+
+:pip_failed
+echo.
+echo [錯誤] 套件安裝失敗。
+echo        常見原因：沒有網路連線，或公司防火牆擋住 pip。
+echo        可以手動執行下面這行看完整錯誤訊息：
+echo            %PY% -m pip install -r requirements.txt
+echo.
+pause
+exit /b 1
+
+:pip_ok
 
 REM 3) 沒有 .env 就自動建一份測試用的
 if not exist ".env" (
@@ -49,6 +75,6 @@ start "" http://127.0.0.1:8025
 echo [4/4] 瀏覽器即將自動開啟，登入頁下拉選帳號即可（免密碼）。
 echo       關閉這個黑色視窗即可停止伺服器。
 echo.
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8025
+%PY% -m uvicorn app.main:app --host 127.0.0.1 --port 8025
 
 pause
