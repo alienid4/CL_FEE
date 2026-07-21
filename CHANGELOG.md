@@ -8,6 +8,9 @@
 
 ---
 
+## v0.25.0 — 2026-07-21 08:16
+- download.bat 同時更新 service 控制台腳本與自己（原本只同步 app 與 tests，控制台的修正永遠送不到需要的機器）
+
 ## v0.24.0 — 2026-07-21 07:50
 - update.bat 改名為 download.bat（upload/download 才是天然一組，方向不會記錯），舊名保留為轉接檔
 

@@ -35,7 +35,7 @@ for /f "tokens=1 delims= " %%a in ("!OLDVER!") do set "OLDVER=%%a"
 echo   Current version: !OLDVER!
 echo.
 
-echo   [1/4] Downloading latest code from GitHub...
+echo   [1/5] Downloading latest code from GitHub...
 curl -sS --ssl-no-revoke -L -o "%TMPZIP%" "%REPO_ZIP_URL%"
 if errorlevel 1 (
     echo.
@@ -46,7 +46,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   [2/4] Extracting...
+echo   [2/5] Extracting...
 if exist "%TMPDIR%" rmdir /s /q "%TMPDIR%"
 powershell -NoProfile -Command "Expand-Archive -Path '%TMPZIP%' -DestinationPath '%TMPDIR%' -Force" >nul 2>&1
 if not exist "%SRC%\app\main.py" (
@@ -58,7 +58,7 @@ if not exist "%SRC%\app\main.py" (
     exit /b 1
 )
 
-echo   [3/4] Updating app and tests folders...
+echo   [3/5] Updating app and tests folders...
 robocopy "%SRC%\app" "%~dp0app" /MIR /NFL /NDL /NJH /NJS >nul
 if errorlevel 8 (
     echo.
@@ -73,11 +73,46 @@ robocopy "%SRC%\tests" "%~dp0tests" /MIR /NFL /NDL /NJH /NJS >nul
 copy /Y "%SRC%\requirements.txt" "%~dp0requirements.txt" >nul
 copy /Y "%SRC%\pytest.ini" "%~dp0pytest.ini" >nul
 
+REM --- Helper scripts (service.bat / service.ps1 / start.bat / docs) ----------
+REM  These used to be left behind: only app\ and tests\ were mirrored, so a fix
+REM  to the control panel itself could never reach the machines that needed it.
+REM  The scripts live in notebook-package\ inside the repo, so they are already
+REM  in the zip we just extracted - they just were not copied out.
+echo   [4/5] Updating helper scripts...
+set "PKG=%SRC%\notebook-package"
+if not exist "%PKG%\service.ps1" (
+    echo         SKIPPED: notebook-package not found in the download.
+    echo         The code is updated; only the helper scripts were left as-is.
+    goto :helpers_done
+)
+for %%F in (service.bat service.ps1 start.bat start.sh NOTEBOOK_SETUP.md) do (
+    if exist "%PKG%\%%F" copy /Y "%PKG%\%%F" "%~dp0%%F" >nul
+)
+
+REM  download.bat and update.bat cannot overwrite themselves while running:
+REM  cmd.exe reads a .bat incrementally from disk, so replacing the file
+REM  mid-run makes it jump to garbage. Stage them as .new and let a background
+REM  helper swap them in after this window closes.
+set "STAGED="
+for %%F in (download.bat update.bat) do (
+    if exist "%PKG%\%%F" (
+        fc /b "%PKG%\%%F" "%~dp0%%F" >nul 2>&1
+        if errorlevel 1 (
+            copy /Y "%PKG%\%%F" "%~dp0%%F.new" >nul
+            set "STAGED=1"
+        )
+    )
+)
+if defined STAGED echo         Note: this updater itself was updated - it takes effect next run.
+echo         OK
+
+:helpers_done
+
 del /q "%TMPZIP%" >nul 2>&1
 rmdir /s /q "%TMPDIR%" >nul 2>&1
 
 REM --- Dependencies. Optional: the code is already updated at this point. -----
-echo   [4/4] Checking dependencies...
+echo   [5/5] Checking dependencies...
 set "PY="
 py -3 --version >nul 2>&1
 if not errorlevel 1 (set "PY=py -3" & goto :py_ok)
@@ -120,5 +155,18 @@ echo.
 echo   Next: open service.bat and choose 3 to restart,
 echo         then press Ctrl+Shift+R in the browser.
 echo.
+
+REM --- Swap in the staged updater after this window exits ---------------------
+REM  Runs detached, waits for us to finish, moves the .new files into place,
+REM  then deletes itself. Nothing here can break the current run.
+if defined STAGED (
+    > "%TEMP%\cl_fee_dl_swap.bat" echo @echo off
+    >> "%TEMP%\cl_fee_dl_swap.bat" echo timeout /t 3 /nobreak ^>nul 2^>^&1
+    >> "%TEMP%\cl_fee_dl_swap.bat" echo if exist "%~dp0download.bat.new" move /y "%~dp0download.bat.new" "%~dp0download.bat" ^>nul 2^>^&1
+    >> "%TEMP%\cl_fee_dl_swap.bat" echo if exist "%~dp0update.bat.new" move /y "%~dp0update.bat.new" "%~dp0update.bat" ^>nul 2^>^&1
+    >> "%TEMP%\cl_fee_dl_swap.bat" echo del "%%~f0" ^>nul 2^>^&1
+    start "" /min "%TEMP%\cl_fee_dl_swap.bat"
+)
+
 pause
 endlocal
