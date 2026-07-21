@@ -8,6 +8,9 @@
 
 ---
 
+## v0.29.0 — 2026-07-21 10:24
+- 修好長期紅燈的 local-ci：styles.css 斷言比對前先正規化換行符（工作區剛好是 LF 才會過，乾淨 checkout 轉 CRLF 必失敗）
+
 ## v0.28.0 — 2026-07-21 09:58
 - start.bat/start.sh 改名為 demo_start.bat/demo_start.sh，檔名直接說明它是 8025 展示模式而非正式入口；文件同步更新，download.bat 不再派送展示用檔案與文件
 

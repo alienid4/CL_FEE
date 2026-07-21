@@ -217,8 +217,14 @@ def test_health_openapi_and_web(tmp_path):
 
         styles = client.get("/static/styles.css")
         assert styles.status_code == 200
-        assert "main {\n  align-content: start;\n  align-items: start;" in styles.text
-        assert ".module-workspace {\n  align-content: start;\n  align-items: start;" in styles.text
+        # 比對前先正規化換行符。styles.css 在 git 裡存的是 LF，但 Windows 的
+        # core.autocrlf=true 會在 checkout 時轉成 CRLF，於是同一組斷言在「工作區
+        # 剛好還是 LF」的機器上會過、在乾淨 checkout（也就是 CI）上必定失敗——
+        # local-ci 從 2026-07-17 起長期紅燈就是這個原因。這裡要驗的是 CSS 規則的
+        # 內容，不是檔案用哪種換行符。
+        styles_text = styles.text.replace("\r\n", "\n")
+        assert "main {\n  align-content: start;\n  align-items: start;" in styles_text
+        assert ".module-workspace {\n  align-content: start;\n  align-items: start;" in styles_text
         assert ".note-list li" in styles.text
 
 
