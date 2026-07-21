@@ -103,10 +103,36 @@ if (-not $SkipUiTextCheck) {
     $UiPath = Join-Path $Root "app\web"
     if (Test-Path -LiteralPath $UiPath -PathType Container) {
         $UiFiles = Get-ChildItem -LiteralPath $UiPath -Recurse -File -Include *.html,*.js,*.css
-        $BlockedUiPattern = '(?i)(TODO|FIXME|HACK|Prompt|Agent|debug|test-only|internal note|under construction|lorem ipsum)'
+        # This gate catches developer notes accidentally shipped where users can see
+        # them. It is not meant to police identifiers.
+        #
+        # The old pattern was case-insensitive over TODO|Prompt|Agent|debug, which
+        # flagged ordinary code wholesale: "todo" is a RAG status name (todo = not
+        # started) and a feature (loadTodo, todo-list), window.prompt() is a browser
+        # API, and the dev console legitimately says "debug". So this gate was always
+        # red -- and since local_ci.ps1 never passed -IncludeAuditGate, nobody noticed
+        # it had stopped working. A check that is permanently red AND never executed is
+        # worse than no check: it looks like coverage that isn't there.
+        #
+        # Narrowed to two signals that actually mean something:
+        #   1. The comment convention: uppercase TODO:/FIXME:/HACK:/XXX: followed by a
+        #      colon. Identifiers don't carry colons and are rarely all-caps.
+        #   2. Obvious placeholder copy that would embarrass us if shipped.
+        # Prompt/Agent/debug are dropped -- too generic to avoid false positives in any
+        # real frontend.
+        #
+        # ASCII only on purpose: this file has no UTF-8 BOM, so PowerShell 5.1 reads it
+        # as the system ANSI codepage. A full-width colon here got mangled into an
+        # unterminated [] set and broke the regex outright.
+        $BlockedUiPattern = '(\b(TODO|FIXME|HACK|XXX)\b\s*:)|((?i)(lorem ipsum|under construction|internal note|test-only))'
         $UiMatches = @()
         foreach ($UiFile in $UiFiles) {
-            $Matches = Select-String -LiteralPath $UiFile.FullName -Pattern $BlockedUiPattern -ErrorAction SilentlyContinue
+            # -CaseSensitive is required, not optional: Select-String matches
+            # case-insensitively by default, which would make the uppercase-only
+            # TODO:/FIXME: branch above match the lowercase identifier `todo:` and put
+            # the false positives straight back. The placeholder-copy branch carries
+            # its own inline (?i), so it stays case-insensitive as intended.
+            $Matches = Select-String -LiteralPath $UiFile.FullName -Pattern $BlockedUiPattern -CaseSensitive -ErrorAction SilentlyContinue
             foreach ($Match in $Matches) {
                 $RelativePath = Resolve-Path -LiteralPath $Match.Path -Relative
                 $RelativePath = $RelativePath.TrimStart(".", "\", "/")
