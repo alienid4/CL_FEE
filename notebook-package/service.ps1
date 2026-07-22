@@ -71,15 +71,84 @@ function Pause-Back {
 # ── 找一個真的能執行的 Python ────────────────────────────────────────────
 # Windows 常見的坑：「python」指到微軟商店的空殼程式，它不執行任何東西就結束，
 # 所以不能只看 Get-Command 找不找得到，一定要實際跑跑看拿得到版本才算數。
+# 每個候選都要通過這個驗證，商店空殼會因為印不出版本而被跳過。
+function Test-PyExe {
+    param([string]$Exe, [string[]]$PyArgs = @())
+    if (-not $Exe) { return $null }
+    try {
+        $v = & $Exe @($PyArgs + @("--version")) 2>$null
+        if ($LASTEXITCODE -eq 0 -and $v -match "Python\s+3") {
+            return [pscustomobject]@{ Exe = $Exe; Args = $PyArgs; Version = "$v".Trim() }
+        }
+    } catch {}
+    return $null
+}
+
+# 四層策略，因為「Python 裝了但沒設 PATH」是公司機器的常態：
+#   1. 手動指定（python_path.txt / .env 的 PYTHON_EXE）：裝在非標準路徑時最可靠。
+#   2. PATH 上的 py / python / python3：最快，多數機器走這條。
+#   3. Windows 登錄檔：安裝程式會登記 InstallPath，不管有沒有設 PATH 都查得到，
+#      這是「正常安裝但沒進 PATH」的主要救援。
+#   4. 掃常見安裝目錄：登錄檔也沒有時的最後手段。
 function Find-Python {
-    foreach ($cand in @(@{Exe="py"; Args=@("-3")}, @{Exe="python"; Args=@()}, @{Exe="python3"; Args=@()})) {
-        try {
-            $v = & $cand.Exe @($cand.Args + @("--version")) 2>$null
-            if ($LASTEXITCODE -eq 0 -and $v -match "Python\s+3") {
-                return [pscustomobject]@{ Exe = $cand.Exe; Args = $cand.Args; Version = "$v".Trim() }
-            }
-        } catch {}
+    # 1. 手動指定 ---------------------------------------------------------
+    $override = $null
+    $ptxt = Join-Path $HERE "python_path.txt"
+    if (Test-Path $ptxt) {
+        $line = Get-Content -LiteralPath $ptxt -ErrorAction SilentlyContinue |
+                Where-Object { $_.Trim() -and -not $_.Trim().StartsWith("#") } | Select-Object -First 1
+        if ($line) { $override = $line.Trim().Trim('"') }
     }
+    if (-not $override) {
+        $envFile = Join-Path $APPROOT ".env"
+        if (Test-Path $envFile) {
+            $m = Select-String -LiteralPath $envFile -Pattern '^\s*PYTHON_EXE\s*=\s*(.+)$' | Select-Object -First 1
+            if ($m) { $override = $m.Matches[0].Groups[1].Value.Trim().Trim('"') }
+        }
+    }
+    if ($override) {
+        $r = Test-PyExe $override
+        if ($r) { return $r }
+    }
+
+    # 2. PATH -------------------------------------------------------------
+    foreach ($cand in @(@{Exe="py"; Args=@("-3")}, @{Exe="python"; Args=@()}, @{Exe="python3"; Args=@()})) {
+        $r = Test-PyExe $cand.Exe $cand.Args
+        if ($r) { return $r }
+    }
+
+    # 3. 登錄檔 -----------------------------------------------------------
+    foreach ($hive in @("HKLM:\SOFTWARE\Python\PythonCore",
+                        "HKCU:\SOFTWARE\Python\PythonCore",
+                        "HKLM:\SOFTWARE\WOW6432Node\Python\PythonCore")) {
+        if (-not (Test-Path $hive)) { continue }
+        foreach ($ver in (Get-ChildItem $hive -ErrorAction SilentlyContinue | Sort-Object PSChildName -Descending)) {
+            try {
+                $ipKey = Join-Path $ver.PSPath "InstallPath"
+                $installPath = (Get-Item -LiteralPath $ipKey -ErrorAction SilentlyContinue).GetValue("")
+                if ($installPath) {
+                    $r = Test-PyExe (Join-Path $installPath "python.exe")
+                    if ($r) { return $r }
+                }
+            } catch {}
+        }
+    }
+
+    # 4. 掃常見安裝目錄 ---------------------------------------------------
+    $bases = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ }
+    $globs = @()
+    foreach ($b in $bases) {
+        $globs += (Join-Path $b "Programs\Python\Python3*\python.exe")
+        $globs += (Join-Path $b "Python3*\python.exe")
+    }
+    $globs += "C:\Python3*\python.exe"
+    foreach ($g in $globs) {
+        foreach ($hit in (Get-ChildItem -Path $g -ErrorAction SilentlyContinue | Sort-Object FullName -Descending)) {
+            $r = Test-PyExe $hit.FullName
+            if ($r) { return $r }
+        }
+    }
+
     return $null
 }
 
@@ -246,13 +315,31 @@ function New-DiagReport {
     if ($PY) {
         $lines += "偵測到: $($PY.Exe) $($PY.Args -join ' ')  =>  $($PY.Version)"
     } else {
-        $lines += "偵測到: 無（py -3 / python / python3 都不能執行）"
+        $lines += "偵測到: 無（PATH / 登錄檔 / 常見目錄 / python_path.txt 都找不到可用的 Python 3）"
     }
     foreach ($probe in @("py -3 --version", "python --version", "where python")) {
         $lines += ""
         $lines += "> $probe"
         try { $lines += (cmd /c "$probe 2>&1") } catch { $lines += "（執行失敗）" }
     }
+    # 登錄檔登記的 Python：安裝程式會寫 InstallPath，即使沒進 PATH 也查得到。
+    # 若這裡列得出來、但上面偵測卻是「無」，代表 python.exe 檔案不在登記的位置了。
+    $lines += ""
+    $lines += "> Windows 登錄檔登記的 Python"
+    $regHits = @()
+    foreach ($hive in @("HKLM:\SOFTWARE\Python\PythonCore", "HKCU:\SOFTWARE\Python\PythonCore", "HKLM:\SOFTWARE\WOW6432Node\Python\PythonCore")) {
+        if (-not (Test-Path $hive)) { continue }
+        foreach ($ver in (Get-ChildItem $hive -ErrorAction SilentlyContinue)) {
+            try {
+                $ip = (Get-Item -LiteralPath (Join-Path $ver.PSPath "InstallPath") -ErrorAction SilentlyContinue).GetValue("")
+                if ($ip) { $regHits += ("  {0}  =>  {1}" -f $ver.PSChildName, (Join-Path $ip "python.exe")) }
+            } catch {}
+        }
+    }
+    if ($regHits.Count -gt 0) { $lines += $regHits } else { $lines += "  （登錄檔沒有登記任何 Python）" }
+    $ptxtPath = Join-Path $HERE "python_path.txt"
+    $lines += ""
+    $lines += "> 手動指定檔 python_path.txt: $(if (Test-Path $ptxtPath) { '有' } else { '無' })"
     $lines += ""
     $lines += "---- 套件 ----"
     if ($PY) {
@@ -344,8 +431,14 @@ if (-not $PY) {
     Write-Host "      到 https://www.python.org/downloads/ 安裝 Python 3.11 以上，"
     Write-Host "      安裝畫面第一頁務必勾選「Add python.exe to PATH」，裝完重開這個視窗。"
     Write-Host ""
-    Write-Host "  怎麼確認好了：重開視窗後打「py -3 --version」或「python --version」，"
-    Write-Host "  有印出版本號（例如 Python 3.12.4）就成功；印空白或跳出商店就還沒好。"
+    Write-Host "  [C] Python 已裝在指定路徑、但沒進 PATH（公司機器常見）："
+    Write-Host "      本程式已自動找過 PATH、登錄檔、常見安裝目錄都沒找到。"
+    Write-Host "      請在 service.bat 旁邊建一個檔案 python_path.txt，裡面只寫一行＝"
+    Write-Host "      你的 python.exe 完整路徑，例如："
+    Write-Host "          D:\Tools\Python312\python.exe"
+    Write-Host "      存檔後重開這個視窗即可，不需要改任何其他設定。"
+    Write-Host ""
+    Write-Host "  怎麼確認好了：重開視窗，選單頂端若印出 Python 版本就成功。"
     Write-Host ""
     New-DiagReport
     Write-Host ""

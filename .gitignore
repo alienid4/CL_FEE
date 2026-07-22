@@ -75,6 +75,9 @@ notebook-package/app/
 notebook-package/tests/
 notebook-package/data/
 notebook-package/logs/
+# 每台機器自己指定 Python 位置用的（service.ps1 第 1 層偵測會讀），純本機設定，不進版控
+notebook-package/python_path.txt
+python_path.txt
 
 # 根目錄舊檔歸檔：git 歷史已保留被刪原檔，備份不重複進版控
 archive/
