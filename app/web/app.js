@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.32.0 · 2026-07-21 13:22 · 專案搬離 OneDrive 到 C:\AiProject\CL_FEE（雲端同步會把檔案變成佔位符、弄壞 .git/index）；同步修掉 launch.json 用 python 空殼的問題與過期路徑說明";
+const BUILD_TAG = "v0.37.0 · 2026-07-21 17:20 · 前端與後端版號對齊（v0.33~v0.37 都是部署/腳本/打包改動，前端邏輯未變，僅同步版號讓徽章不再誤報不一致）；service.bat 自動往上一層找 app，clone 與完整包兩種佈局都能雙擊跑";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
