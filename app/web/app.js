@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.39.0 · 2026-07-22 11:40 · 隨包同步版號（本版實質改動在 service.ps1 的四層 Python 偵測，前端邏輯未變，僅對齊版號讓徽章一致、且讓重打的包和舊包版號可區分）";
+const BUILD_TAG = "v0.40.0 · 2026-07-22 12:10 · B3：pfStatus 純落後最多橘燈，紅燈只代表過了結束日（拿掉 v0.19.0 的 gap>18 直接染紅）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1838,7 +1838,11 @@ function pfStatus(p) {
   // 但落後幅度只有這裡算得出來，所以文字標籤仍保留在本函式。
   let tone = ragOf(p);
   if (noBasis) tone = "todo";        // 沒有任何比對基準時當「還沒排」，不誤報成正常或落後
-  else if (tone === "live" && gap > 2) tone = gap > 18 ? "over" : "soon";  // 期限還沒到但進度落後
+  // 期限還沒到但進度落後：最多升到橘燈「要注意」。純落後不該變紅燈——紅燈「已過期」
+  // 的語意是「過了結束日」，只由 ragOf() 依結束日判定（真過期時它早已回 over，
+  // 而 over !== "live"，不會進到這行）。gap>18 直接染紅是 v0.19.0 引入的自錯，畫面
+  // 會把「8 月才到期、只是落後」的專案標成已過期＝說謊。
+  else if (tone === "live" && gap > 2) tone = "soon";
 
   let label;
   if (actual >= 100) label = "完成";
