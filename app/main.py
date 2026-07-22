@@ -643,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.37.0 · 2026-07-21 17:20 · service.bat 自動往上一層找 app：從 GitHub clone 下來時 service.bat 在 notebook-package 裡、app 在 repo 根目錄，兩者刻意不同層，舊版寫死只找同層所以一開就報找不到 app、錯誤訊息還叫人把它們放一起（但 repo 裡本來就分開）。現在完整包（同層）與 clone（上一層）兩種佈局都能直接雙擊跑"
+BACKEND_BUILD = "v0.38.0 · 2026-07-22 11:00 · 找不到 Python 的錯誤訊息補上「關閉微軟商店 python 別名」這個更快的解法（診斷證實助理那台的 python 正是商店空殼），並教使用者用 py -3 --version 自我確認是否修好；service.bat 的 APPROOT 修正已在助理機器實測生效（診斷報告確認正確判定 clone 佈局、app 全找到）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
