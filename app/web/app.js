@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.40.0 · 2026-07-22 12:10 · B3：pfStatus 純落後最多橘燈，紅燈只代表過了結束日（拿掉 v0.19.0 的 gap>18 直接染紅）";
+const BUILD_TAG = "v0.41.0 · 2026-07-22 12:40 · B2：進度總表六格狀態統計列，點格過濾再點取消";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1813,7 +1813,7 @@ function ragChip(value) {
 }
 
 // ===== 專案進度總表（Portfolio）：組別主 tab → 本組總覽＋各專案子 tab =====
-const portfolioState = { g: 0, s: "ov" };
+const portfolioState = { g: 0, s: "ov", f: null };  // f＝六格統計列選中的 tone（null＝全部）
 let portfolioGroups = [];
 
 // 依起訖日算「今天該到的進度」，與實際比出落後幅度；沒日期就退回用「預計%」
@@ -1868,22 +1868,53 @@ function pfDateLine(p, c) {
 // 落後幅度＝排序權重：越落後越前；超前/完成/未排程往後（長官只需盯落後的）
 function pfSortKey(c) { return c.actual >= 100 ? -2 : c.noBasis ? -1 : c.gap; }
 
+// 六格狀態統計：互斥且加總＝全部。tone 直接沿用 pfStatus 的五態（done/todo/live/
+// soon/over），所以「怎麼分格」和「每列燈號什麼顏色」永遠是同一套判斷，不會兩邊對不上。
+// 不設「落後」格：落後已經是變橘（soon）的原因之一，另立一格會跟 soon 重複計數、
+// 加總對不起來。橘燈這裡叫「要注意」＝快到期或落後；紅燈「已過期」純看結束日（見 B3）。
+const PF_BUCKETS = [
+  { tone: "done", label: "已完成" },
+  { tone: "todo", label: "未開始" },
+  { tone: "live", label: "執行中" },
+  { tone: "soon", label: "要注意" },
+  { tone: "over", label: "已過期" },
+];
+
 function pfOverview(group) {
   const ranked = group.projects
     .map((p) => ({ p, c: pfStatus(p) }))
     .sort((a, b) => pfSortKey(b.c) - pfSortKey(a.c));
-  const rows = ranked.map(({ p, c }) => `
+
+  const counts = {};
+  for (const { c } of ranked) counts[c.tone] = (counts[c.tone] || 0) + 1;
+  const active = portfolioState.f;  // null＝全部；否則是某個 tone
+  const stat = (tone, label, n) =>
+    `<button type="button" class="pf-stat${tone ? " pf-stat-" + tone : " pf-stat-all"}${active === tone ? " active" : ""}" data-pf-filter="${tone || ""}"${!tone && n === 0 ? " disabled" : ""}>`
+    + `${tone ? `<span class="pf-dot ${tone}"></span>` : ""}${label} <b>${n}</b></button>`;
+  const stats = `<div class="pf-stats" role="group" aria-label="依狀態篩選">`
+    + stat(null, "全部", ranked.length)
+    + PF_BUCKETS.map((b) => stat(b.tone, b.label, counts[b.tone] || 0)).join("")
+    + `</div>`;
+
+  const shown = active ? ranked.filter(({ c }) => c.tone === active) : ranked;
+  const rows = shown.length
+    ? shown.map(({ p, c }) => `
       <div class="pf-row" data-pf-proj="${p.id}" title="點此看單一專案">
         <span class="pf-row-name"><span class="pf-dot ${c.tone}"></span><span class="pf-name-col"><span class="pf-name-txt">${escapeHtml(p.project_name)}</span>${pfDateLine(p, c)}</span></span>
         ${pfBar(p, c)}
         <span class="pf-row-tag"><span class="badge ${c.tone}">${escapeHtml(c.label)}</span></span>
-      </div>`).join("");
+      </div>`).join("")
+    : `<p class="muted pf-empty">這個狀態目前沒有專案。<button type="button" class="linklike" data-pf-filter="">看全部</button></p>`;
+
   const legend = `<div class="pf-legend">
     <span><span class="pf-lg-fill"></span>填色＝實際完成度</span>
     <span><span class="pf-lg-today"></span>紅線▼＝今天在時間軸上的位置（填色在紅線左邊＝落後）</span>
     <span>條的左端＝開始日、右端＝結束日（名稱下方標出）</span>
   </div>`;
-  return `<div class="pf-card"><div class="muted pf-card-head">${escapeHtml(group.name)}　全部專案（共 ${group.projects.length} 個）</div>${legend}${rows}</div>`;
+  const headText = active
+    ? `${escapeHtml(group.name)}　篩選：${escapeHtml((PF_BUCKETS.find((b) => b.tone === active) || {}).label || "")}（${shown.length} / ${ranked.length} 個）`
+    : `${escapeHtml(group.name)}　全部專案（共 ${ranked.length} 個）`;
+  return `<div class="pf-card"><div class="muted pf-card-head">${headText}</div>${stats}${legend}${rows}</div>`;
 }
 
 function pfDetail(p) {
@@ -2860,6 +2891,7 @@ document.querySelector("#pf-groups")?.addEventListener("click", (event) => {
   if (!t) return;
   portfolioState.g = Number(t.getAttribute("data-pf-g"));
   portfolioState.s = "ov";
+  portfolioState.f = null;  // 換組別＝重置篩選，各組計數不同，帶著舊篩選會誤導
   renderPortfolio();
 });
 document.querySelector("#pf-subs")?.addEventListener("click", (event) => {
@@ -2870,6 +2902,15 @@ document.querySelector("#pf-subs")?.addEventListener("click", (event) => {
   renderPortfolio();
 });
 document.querySelector("#pf-view")?.addEventListener("click", (event) => {
+  // 六格統計列：點格過濾，點同一格（或「全部」）取消。先處理，因為它跟專案列同在此容器。
+  const filterBtn = event.target.closest("[data-pf-filter]");
+  if (filterBtn) {
+    const v = filterBtn.getAttribute("data-pf-filter");
+    const tone = v || null;
+    portfolioState.f = (portfolioState.f === tone) ? null : tone;  // 再點一次同格＝取消
+    renderPortfolio();
+    return;
+  }
   const row = event.target.closest("[data-pf-proj]");
   if (!row) return;
   const group = portfolioGroups[portfolioState.g];
