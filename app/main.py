@@ -643,7 +643,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.36.0 · 2026-07-21 16:45 · 修好 check_audit_gate 的 UI 文字關：原樣式大小寫不分配 TODO|Prompt|debug，把燈號狀態名 todo、window.prompt() 全誤判成內部註記外洩，而這關又沒接進 local-ci 所以沒人發現它一直是紅的"
+BACKEND_BUILD = "v0.37.0 · 2026-07-21 17:20 · service.bat 自動往上一層找 app：從 GitHub clone 下來時 service.bat 在 notebook-package 裡、app 在 repo 根目錄，兩者刻意不同層，舊版寫死只找同層所以一開就報找不到 app、錯誤訊息還叫人把它們放一起（但 repo 裡本來就分開）。現在完整包（同層）與 clone（上一層）兩種佈局都能直接雙擊跑"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。

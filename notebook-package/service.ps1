@@ -31,7 +31,24 @@ trap {
 }
 
 $HERE     = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# 程式（app\）可能在兩種位置，取決於使用者怎麼拿到這份程式碼：
+#   1. 完整包：service.bat 跟 app\ 解壓在同一層 → app 就在 $HERE 底下。
+#   2. 從 GitHub clone / 下載 ZIP：service.bat 在 notebook-package\ 裡，但 app\
+#      在 repo 根目錄（notebook-package\app\ 被 .gitignore 排除，clone 不會帶）
+#      → app 在 $HERE 的上一層。
+# 舊版寫死只找 $HERE，所以第 2 種情況一開就報「找不到 app\main.py」，錯誤訊息還
+# 叫使用者「把 service.bat 跟 app 放一起」——但在 repo 裡它們本來就刻意分開，
+# 使用者照著做也沒用。這裡自動往上找一層，讓兩種擺法都能直接雙擊跑。
+$APPROOT = $HERE
+if (-not (Test-Path (Join-Path $APPROOT "app\main.py"))) {
+    $parent = Split-Path -Parent $HERE
+    if ($parent -and (Test-Path (Join-Path $parent "app\main.py"))) { $APPROOT = $parent }
+}
+
 $PORT     = 8888
+# 紀錄檔留在 service.bat 旁邊（$HERE），不跟著 app 走。兩種擺法下 logs\ 都被
+# .gitignore 蓋到，且維護時「報告就在我雙擊的檔案旁邊」最好找。
 $LOGDIR   = Join-Path $HERE "logs"
 $LOGFILE  = Join-Path $LOGDIR "service.log"
 $DIAGFILE = Join-Path $LOGDIR "診斷報告.txt"
@@ -90,13 +107,18 @@ function Stop-Service-OnPort {
 # 把「一定會失敗」的情況先擋下來並講清楚原因，而不是讓伺服器在另一個視窗
 # 閃一下就消失、主視窗還印一句沒用的「已啟動」。
 function Test-Ready {
-    if (-not (Test-Path (Join-Path $HERE "app\main.py"))) {
-        Write-Head "啟動失敗：資料夾不對"
-        Write-Host "  在這個位置找不到 app\main.py：" -ForegroundColor Yellow
+    if (-not (Test-Path (Join-Path $APPROOT "app\main.py"))) {
+        Write-Head "啟動失敗：找不到程式"
+        Write-Host "  在這兩個位置都找不到 app\main.py：" -ForegroundColor Yellow
         Write-Host "    $HERE"
+        Write-Host "    $(Split-Path -Parent $HERE)"
         Write-Host ""
-        Write-Host "  service.bat 必須跟 app 資料夾放在一起。"
-        Write-Host "  複製給別人時請整個 notebook-package 資料夾一起複製，不要只複製 .bat 檔。"
+        Write-Host "  正常情況你不會看到這個畫面。可能原因："
+        Write-Host "    - 只複製了 service.bat，沒把旁邊的 app 資料夾一起複製。"
+        Write-Host "    - 從 GitHub 下載後，把 service.bat 搬離了 notebook-package 資料夾。"
+        Write-Host ""
+        Write-Host "  最簡單的解法：用維護人員寄的『完整包』zip，整包解壓後直接雙擊"
+        Write-Host "  裡面的 service.bat，不要單獨搬動任何檔案。"
         return $false
     }
 
@@ -117,7 +139,7 @@ function Test-Ready {
         # 部署端不跑測試（選單裡也沒有這個功能），而 playwright 裝完還會再去抓
         # 瀏覽器二進位檔，在連不到外網的公司網路幾乎必敗——為了跑一個 Web 服務
         # 去裝它，等於平白多一個失敗點。
-        Invoke-Py @("-m", "pip", "install", "-r", (Join-Path $HERE "requirements-runtime.txt"))
+        Invoke-Py @("-m", "pip", "install", "-r", (Join-Path $APPROOT "requirements-runtime.txt"))
         Invoke-Py @("-c", "import fastapi, uvicorn, openpyxl") 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {
             Write-Host ""
@@ -130,7 +152,8 @@ function Test-Ready {
     }
 
     # 沒有 .env 就自動建一份。否則帳號密碼讀不到，畫面會變成「怎麼登入都說密碼錯」。
-    $envFile = Join-Path $HERE ".env"
+    # 放在 $APPROOT（app\ 的上一層）：app/main.py 是從那裡讀 .env 的，兩者必須一致。
+    $envFile = Join-Path $APPROOT ".env"
     if (-not (Test-Path $envFile)) {
         Write-Host ""
         Write-Host "  找不到 .env 設定檔，自動建立一份試辦用的（免密碼登入）。" -ForegroundColor Yellow
@@ -169,7 +192,7 @@ function Start-Service-Now {
     $inner = "$pyCmd -m uvicorn app.main:app --host 127.0.0.1 --port $PORT 2>&1 | " +
              "ForEach-Object { `$_; Add-Content -Path '$LOGFILE' -Value `$_ -Encoding utf8 }"
     Start-Process -FilePath "powershell" -ArgumentList @("-NoProfile", "-Command", $inner) `
-                  -WorkingDirectory $HERE -WindowStyle Hidden | Out-Null
+                  -WorkingDirectory $APPROOT -WindowStyle Hidden | Out-Null
 
     Write-Host "  啟動中，正在確認服務是否正常回應..."
     $ok = $false
@@ -214,7 +237,8 @@ function New-DiagReport {
     $lines += "產生時間: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
     $lines += "電腦名稱: $env:COMPUTERNAME"
     $lines += "使用者:   $env:USERNAME"
-    $lines += "執行位置: $HERE"
+    $lines += "腳本位置: $HERE"
+    $lines += "程式位置: $APPROOT$(if ($APPROOT -ne $HERE) { '  (在腳本上一層，判定為 GitHub clone 佈局)' })"
     $lines += "連接埠:   $PORT"
     $lines += "Windows:  $([System.Environment]::OSVersion.VersionString)"
     $lines += ""
@@ -279,7 +303,7 @@ function New-DiagReport {
     $lines += ""
     $lines += "---- 必要檔案 ----"
     foreach ($f in @("app\main.py", ".env", "requirements.txt", "requirements-runtime.txt", "data")) {
-        $exists = Test-Path (Join-Path $HERE $f)
+        $exists = Test-Path (Join-Path $APPROOT $f)
         $mark = "缺少"
         if ($exists) { $mark = "有" }
         $lines += ("{0,-20} {1}" -f $f, $mark)
