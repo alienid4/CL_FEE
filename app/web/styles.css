@@ -1489,6 +1489,9 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 }
 .pf-items-table td.w-note .cell-input { text-align: left; }
 .pf-items-table td { vertical-align: middle; }
+/* 燈號欄（B1）：圓點與文字同列置中對齊 */
+.pf-items-table td.w-rag, .pf-items-table th.w-rag { white-space: nowrap; }
+.pf-items-table td.w-rag .pf-dot { vertical-align: middle; margin-right: 3px; }
 /* 可編輯的格子：滑鼠移上去給提示，讓使用者知道點了能改 */
 .pf-items-table td.editable { cursor: text; }
 .pf-items-table td.editable:hover { background: var(--accent-weak); box-shadow: inset 0 0 0 1px var(--accent); }

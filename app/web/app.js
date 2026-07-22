@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.41.0 · 2026-07-22 12:40 · B2：進度總表六格狀態統計列，點格過濾再點取消";
+const BUILD_TAG = "v0.42.0 · 2026-07-22 13:00 · B1：工作項表格獨立燈號欄";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1972,6 +1972,7 @@ const PF_ITEM_COLUMNS = [
   { label: "結束日", key: "end_date", cls: "num w-date" },
   { label: "執行進度", key: "exec_status", cls: "w-status" },
   { label: "完成度", key: "progress", cls: "num w-prog" },
+  { label: "燈號", key: "rag", cls: "w-rag" },  // 獨立燈號欄（B1）：依 ragOf 自動判定，好掃
   { label: "風險", key: "risk_note", cls: "w-note" },
   { label: "決策", key: "decision_needed", cls: "w-note" },
   { label: "支援", key: "support_needed", cls: "w-note" },
@@ -1989,8 +1990,12 @@ function pfCellHtml(field, it) {
     case "owner": return escapeHtml(valueOrDash(it.owner));
     case "start_date": return escapeHtml(valueOrDash(it.start_date));
     case "end_date": return escapeHtml(valueOrDash(it.end_date));
-    case "exec_status": return `<span class="pf-dot ${pfItemRag(it)}" title="燈號依開始/結束日與完成度自動判定"></span> ${escapeHtml(valueOrDash(it.exec_status))}`;
+    case "exec_status": return escapeHtml(valueOrDash(it.exec_status));  // 純文字；燈號移到獨立的「燈號」欄（B1）
     case "progress": return `${Number(it.progress || 0)}%`;
+    case "rag": {  // 獨立燈號欄：圓點＋文字標籤，配色統一走 ragOf()（B1）
+      const tone = pfItemRag(it);
+      return `<span class="pf-dot ${tone}" title="依開始/結束日與完成度自動判定"></span> ${escapeHtml(RAG_LABEL[tone] || tone)}`;
+    }
     default: return escapeHtml(valueOrDash(it[field]));  // 風險/決策/支援等純文字欄，各自獨立一欄
   }
 }
@@ -2011,7 +2016,10 @@ function sortPfItems(items) {
   const arr = [...items];
   arr.sort((a, b) => {
     let r;
-    if (key === "progress" || key === "seq") {
+    if (key === "rag") {  // 依急迫度排：已過期→要注意→執行中→未開始→已完成（asc＝最急的在前）
+      const rank = { over: 0, soon: 1, live: 2, todo: 3, done: 4, na: 5 };
+      r = (rank[pfItemRag(a)] ?? 9) - (rank[pfItemRag(b)] ?? 9);
+    } else if (key === "progress" || key === "seq") {
       r = Number(a[key] || 0) - Number(b[key] || 0);
     } else if (key === "start_date" || key === "end_date") {
       const da = a[key] ? new Date(a[key]).getTime() : Infinity;
@@ -2041,7 +2049,7 @@ function renderItemsSection(projectId, items) {
   const rows = sorted.length
     ? sorted.map((it) => {
         const cells = PF_ITEM_COLUMNS.map((c) => {
-          const canEditCell = editable && c.key !== "seq";  // 標號系統自動排，不給手改
+          const canEditCell = editable && c.key !== "seq" && c.key !== "rag";  // 標號自動排、燈號自動判定，都不給手改
           const cls = [c.cls, canEditCell ? "editable" : ""].filter(Boolean).join(" ");
           const attrs = `${cls ? ` class="${cls}"` : ""}${canEditCell ? ` data-field="${c.key}" title="點一下即可修改"` : ""}`;
           return `<td${attrs}>${pfCellHtml(c.key, it)}</td>`;
