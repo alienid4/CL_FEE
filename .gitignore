@@ -95,3 +95,11 @@ project-baseline-kit_v*/
 node_modules/
 dist/
 build/
+
+# 開發進度報告（含內部專案資訊，只留本機、不上公開 repo）
+docs/開發進度報告.html
+
+docs/報告存檔/
+
+# 內部需求確認文件（含 drawio 流程圖），不上公開 repo
+docs/確認說明書/
