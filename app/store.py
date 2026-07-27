@@ -118,6 +118,24 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 預計付款排程（Payment Schedule）＝合約約定「應該」付的排程（第幾期、預計金額、預計付款日）。
+-- 需求書 §8：與「實際費用 Expense＝payments 表」分開但關聯，避免同一筆金額在 Dashboard 重複計算。
+-- 一份合約可有多筆排程；method 決定金額怎麼算（固定金額/固定期數/週期/里程碑%）。
+CREATE TABLE IF NOT EXISTS payment_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL,
+    case_id INTEGER,
+    seq INTEGER NOT NULL DEFAULT 0,
+    label TEXT NOT NULL DEFAULT '',
+    method TEXT NOT NULL DEFAULT 'fixed',
+    planned_amount REAL NOT NULL DEFAULT 0,
+    percent REAL NOT NULL DEFAULT 0,
+    due_date TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'planned',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_name TEXT NOT NULL,
@@ -472,6 +490,12 @@ def initialize_database() -> None:
         ensure_column(conn, "payments", "settle_seq", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "net_amount", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "tax_amount", "REAL NOT NULL DEFAULT 0")
+        # §8 預計/實際分離：實際費用(payments)可回指它所履行的預計付款排程(可留白＝臨時/非合約費用)
+        ensure_column(conn, "payments", "payment_schedule_id", "INTEGER")
+        # §8 合約付款方式：驅動預計付款排程自動產生（fixed 固定金額 / installment 固定期數 /
+        # periodic 週期 / milestone 里程碑%）。installments 供固定期數用。
+        ensure_column(conn, "contracts", "payment_method", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "contracts", "installments", "INTEGER NOT NULL DEFAULT 0")
         # 簽呈/請購串接（方案A：只存關聯，不重做簽核系統）：請購可關聯核准它的簽呈，合約可關聯源自的請購
         ensure_column(conn, "purchases", "signoff_id", "INTEGER")
         ensure_column(conn, "contracts", "purchase_id", "INTEGER")
@@ -665,14 +689,103 @@ def create_case_wizard(
     }
 
 
+# ── §8 預計付款排程（Payment Schedule）：與實際費用(payments)分離的「預計付款」層 ──
+def list_payment_schedules(contract_id: int) -> list[dict[str, Any]]:
+    """某合約的所有預計付款排程，依期別序排。"""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM payment_schedules WHERE contract_id = ? ORDER BY seq, id",
+            (contract_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def _check_milestone_total(conn: sqlite3.Connection, contract_id: int) -> None:
+    """里程碑付款：同一合約 method='milestone' 的 percent 合計必須 = 100（需求書 §8）。
+    完全沒有里程碑排程時不檢核。"""
+    has = conn.execute(
+        "SELECT 1 FROM payment_schedules WHERE contract_id = ? AND method='milestone' LIMIT 1",
+        (contract_id,),
+    ).fetchone()
+    if not has:
+        return
+    total = conn.execute(
+        "SELECT COALESCE(SUM(percent),0) AS s FROM payment_schedules "
+        "WHERE contract_id = ? AND method='milestone'",
+        (contract_id,),
+    ).fetchone()["s"]
+    if round(float(total), 4) != 100:
+        raise ValueError(f"里程碑付款比例合計為 {round(float(total),2)}%，必須等於 100% 才能送出。")
+
+
+def validate_milestone_total(contract_id: int) -> None:
+    with connect() as conn:
+        _check_milestone_total(conn, contract_id)
+
+
+def contract_payment_summary(contract_id: int) -> dict[str, float]:
+    """一份合約的『預計 vs 實際』——需求書 §8 拆分後才算得準：
+      planned        = 預計付款排程總額（未取消）
+      paid           = 實際費用已付（payments.status='closed'）
+      unpaid_planned = 還沒付的預計（planned − 已付），供『還欠多少』用
+    預計走 payment_schedules、實際走 payments，兩者不重複計算。"""
+    with connect() as conn:
+        planned = float(conn.execute(
+            "SELECT COALESCE(SUM(planned_amount),0) AS s FROM payment_schedules "
+            "WHERE contract_id = ? AND status != 'cancelled'",
+            (contract_id,),
+        ).fetchone()["s"])
+        paid = float(conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN status='closed' THEN payment_amount ELSE 0 END),0) AS s "
+            "FROM payments WHERE contract_id = ?",
+            (contract_id,),
+        ).fetchone()["s"])
+    return {"planned": planned, "paid": paid, "unpaid_planned": max(0.0, planned - paid)}
+
+
+def generate_payment_schedules(contract_id: int, method: str, spec: Any = None) -> list[dict[str, Any]]:
+    """依合約付款方式自動產生預計付款排程（需求書 §8）：
+      installment（固定期數）: spec = 期數 n → 平均分 n 期
+      milestone（里程碑）:     spec = [pct, ...]，合計須=100 → 每期 amount*pct/100
+      fixed（固定金額）:       單筆 = 合約金額
+    只新增、不動既有排程（要不要先清由呼叫端決定）。"""
+    with connect() as conn:
+        c = conn.execute("SELECT amount, case_id FROM contracts WHERE id = ?", (contract_id,)).fetchone()
+        if c is None:
+            raise ValueError(f"合約 ID {contract_id} 不存在。")
+        amount = float(c["amount"] or 0)
+        case_id = c["case_id"]
+        rows: list[dict[str, Any]] = []
+        if method == "installment":
+            n = max(1, int(spec or 1))
+            each = round(amount / n, 2)
+            rows = [{"seq": i + 1, "method": "installment", "label": f"第{i+1}期",
+                     "planned_amount": each} for i in range(n)]
+        elif method == "milestone":
+            pcts = list(spec or [])
+            if round(sum(pcts), 4) != 100:
+                raise ValueError(f"里程碑比例合計 {sum(pcts)}%，必須等於 100%。")
+            rows = [{"seq": i + 1, "method": "milestone", "label": f"里程碑{i+1}", "percent": p,
+                     "planned_amount": round(amount * p / 100, 2)} for i, p in enumerate(pcts)]
+        else:  # fixed
+            rows = [{"seq": 1, "method": "fixed", "label": "全額", "planned_amount": amount}]
+        out = [_insert_row(conn, "payment_schedules",
+                           {**r, "contract_id": contract_id, "case_id": case_id, "status": "planned"})
+               for r in rows]
+    return out
+
+
 def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row"},
-        "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date"},
+        "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
+                      "payment_method", "installments"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount",
-                     "settle_seq"},
+                     "settle_seq", "payment_schedule_id"},
+        "payment_schedules": {"contract_id", "case_id", "seq", "label", "method", "planned_amount",
+                              "percent", "due_date", "status", "note"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
                     "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category",

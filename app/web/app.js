@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.42.0 · 2026-07-22 13:00 · B1：工作項表格獨立燈號欄";
+const BUILD_TAG = "v0.43.0 · 2026-07-27 · §8 付款拆分地基（後端資料模型）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;

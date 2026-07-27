@@ -165,6 +165,9 @@ class ContractIn(BaseModel):
     case_id: int | None = None
     purchase_id: int | None = None
     end_date: str = ""
+    # §8：付款方式，供預計付款排程自動產生（fixed/installment/periodic/milestone）
+    payment_method: str = ""
+    installments: int = 0
 
     @field_validator("amount")
     @classmethod
@@ -203,6 +206,8 @@ class PaymentIn(BaseModel):
     owner_email: str = ""
     net_amount: float | None = 0
     tax_amount: float | None = 0
+    # §8：實際費用可回指它履行的預計付款排程（留空＝臨時/非合約費用）
+    payment_schedule_id: int | None = None
 
     @field_validator("net_amount", "tax_amount")
     @classmethod
@@ -643,7 +648,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.42.0 · 2026-07-22 13:00 · B1 工作項表格加獨立「燈號」欄（在完成度後），配色統一走 ragOf；原本黏在執行進度文字旁那顆不好掃的小圓點移除，執行進度回歸純文字。燈號欄可依急迫度排序、不可手改"
+BACKEND_BUILD = "v0.43.0 · 2026-07-27 · §8 付款拆分地基：新增 payment_schedules 表（預計付款排程），與 payments（實際費用/核銷）分離並可回指關聯；合約加付款方式欄位、可依方式自動產生排程（固定期數/里程碑%），里程碑比例合計須=100；contract_payment_summary 算預計vs實際不重複計算。純加法未動既有 183 處引用"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
