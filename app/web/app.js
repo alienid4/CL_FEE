@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.45.0 · 2026-07-27 · §8 決策總覽接排程(待付款/下月預計/跨年度)";
+const BUILD_TAG = "v0.46.0 · 2026-07-27 · 系統編號 12 碼無連字號(功能碼+西元年+流水號)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -358,15 +358,17 @@ function valueOrDash(value) {
   return value === null || value === undefined || value === "" ? "-" : value;
 }
 
-// 系統編號：案件領「年度-四位流水號」，各階段用同尾碼＋前綴組成，做跨階段勾稽
-const SYS_PREFIX = { budget: "Budget", project: "Project", signoff: "Sign", contract: "Contract", purchase: "Purchase", payment: "Pay" };
+// 系統編號：案件領「西元年+四位流水號」，各階段用同尾碼＋功能碼組成(12碼無連字號)，做跨階段勾稽
+// 系統編號＝功能碼(4)＋西元年(4)＋流水號(4)，12 碼無連字號，例 Cont20260001（主管指定格式）。
+// 同一案件底下各模組共用案件的「年+流水號」，差在功能碼，故查 20260001 可找到同案全部。
+const SYS_PREFIX = { case: "Case", budget: "Budg", project: "Proj", signoff: "Sign", contract: "Cont", purchase: "Purc", payment: "Paym" };
 function caseNumber(c) {
-  return (c && c.fiscal_year && c.seq) ? `${c.fiscal_year}-${String(c.seq).padStart(4, "0")}` : "";
+  return (c && c.fiscal_year && c.seq) ? `${c.fiscal_year}${String(c.seq).padStart(4, "0")}` : "";
 }
 function systemCodeCell(prefix, caseId) {
   const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
   const n = caseNumber(c);
-  return n ? `<strong>${escapeHtml(prefix + "-" + n)}</strong>` : `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
+  return n ? `<strong>${escapeHtml(prefix + n)}</strong>` : `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
 }
 // 付款經「合約」再回溯到案件（付款掛合約、合約掛案件）
 function systemCodeCellPayment(payment) {

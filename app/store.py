@@ -487,7 +487,7 @@ def initialize_database() -> None:
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
             ensure_column(conn, "payments", col, "TEXT NOT NULL DEFAULT ''")
-        # 核銷編號流水號：核銷各年獨立遞增，組成「英文前綴-年度-四位流水號」
+        # 核銷編號流水號：核銷各年獨立遞增，組成「功能碼+西元年+四位流水號」(12碼無連字號)
         ensure_column(conn, "payments", "settle_seq", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "net_amount", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "payments", "tax_amount", "REAL NOT NULL DEFAULT 0")
@@ -536,8 +536,8 @@ def get_working_year() -> str:
     return str(datetime.date.today().year)
 
 
-# 核銷編號前綴：組成「Settle-年度-四位流水號」（對應欄位 settle_no，一眼對得上核銷）
-SETTLE_PREFIX = "Settle"
+# 核銷編號：12 碼無連字號＝功能碼(4)＋西元年(4)＋流水號(4)，例 Sett20260012（主管指定格式）
+SETTLE_PREFIX = "Sett"
 
 
 def _match_owner_username(conn: sqlite3.Connection, owner_display_name: str | None) -> str | None:
@@ -626,7 +626,7 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
             "WHERE substr(payment_month, 1, 4) = ? AND settle_seq > 0",
             (year,)).fetchone()["n"]
         fields = {**fields, "settle_seq": nseq,
-                  "settle_no": f"{SETTLE_PREFIX}-{year}-{nseq:04d}"}
+                  "settle_no": f"{SETTLE_PREFIX}{year}{nseq:04d}"}
     columns = ", ".join(fields)
     placeholders = ", ".join("?" for _ in fields)
     _validate_fks(conn, fields)
@@ -3333,21 +3333,21 @@ def search_records(query: str) -> list[dict[str, Any]]:
     # JOIN 回案件後，把「年度-流水號 尾碼／年-流水號／前綴-年-流水號」也納入比對，
     # 才搜得到前端即時組出來、DB 沒存的系統編號（搜 0003 能一次撈齊同案各階段）。
     entities = [
-        ("case", "cases", "case_code", "title", "owner", ["note", "next_step"], "", None),
+        ("case", "cases", "case_code", "title", "owner", ["note", "next_step"], "", "Case"),
         ("contract", "contracts", "contract_code", "contract_name", "vendor_name", [],
-         "LEFT JOIN cases c ON c.id = t.case_id", "Contract"),
+         "LEFT JOIN cases c ON c.id = t.case_id", "Cont"),
         ("document", "documents", "file_name", "document_type", "source_note", [],
          "LEFT JOIN cases c ON c.id = t.case_id", None),
         ("budget", "budgets", "budget_code", "category", "unit_name", ["note"],
-         "LEFT JOIN cases c ON c.id = t.case_id", "Budget"),
+         "LEFT JOIN cases c ON c.id = t.case_id", "Budg"),
         ("project", "projects", "project_code", "project_name", "source", ["owner", "necessity", "note"],
-         "LEFT JOIN cases c ON c.id = t.case_id", "Project"),
+         "LEFT JOIN cases c ON c.id = t.case_id", "Proj"),
         ("signoff", "signoffs", "signoff_code", "subject", "applicant", ["note"],
          "LEFT JOIN cases c ON c.id = t.case_id", "Sign"),
         ("purchase", "purchases", "purchase_code", "item_name", "vendor_name", ["note"],
-         "LEFT JOIN cases c ON c.id = t.case_id", "Purchase"),
+         "LEFT JOIN cases c ON c.id = t.case_id", "Purc"),
         ("payment", "payments", "settle_no", "item", "vendor", ["ref_no", "period"],
-         "LEFT JOIN contracts k ON k.id = t.contract_id LEFT JOIN cases c ON c.id = k.case_id", "Pay"),
+         "LEFT JOIN contracts k ON k.id = t.contract_id LEFT JOIN cases c ON c.id = k.case_id", "Paym"),
     ]
     with connect() as conn:
         for typ, source, code_field, title_field, extra_field, more_fields, join, prefix in entities:
@@ -3355,13 +3355,13 @@ def search_records(query: str) -> list[dict[str, Any]]:
             search_fields = [code_field, title_field, extra_field, *more_fields]
             ors = [f"t.{f} LIKE ?" for f in search_fields]
             params: list[Any] = [pattern] * len(search_fields)
-            # 系統編號比對：四位尾碼、年-尾碼、（有前綴者）前綴-年-尾碼
+            # 系統編號比對（12 碼無連字號＝功能碼＋西元年＋流水號）：四位尾碼、年+尾碼、前綴+年+尾碼
             ors.append(f"printf('%04d', {cref}.seq) LIKE ?")
             params.append(pattern)
-            ors.append(f"({cref}.fiscal_year || '-' || printf('%04d', {cref}.seq)) LIKE ?")
+            ors.append(f"({cref}.fiscal_year || printf('%04d', {cref}.seq)) LIKE ?")
             params.append(pattern)
             if prefix:
-                ors.append(f"('{prefix}-' || {cref}.fiscal_year || '-' || printf('%04d', {cref}.seq)) LIKE ?")
+                ors.append(f"('{prefix}' || {cref}.fiscal_year || printf('%04d', {cref}.seq)) LIKE ?")
                 params.append(pattern)
             sql = (
                 f"SELECT t.id AS id, t.{code_field} AS code, t.{title_field} AS title, "
@@ -3724,7 +3724,7 @@ def backfill_settle_numbers() -> int:
                 "SELECT COALESCE(MAX(settle_seq),0)+1 n FROM payments "
                 "WHERE substr(payment_month,1,4)=? AND settle_seq>0", (year,)).fetchone()["n"]
             conn.execute("UPDATE payments SET settle_seq=?, settle_no=? WHERE id=?",
-                         (nxt, f"{SETTLE_PREFIX}-{year}-{nxt:04d}", r["id"]))
+                         (nxt, f"{SETTLE_PREFIX}{year}{nxt:04d}", r["id"]))
             filled += 1
     return filled
 
