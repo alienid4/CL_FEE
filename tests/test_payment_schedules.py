@@ -196,3 +196,54 @@ def test_case_360_shows_planned_paid_owed(tmp_path):
         assert t["planned_total"] == 1_000_000
         assert t["paid_total"] == 500_000
         assert t["unpaid_planned"] == 500_000  # 還欠 50 萬
+
+
+def test_case_360_drilldown_per_contract(tmp_path):
+    """向下鑽取：案件的「花多少/欠多少」要能拆到每一份合約——主管才看得出是哪一份還欠。
+    A 約 100 萬分 4 期付掉 2 期(50萬)、B 約 40 萬分 2 期一期都沒付。"""
+    with _setup(tmp_path) as client:
+        case = client.post("/api/cases", json={"case_code": "C360D", "title": "多合約案"}).json()["data"]
+        client.post(f"/api/cases/{case['id']}/submit")
+        client.post("/api/auth/login", json={"username": "ap04", "password": "T3st!Pass"})
+        client.post(f"/api/cases/{case['id']}/approve")
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
+
+        a = client.post("/api/contracts", json={
+            "contract_code": "K-A", "contract_name": "A約", "amount": 1_000_000, "case_id": case["id"]}).json()["data"]
+        b = client.post("/api/contracts", json={
+            "contract_code": "K-B", "contract_name": "B約", "amount": 400_000, "case_id": case["id"]}).json()["data"]
+        gen_a = client.post(f"/api/contracts/{a['id']}/payment-schedules/generate",
+                            json={"method": "installment", "count": 4}).json()["data"]
+        client.post(f"/api/contracts/{b['id']}/payment-schedules/generate",
+                    json={"method": "installment", "count": 2})
+        for sid in [s["id"] for s in gen_a["schedules"][:2]]:  # 只付 A 約的 2 期
+            client.post(f"/api/settle-schedule/{sid}", json={})
+
+        data = client.get(f"/api/cases/{case['id']}/360").json()["data"]
+        per = {c["contract_code"]: c for c in data["contracts"]}
+        assert per["K-A"]["planned_total"] == 1_000_000
+        assert per["K-A"]["paid_total"] == 500_000
+        assert per["K-A"]["unpaid_planned"] == 500_000
+        assert per["K-B"]["planned_total"] == 400_000
+        assert per["K-B"]["paid_total"] == 0          # B 約一期都沒付，不會沾到 A 約的已付
+        assert per["K-B"]["unpaid_planned"] == 400_000
+        # 各合約加總 == 案件層彙總（鑽取前後對得起來）
+        t = data["totals"]
+        assert sum(c["planned_total"] for c in data["contracts"]) == t["planned_total"]
+        assert sum(c["paid_total"] for c in data["contracts"]) == t["paid_total"]
+
+
+def test_case_360_contract_without_schedule(tmp_path):
+    """還沒排付款排程的合約：預計/已付/還欠都是 0，不會因為缺欄位讓前端壞掉。"""
+    with _setup(tmp_path) as client:
+        case = client.post("/api/cases", json={"case_code": "C360E", "title": "無排程"}).json()["data"]
+        client.post(f"/api/cases/{case['id']}/submit")
+        client.post("/api/auth/login", json={"username": "ap04", "password": "T3st!Pass"})
+        client.post(f"/api/cases/{case['id']}/approve")
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
+        client.post("/api/contracts", json={
+            "contract_code": "K-NS", "contract_name": "沒排程", "amount": 300_000, "case_id": case["id"]})
+
+        c = client.get(f"/api/cases/{case['id']}/360").json()["data"]["contracts"][0]
+        assert c["planned_total"] == 0 and c["paid_total"] == 0 and c["unpaid_planned"] == 0
+        assert c["amount"] == 300_000  # 合約金額照常帶出

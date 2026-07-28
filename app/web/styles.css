@@ -1778,3 +1778,10 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .case-money .cm-v { font-size:1.05rem; font-weight:700; font-variant-numeric:tabular-nums; }
 .case-money .cm-v.paid { color:var(--ok); }
 .case-money .cm-v.owe { color:var(--danger); }
+
+/* Case 360 向下鑽取：合約列的「預計/已付/還欠」與就地展開的每期付款明細 */
+.trace-ct-money { margin-left:6px; font-size:.82rem; color:var(--ink-2); font-variant-numeric:tabular-nums; }
+.trace-ct-money .paid { color:var(--ok); }
+.trace-ct-money .owe { color:var(--danger); }
+.trace-sched { margin:8px 0 4px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; }
+.trace-sched .sched-summary { margin-top:6px; padding-top:8px; }

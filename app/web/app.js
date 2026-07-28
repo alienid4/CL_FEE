@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.47.0 · 2026-07-27 · Case 360 花多少/欠多少摘要";
+const BUILD_TAG = "v0.48.0 · 2026-07-28 · Case 360 向下鑽取到每份合約付款明細";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1759,6 +1759,38 @@ document.addEventListener("change", (event) => {
 // 一段一段各自獨立送出（沿用各模組既有 PATCH/POST，不做整批 atomic 交易）。
 let traceCaseId = null;
 let traceLatestContractId = null;
+
+// §8 向下鑽取：案件層的「花多少、欠多少」再拆到每一份合約——主管看得出是「哪一份」還欠，
+// 再點「付款明細」就地展開該合約每一期（唯讀；要改排程仍走合約模組的排程面板，權限一致）。
+function traceContractMoney(k) {
+  const planned = Number(k.planned_total || 0);
+  const paid = Number(k.paid_total || 0);
+  const owe = Number(k.unpaid_planned || 0);
+  const money3 = planned > 0
+    ? `<span class="trace-ct-money">預計 ${money(planned)}｜已付 <b class="paid">${money(paid)}</b>｜還欠 <b class="owe">${money(owe)}</b> 元</span>`
+    : `<span class="trace-ct-money muted">尚未排付款排程</span>`;
+  return `${money3} <button type="button" class="link-btn" data-trace-sched="${k.id}">付款明細</button>`
+    + `<div class="trace-sched" data-sched-box="${k.id}" hidden></div>`;
+}
+
+function renderTraceSchedule(res) {
+  const scheds = res.schedules || [];
+  const sum = res.summary || { planned: 0, paid: 0, unpaid_planned: 0 };
+  if (!scheds.length) {
+    return `<p class="muted">這份合約還沒有付款排程——到「合約」模組點該列的「付款排程」建立。</p>`;
+  }
+  const rows = scheds.map((s) => {
+    const paid = s.status === "paid";
+    return `<tr class="${paid ? "sched-paid" : ""}"><td>${escapeHtml(s.label || "")}</td>`
+      + `<td class="num">${money(s.planned_amount)} 元</td>`
+      + `<td>${escapeHtml(valueOrDash(s.due_date))}</td>`
+      + `<td>${paid ? '<span class="chip done">已付</span>' : '<span class="chip todo">待付</span>'}</td></tr>`;
+  }).join("");
+  return `<table class="grid-table sched-table"><thead><tr><th>期別/名目</th><th class="num">預計金額</th>`
+    + `<th>預計付款日</th><th>狀態</th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<div class="sched-summary">預計 <b>${money(sum.planned)}</b> 元　｜　已付 <b class="paid">${money(sum.paid)}</b> 元`
+    + `　｜　還欠 <b class="owe">${money(sum.unpaid_planned)}</b> 元</div>`;
+}
 async function loadCaseTrace(caseId) {
   const box = document.querySelector("#case-trace");
   if (!box) return;
@@ -1812,7 +1844,8 @@ async function loadCaseTrace(caseId) {
           <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
           <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
           <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯請購")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("請購", k.purchase_id, d.purchases, "purchase_code")}`, "無關聯合約")}</ul></div>
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("請購", k.purchase_id, d.purchases, "purchase_code")}`
+            + traceContractMoney(k), "無關聯合約")}</ul></div>
           <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
       </div>`;
@@ -1838,6 +1871,23 @@ function presetCaseOnForm(type, caseId, contractId) {
 
 document.querySelector("#case-trace")?.addEventListener("click", async (event) => {
   if (event.target.closest("#trace-close")) { document.querySelector("#case-trace").innerHTML = ""; return; }
+  // 向下鑽取：合約列「付款明細」→ 就地展開/收起該合約的每期排程（唯讀，不離開 Case 360）
+  const schedBtn = event.target.closest("[data-trace-sched]");
+  if (schedBtn) {
+    const cid = schedBtn.getAttribute("data-trace-sched");
+    const panel = document.querySelector(`#case-trace [data-sched-box="${cid}"]`);
+    if (!panel) return;
+    if (!panel.hidden) { panel.hidden = true; schedBtn.textContent = "付款明細"; return; }
+    panel.hidden = false;
+    schedBtn.textContent = "收起明細";
+    panel.innerHTML = `<p class="muted">載入付款明細…</p>`;
+    try {
+      panel.innerHTML = renderTraceSchedule((await api(`/api/contracts/${cid}/payment-schedules`)).data);
+    } catch (e) {
+      panel.innerHTML = `<p class="error">付款明細載入失敗：${escapeHtml(e.message)}</p>`;
+    }
+    return;
+  }
   const editBtn = event.target.closest("[data-trace-edit]");
   if (editBtn) {
     const type = editBtn.getAttribute("data-trace-edit");

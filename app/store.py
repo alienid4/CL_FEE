@@ -3424,9 +3424,29 @@ def case_360(case_id: int) -> dict[str, Any]:
             "SELECT COALESCE(SUM(CASE WHEN p.status='closed' THEN p.payment_amount ELSE 0 END),0) AS s "
             "FROM payments p JOIN contracts c ON c.id = p.contract_id WHERE c.case_id = ?",
             (case_id,)).fetchone()["s"])
+        # 向下鑽取：案件層的「花多少、欠多少」再拆到每一份合約，主管才看得出是哪一份還欠。
+        # 用 GROUP BY 一次撈完（不逐份合約發查詢，避免 N+1）。
+        planned_by_ct = {r["cid"]: float(r["s"]) for r in conn.execute(
+            "SELECT ps.contract_id AS cid, COALESCE(SUM(ps.planned_amount),0) AS s FROM payment_schedules ps "
+            "JOIN contracts c ON c.id = ps.contract_id "
+            "WHERE c.case_id = ? AND ps.status <> 'cancelled' GROUP BY ps.contract_id", (case_id,)).fetchall()}
+        paid_by_ct = {r["cid"]: float(r["s"]) for r in conn.execute(
+            "SELECT p.contract_id AS cid, "
+            "COALESCE(SUM(CASE WHEN p.status='closed' THEN p.payment_amount ELSE 0 END),0) AS s "
+            "FROM payments p JOIN contracts c ON c.id = p.contract_id "
+            "WHERE c.case_id = ? GROUP BY p.contract_id", (case_id,)).fetchall()}
+        contract_rows = []
+        for row in contracts:
+            item = dict(row)
+            planned = planned_by_ct.get(item["id"], 0.0)
+            paid = paid_by_ct.get(item["id"], 0.0)
+            item["planned_total"] = planned
+            item["paid_total"] = paid
+            item["unpaid_planned"] = max(0.0, planned - paid)
+            contract_rows.append(item)
         return {
             "case": case,
-            "contracts": contracts,
+            "contracts": contract_rows,
             "payments": payments,
             "documents": documents,
             "budgets": budgets,
