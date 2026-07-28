@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date, datetime, timedelta
 import json
+import math
 from pathlib import Path
 import sqlite3
 from typing import Any, Iterator
@@ -743,32 +744,98 @@ def contract_payment_summary(contract_id: int) -> dict[str, float]:
     return {"planned": planned, "paid": paid, "unpaid_planned": max(0.0, planned - paid)}
 
 
-def generate_payment_schedules(contract_id: int, method: str, spec: Any = None) -> list[dict[str, Any]]:
-    """依合約付款方式自動產生預計付款排程（需求書 §8）：
-      installment（固定期數）: spec = 期數 n → 平均分 n 期
-      milestone（里程碑）:     spec = [pct, ...]，合計須=100 → 每期 amount*pct/100
-      fixed（固定金額）:       單筆 = 合約金額
-    只新增、不動既有排程（要不要先清由呼叫端決定）。"""
+def _split_even(amount: float, n: int, remainder_on: str = "last") -> list[float]:
+    """把金額平均分 n 份，除不盡的零頭全歸某一期（不硬性規定——由 remainder_on 決定，因為
+    每個合約寫法不同：有的第一期多、有的最後一期多）。各份加總必定 == amount，不會出現
+    999,999.99 這種對不起來的數字。產生後每期金額仍可手動改，以符合合約實際分法。"""
+    import math
+    n = max(1, int(n))
+    base = math.floor(amount / n * 100) / 100  # 無條件捨去到分，避免每期進位使總額超過
+    parts = [base] * n
+    remainder = round(amount - base * n, 2)     # 零頭
+    idx = 0 if remainder_on == "first" else n - 1
+    parts[idx] = round(parts[idx] + remainder, 2)
+    return parts
+
+
+_FREQ_STEP = {"monthly": 1, "quarterly": 3, "yearly": 12}  # 每月/每季/每年 → 遞增幾個月
+
+
+def _add_months(ym: str, k: int) -> str:
+    """'YYYY-MM' 加 k 個月，回 'YYYY-MM'（跨年自動進位）。給不出合法起始月就回空字串。"""
+    try:
+        y, m = (int(x) for x in str(ym).split("-")[:2])
+    except (ValueError, TypeError):
+        return ""
+    total = (y * 12 + (m - 1)) + k
+    return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
+def contract_has_linked_payment(contract_id: int) -> bool:
+    """該合約是否已有任何『實際核銷回指某期排程』——有的話就不准整個重產排程，
+    否則會把已付的連結弄丟。"""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM payments WHERE contract_id = ? AND payment_schedule_id IS NOT NULL LIMIT 1",
+            (contract_id,),
+        ).fetchone()
+        return row is not None
+
+
+def clear_payment_schedules(contract_id: int) -> int:
+    """清掉某合約所有預計排程（重產前用）。若已有實際核銷回指排程則擋下，保護已付紀錄。"""
+    if contract_has_linked_payment(contract_id):
+        raise ValueError("這份合約已有核銷回填某期排程，不能整個重產；請改用加列/改列。")
+    with connect() as conn:
+        cur = conn.execute("DELETE FROM payment_schedules WHERE contract_id = ?", (contract_id,))
+        return cur.rowcount
+
+
+def generate_payment_schedules(contract_id: int, method: str, spec: Any = None,
+                               remainder_on: str = "last", start_month: str = "",
+                               frequency: str = "monthly", base_amount: float | None = None) -> list[dict[str, Any]]:
+    """依付款方式自動產生預計付款排程（需求書 §8）。金額＝合約含稅總額（不拆稅、不換匯——那是會計/出納的事）。
+      installment（固定期數）: spec = 期數 n → 平均分，零頭歸 remainder_on 指定的那期
+      periodic  （週期月租）:  spec = 期數 n，frequency 每月/每季/每年 → 平均分＋日期依週期遞增
+      milestone （里程碑）:    spec = [pct, ...]，合計須=100 → amount*pct/100，零頭同上
+      fixed     （固定金額）:  單筆 = 合約金額
+    remainder_on='first'|'last'：零頭放第一/最後期（合約寫哪期多就選哪期）。
+    start_month='YYYY-MM'：有給就自動帶每期預計付款日（下月預計付款、跨年度預算歸屬都靠它）。
+    base_amount：只分這個金額（給『把剩餘分N期』用；不給＝分合約總額）。產生後每期仍可手動改。"""
     with connect() as conn:
         c = conn.execute("SELECT amount, case_id FROM contracts WHERE id = ?", (contract_id,)).fetchone()
         if c is None:
             raise ValueError(f"合約 ID {contract_id} 不存在。")
-        amount = float(c["amount"] or 0)
+        amount = float(base_amount if base_amount is not None else (c["amount"] or 0))
         case_id = c["case_id"]
+        step = _FREQ_STEP.get(frequency, 1)
+        base_seq = conn.execute(
+            "SELECT COALESCE(MAX(seq),0) AS m FROM payment_schedules WHERE contract_id = ?",
+            (contract_id,),
+        ).fetchone()["m"]
+
         rows: list[dict[str, Any]] = []
-        if method == "installment":
-            n = max(1, int(spec or 1))
-            each = round(amount / n, 2)
-            rows = [{"seq": i + 1, "method": "installment", "label": f"第{i+1}期",
-                     "planned_amount": each} for i in range(n)]
+        if method in ("installment", "periodic"):
+            n = int(spec or 1)
+            amounts = _split_even(amount, n, remainder_on)
+            for i, a in enumerate(amounts):
+                rows.append({"seq": base_seq + i + 1, "method": method, "label": f"第{i+1}期",
+                             "planned_amount": a, "due_date": _add_months(start_month, i * step)})
         elif method == "milestone":
             pcts = list(spec or [])
             if round(sum(pcts), 4) != 100:
                 raise ValueError(f"里程碑比例合計 {sum(pcts)}%，必須等於 100%。")
-            rows = [{"seq": i + 1, "method": "milestone", "label": f"里程碑{i+1}", "percent": p,
-                     "planned_amount": round(amount * p / 100, 2)} for i, p in enumerate(pcts)]
+            amounts = [math.floor(amount * p / 100 * 100) / 100 for p in pcts]
+            rem = round(amount - sum(amounts), 2)
+            amounts[0 if remainder_on == "first" else -1] = round(
+                amounts[0 if remainder_on == "first" else -1] + rem, 2)
+            for i, (p, a) in enumerate(zip(pcts, amounts)):
+                rows.append({"seq": base_seq + i + 1, "method": "milestone", "label": f"里程碑{i+1}",
+                             "percent": p, "planned_amount": a, "due_date": _add_months(start_month, i)})
         else:  # fixed
-            rows = [{"seq": 1, "method": "fixed", "label": "全額", "planned_amount": amount}]
+            rows = [{"seq": base_seq + 1, "method": "fixed", "label": "全額",
+                     "planned_amount": amount, "due_date": start_month}]
+
         out = [_insert_row(conn, "payment_schedules",
                            {**r, "contract_id": contract_id, "case_id": case_id, "status": "planned"})
                for r in rows]
@@ -818,6 +885,15 @@ def get_row(conn: sqlite3.Connection, table: str, row_id: int) -> dict[str, Any]
     if row is None:
         raise LookupError(f"{table} row {row_id} not found")
     return row
+
+
+def fetch_one(table: str, row_id: int) -> dict[str, Any] | None:
+    """單筆查詢（自開連線），找不到回 None。"""
+    with connect() as conn:
+        try:
+            return dict(get_row(conn, table, row_id))
+        except LookupError:
+            return None
 
 
 NULLABLE_FIELDS: dict[str, set[str]] = {

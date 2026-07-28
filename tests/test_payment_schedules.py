@@ -82,3 +82,71 @@ def test_expense_can_link_back_to_schedule(tmp_path):
         })
         assert r.status_code == 201, r.text
         assert r.json()["data"]["payment_schedule_id"] == sched[0]["id"]
+
+
+def test_periodic_dates_cross_year(tmp_path):
+    """週期月租(每季) 100萬分4期＝25萬/季，從 2026-06 起 → 第4期落在 2027，跨年度。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        ct = _contract(client, "PS-Q", 1_000_000)
+        out = store.generate_payment_schedules(
+            ct["id"], "periodic", 4, start_month="2026-06", frequency="quarterly")
+        assert [round(s["planned_amount"]) for s in out] == [250000, 250000, 250000, 250000]
+        assert [s["due_date"] for s in out] == ["2026-06", "2026-09", "2026-12", "2027-03"]
+        # 跨年度：前 3 期屬 2026、第 4 期屬 2027（預算按 due_date 年度歸屬）
+        years = [s["due_date"][:4] for s in out]
+        assert years.count("2026") == 3 and years.count("2027") == 1
+
+
+def test_remainder_first_vs_last(tmp_path):
+    """除不盡零頭：可選放第一期或最後期，加總必等於合約總額。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        ct = _contract(client, "PS-R", 1_000_000)
+        last = store.generate_payment_schedules(ct["id"], "installment", 3, remainder_on="last")
+        assert round(sum(s["planned_amount"] for s in last), 2) == 1_000_000
+        assert last[-1]["planned_amount"] > last[0]["planned_amount"]  # 零頭在最後
+        store.clear_payment_schedules(ct["id"])
+        first = store.generate_payment_schedules(ct["id"], "installment", 3, remainder_on="first")
+        assert round(sum(s["planned_amount"] for s in first), 2) == 1_000_000
+        assert first[0]["planned_amount"] > first[-1]["planned_amount"]  # 零頭在第一
+
+
+def test_settle_marks_paid_and_blocks_regen(tmp_path):
+    """標某期已付＝建 closed 付款回指排程、排程轉 paid、還欠下降；之後不准整個重產。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        ct = _contract(client, "PS-SET", 1_000_000)
+        gen = client.post(f"/api/contracts/{ct['id']}/payment-schedules/generate",
+                          json={"method": "installment", "count": 4, "start_month": "2026-08"})
+        assert gen.status_code == 201, gen.text
+        first_id = gen.json()["data"]["schedules"][0]["id"]
+
+        r = client.post(f"/api/settle-schedule/{first_id}", json={})
+        assert r.status_code == 201, r.text
+        summary = r.json()["data"]["summary"]
+        assert summary["paid"] == 250000
+        assert summary["unpaid_planned"] == 750000  # 還欠 75 萬
+
+        # 已有核銷回填 → 整個重產要被擋（400）
+        blocked = client.post(f"/api/contracts/{ct['id']}/payment-schedules/generate",
+                              json={"method": "installment", "count": 2, "clear": True})
+        assert blocked.status_code == 400, blocked.text
+
+
+def test_settle_forbidden_for_handler(tmp_path):
+    """標已付僅主管/助理；承辦(handler=ap03) 被擋 403。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        ct = _contract(client, "PS-PERM", 500_000)
+        gen = client.post(f"/api/contracts/{ct['id']}/payment-schedules/generate",
+                          json={"method": "installment", "count": 2})
+        sid = gen.json()["data"]["schedules"][0]["id"]
+        # 換成承辦登入
+        client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
+        r = client.post(f"/api/settle-schedule/{sid}", json={})
+        assert r.status_code == 403, r.text

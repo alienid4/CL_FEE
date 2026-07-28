@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+import app.store as store  # §8 付款排程等新函式用模組別名呼叫（既有 from-import 保留不動）
 from app.dev_console import console_status, run_console_command
 from app.notify import send_digests, send_test
 from app.seed_data import clear_demo_data, clear_test_data, demo_counts, load_demo_data, test_data_counts
@@ -214,6 +215,45 @@ class PaymentIn(BaseModel):
     def _amount_default(cls, v: float | None) -> float:
         # 前端金額留空會送 null；視為 0，避免使用者不填未稅/稅額就存不進去（同 ContractIn 慣例）
         return 0.0 if v is None else v
+
+
+# ── §8 預計付款排程 ──
+class ScheduleGenerateIn(BaseModel):
+    method: str  # fixed / installment / periodic / milestone
+    count: int = 1                      # 期數（installment/periodic）
+    percents: list[float] = []          # 各期%（milestone）
+    remainder_on: str = "last"          # 零頭放 first/last 期
+    start_month: str = ""               # 'YYYY-MM'，自動帶預計付款日
+    frequency: str = "monthly"          # monthly/quarterly/yearly（periodic 用）
+    base_amount: float | None = None    # 只分這個金額（「把剩餘分N期」用）
+    clear: bool = True                  # 先清既有排程再產
+
+
+class ScheduleRowIn(BaseModel):
+    contract_id: int
+    case_id: int | None = None
+    seq: int = 0
+    label: str = ""
+    method: str = "manual"
+    planned_amount: float = 0
+    percent: float = 0
+    due_date: str = ""
+    status: str = "planned"
+    note: str = ""
+
+
+class ScheduleRowPatch(BaseModel):
+    seq: int | None = None
+    label: str | None = None
+    planned_amount: float | None = None
+    due_date: str | None = None
+    status: str | None = None
+    note: str | None = None
+
+
+class SettleIn(BaseModel):
+    payment_month: str = ""
+    amount: float | None = None
 
 
 class PaymentPatch(BaseModel):
@@ -648,7 +688,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.43.0 · 2026-07-27 · §8 付款拆分地基：新增 payment_schedules 表（預計付款排程），與 payments（實際費用/核銷）分離並可回指關聯；合約加付款方式欄位、可依方式自動產生排程（固定期數/里程碑%），里程碑比例合計須=100；contract_payment_summary 算預計vs實際不重複計算。純加法未動既有 183 處引用"
+BACKEND_BUILD = "v0.44.0 · 2026-07-27 · §8 付款排程 UI：合約列開整合面板，選付款方式(分期/週期月租/里程碑/一次)→自動產排程(零頭可選首末期、跨年帶日期)→逐期可改→標已付(限主管助理)→底下 預計/已付/還欠。已付擋重產、加總對帳"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -656,7 +696,8 @@ def pilot_passwordless() -> bool:
     return os.getenv("PILOT_PASSWORDLESS", "0") == "1"
 
 AUTH_COOKIE_NAME = "ai_fee_user"
-HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console")  # 承辦不得使用（稽核/匯入/開發者控制台，含 demo-data）
+HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console",
+                              "/api/settle-schedule")  # 承辦不得使用（稽核/匯入/開發者控制台；標已付僅主管/助理）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
     "ap01": {
         "username": "ap01",
@@ -1463,6 +1504,59 @@ def create_app() -> FastAPI:
     @app.delete("/api/contracts/{contract_id}", status_code=204)
     def delete_contract(contract_id: int) -> None:
         handle_delete("contracts", contract_id)
+
+    # ── §8 預計付款排程（Payment Schedule）：與實際核銷(payments)分離的預計付款層 ──
+    @app.get("/api/contracts/{contract_id}/payment-schedules")
+    def list_schedules(contract_id: int) -> dict[str, Any]:
+        return ok({
+            "schedules": store.list_payment_schedules(contract_id),
+            "summary": store.contract_payment_summary(contract_id),
+            "locked": store.contract_has_linked_payment(contract_id),  # 已有核銷回填→不准整個重產
+        })
+
+    @app.post("/api/contracts/{contract_id}/payment-schedules/generate", status_code=201)
+    def gen_schedules(contract_id: int, payload: ScheduleGenerateIn) -> dict[str, Any]:
+        try:
+            if payload.clear:
+                store.clear_payment_schedules(contract_id)
+            spec = payload.percents if payload.method == "milestone" else payload.count
+            store.generate_payment_schedules(
+                contract_id, payload.method, spec,
+                remainder_on=payload.remainder_on, start_month=payload.start_month,
+                frequency=payload.frequency, base_amount=payload.base_amount,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return list_schedules(contract_id)
+
+    @app.post("/api/payment-schedules", status_code=201)
+    def add_schedule(payload: ScheduleRowIn) -> dict[str, Any]:
+        # 手動加一列（訂金/加扣款等特殊款項）
+        return handle_create("payment_schedules", payload.model_dump(exclude_unset=True))
+
+    @app.patch("/api/payment-schedules/{schedule_id}")
+    def patch_schedule(schedule_id: int, payload: ScheduleRowPatch) -> dict[str, Any]:
+        return handle_change("payment_schedules", schedule_id, payload.model_dump(exclude_unset=True))
+
+    @app.delete("/api/payment-schedules/{schedule_id}", status_code=204)
+    def del_schedule(schedule_id: int) -> None:
+        handle_delete("payment_schedules", schedule_id)
+
+    @app.post("/api/settle-schedule/{schedule_id}", status_code=201)
+    def settle_schedule(schedule_id: int, payload: SettleIn) -> dict[str, Any]:
+        # 標某期「已付」＝建一筆實際核銷(payments, status=closed)回指該排程，並把排程標 paid。
+        # 僅主管/助理可用（承辦被 HANDLER_FORBIDDEN_PREFIXES 擋）。
+        sched = store.fetch_one("payment_schedules", schedule_id)
+        if sched is None:
+            raise HTTPException(status_code=404, detail="找不到這期排程。")
+        amount = payload.amount if payload.amount is not None else float(sched["planned_amount"] or 0)
+        month = payload.payment_month or (sched.get("due_date") or "")
+        pay = store.insert_row("payments", {
+            "contract_id": sched["contract_id"], "payment_month": month,
+            "payment_amount": amount, "status": "closed", "payment_schedule_id": schedule_id,
+        })
+        store.update_row("payment_schedules", schedule_id, {"status": "paid"})
+        return ok({"payment": pay, "summary": store.contract_payment_summary(sched["contract_id"])})
 
     @app.post("/api/payments", status_code=201)
     def create_payment(payload: PaymentIn) -> dict[str, Any]:

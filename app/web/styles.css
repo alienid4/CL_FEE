@@ -1745,3 +1745,27 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 #unit-bva th.num, #unit-bva td.num, #vendor-amt th.num, #vendor-amt td.num { width: 1%; white-space: nowrap; }
 /* 提示橫幅（CIO「自上次查看以來」變動摘要等）：淺綠底、與內容區隔但不搶焦點 */
 .callout { background: var(--accent-weak); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; font-size: .88rem; color: var(--ink-2, #333); }
+
+/* §8 付款排程面板（合約列「付款排程」展開）——預計 vs 實際、還欠多少一頁看 */
+.schedule-panel { margin-top:14px; border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:var(--surface-2); }
+.sched-head { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.sched-head .sched-close { margin-left:auto; }
+.sched-gen { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed var(--line); }
+.sched-gen label { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color:var(--ink-2); }
+.sched-gen input, .sched-gen select { padding:4px 6px; }
+.sched-gen input[data-sched-count] { width:4rem; }
+.sched-table { width:100%; margin-bottom:8px; }
+.sched-table th, .sched-table td { padding:5px 8px; vertical-align:middle; }
+.sched-in { width:100%; padding:3px 5px; box-sizing:border-box; }
+.sched-in.num { text-align:right; }
+.sched-in.sched-label { min-width:7rem; }
+.sched-paid { opacity:.72; }
+.sched-ops { white-space:nowrap; }
+.sched-extra { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:8px 0; font-size:.84rem; }
+.sched-check { font-size:.82rem; margin:6px 0; }
+.sched-check.ok { color:var(--ok); }
+.sched-check.bad { color:var(--danger); font-weight:600; }
+.sched-summary { margin-top:8px; padding-top:10px; border-top:2px solid var(--accent); font-size:.98rem; }
+.sched-summary b { font-variant-numeric:tabular-nums; }
+.sched-summary .owe { color:var(--danger); }
+.sched-summary .paid { color:var(--ok); }

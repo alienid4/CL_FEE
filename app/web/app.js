@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.43.0 · 2026-07-27 · §8 付款拆分地基（後端資料模型）";
+const BUILD_TAG = "v0.44.0 · 2026-07-27 · §8 付款排程整合面板（前端）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -202,6 +202,7 @@ const resourceConfig = {
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
       { label: "到期日", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.end_date))}</span>` },
       { label: "狀態", cell: (i) => statusChip(i.status) },
+      { label: "付款排程", cell: (i) => `<button type="button" class="secondary btn-sm" data-schedule="${i.id}">預計/實際</button>` },
     ],
   },
   payment: {
@@ -741,6 +742,175 @@ document.querySelector("#budgets")?.addEventListener("change", async (event) => 
     });
     await loadResource("budget");  // 重載→系統編號就出現
   } catch (error) { window.alert(`歸戶失敗：${error.message}`); }
+});
+
+// ── §8 付款排程面板：預計付款排程 vs 實際核銷，一頁看「還欠多少」 ──
+// 合約列點「付款排程」→ 就地展開：選付款方式→產生排程→逐期可改→標已付→底下顯示 預計/已付/還欠。
+async function loadPaymentSchedules(cid) {
+  const box = document.querySelector("#contract-schedule-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.dataset.cid = cid;
+  box.innerHTML = `<p class="muted">載入付款排程…</p>`;
+  try {
+    const res = (await api(`/api/contracts/${cid}/payment-schedules`)).data;
+    const ct = (resourceCaches.contract || []).find((c) => String(c.id) === String(cid)) || {};
+    box.innerHTML = renderSchedulePanel(cid, ct, res);
+    syncSchedMethodUI(box);
+  } catch (e) {
+    box.innerHTML = `<p class="error">付款排程載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+function syncSchedMethodUI(box) {
+  const sel = box.querySelector("[data-sched-method]");
+  if (!sel) return;
+  const m = sel.value;
+  box.querySelectorAll("[data-when]").forEach((el) => {
+    el.style.display = el.getAttribute("data-when").split(" ").includes(m) ? "" : "none";
+  });
+}
+
+function renderSchedulePanel(cid, ct, res) {
+  const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
+  const canSettle = currentUser && ["manager_assistant", "admin"].includes(currentUser.role_code);
+  const scheds = res.schedules || [];
+  const sum = res.summary || { planned: 0, paid: 0, unpaid_planned: 0 };
+  const locked = !!res.locked;
+  const total = Number(ct.amount || 0);
+  const schedTotal = scheds.reduce((s, x) => s + Number(x.planned_amount || 0), 0);
+  const mismatch = scheds.length > 0 && Math.round(schedTotal) !== Math.round(total);
+
+  const gen = editable ? `
+    <div class="sched-gen">
+      <label>付款方式 <select data-sched-method>
+        <option value="installment">分期付款</option>
+        <option value="periodic">週期（月租/季租）</option>
+        <option value="milestone">里程碑 %</option>
+        <option value="fixed">一次付清</option></select></label>
+      <label data-when="installment periodic">期數 <input type="number" min="1" value="4" data-sched-count></label>
+      <label data-when="periodic">週期 <select data-sched-freq>
+        <option value="monthly">每月</option><option value="quarterly">每季</option><option value="yearly">每年</option></select></label>
+      <label data-when="milestone">各期%（逗號分隔）<input type="text" placeholder="30,30,40" data-sched-pcts></label>
+      <label>起始月 <input type="month" data-sched-start></label>
+      <label data-when="installment periodic milestone">零頭 <select data-sched-rem>
+        <option value="last">放最後期</option><option value="first">放第一期</option></select></label>
+      <button type="button" class="btn-sm" data-sched-gen="${cid}"${locked ? " disabled title='已有核銷回填，不能整個重產'" : ""}>產生排程</button>
+    </div>` : "";
+
+  const rows = scheds.length ? scheds.map((s) => {
+    const paid = s.status === "paid";
+    const amt = editable && !paid
+      ? `<input class="sched-in num" type="number" value="${Number(s.planned_amount || 0)}" data-sched-edit="planned_amount" data-sid="${s.id}">`
+      : `${money(s.planned_amount)} 元`;
+    const due = editable && !paid
+      ? `<input class="sched-in" type="month" value="${escapeHtml(s.due_date || "")}" data-sched-edit="due_date" data-sid="${s.id}">`
+      : escapeHtml(valueOrDash(s.due_date));
+    const label = editable && !paid
+      ? `<input class="sched-in sched-label" type="text" value="${escapeHtml(s.label || "")}" data-sched-edit="label" data-sid="${s.id}">`
+      : escapeHtml(s.label);
+    const settle = (canSettle && !paid) ? `<button type="button" class="btn-sm" data-sched-settle="${s.id}">標已付</button>` : "";
+    const del = (editable && !paid) ? `<button type="button" class="btn-sm danger" data-sched-del="${s.id}">刪</button>` : "";
+    return `<tr class="${paid ? "sched-paid" : ""}"><td>${label}</td><td class="num">${amt}</td><td>${due}</td>`
+      + `<td>${paid ? '<span class="chip done">已付</span>' : '<span class="chip todo">待付</span>'}</td>`
+      + `<td class="sched-ops">${settle} ${del}</td></tr>`;
+  }).join("") : `<tr><td colspan="5" class="muted">尚無排程——選付款方式按「產生排程」，或手動加列。</td></tr>`;
+
+  const extra = editable ? `
+    <div class="sched-extra">
+      <button type="button" class="btn-sm" data-sched-add="${cid}">＋ 手動加一列</button>
+      <span class="sched-split">把剩餘分 <input type="number" min="1" value="1" data-sched-split-n> 期
+        <button type="button" class="btn-sm" data-sched-split="${cid}">分配</button></span>
+    </div>` : "";
+
+  return `<div class="sched-head"><strong>付款排程</strong>　<span class="muted">${escapeHtml(ct.contract_name || "")}　合約總額 ${money(total)} 元</span>`
+    + `<button type="button" class="btn-sm secondary sched-close" data-sched-close>收起</button></div>`
+    + gen
+    + `<table class="grid-table sched-table"><thead><tr><th>期別/名目</th><th class="num">預計金額</th><th>預計付款日</th><th>狀態</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`
+    + extra
+    + `<div class="sched-check ${mismatch ? "bad" : "ok"}">各期加總 ${money(schedTotal)} 元 ${mismatch ? `≠ 合約總額 ${money(total)} 元 ⚠ 對不上` : "＝ 合約總額 ✓"}</div>`
+    + `<div class="sched-summary">預計 <b>${money(sum.planned)}</b> 元　｜　已付 <b class="paid">${money(sum.paid)}</b> 元　｜　還欠 <b class="owe">${money(sum.unpaid_planned)}</b> 元</div>`;
+}
+
+function readSchedGen(box) {
+  const method = box.querySelector("[data-sched-method]").value;
+  const body = { method, remainder_on: (box.querySelector("[data-sched-rem]")?.value) || "last",
+                 start_month: box.querySelector("[data-sched-start]").value || "" };
+  if (method === "milestone") {
+    body.percents = (box.querySelector("[data-sched-pcts]").value || "")
+      .split(",").map((x) => Number(x.trim())).filter((x) => !Number.isNaN(x));
+  } else {
+    body.count = Number(box.querySelector("[data-sched-count]")?.value || 1);
+    if (method === "periodic") body.frequency = box.querySelector("[data-sched-freq]").value;
+  }
+  return body;
+}
+
+// 合約列「付款排程」按鈕 → 展開面板
+document.querySelector("#contracts")?.addEventListener("click", (event) => {
+  const b = event.target.closest("[data-schedule]");
+  if (b) loadPaymentSchedules(b.getAttribute("data-schedule"));
+});
+
+// 面板內所有操作（產生/標已付/刪/加列/分剩餘/收起）
+document.querySelector("#contract-schedule-panel")?.addEventListener("click", async (event) => {
+  const box = document.querySelector("#contract-schedule-panel");
+  const cid = box.dataset.cid;
+  const t = event.target.closest("button");
+  if (!t) return;
+  try {
+    if (t.hasAttribute("data-sched-close")) { box.hidden = true; return; }
+    if (t.hasAttribute("data-sched-gen")) {
+      await api(`/api/contracts/${cid}/payment-schedules/generate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...readSchedGen(box), clear: true }) });
+      return loadPaymentSchedules(cid);
+    }
+    if (t.hasAttribute("data-sched-settle")) {
+      await api(`/api/settle-schedule/${t.getAttribute("data-sched-settle")}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      return loadPaymentSchedules(cid);
+    }
+    if (t.hasAttribute("data-sched-del")) {
+      await api(`/api/payment-schedules/${t.getAttribute("data-sched-del")}`, { method: "DELETE" });
+      return loadPaymentSchedules(cid);
+    }
+    if (t.hasAttribute("data-sched-add")) {
+      await api(`/api/payment-schedules`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contract_id: Number(cid), label: "新項目", planned_amount: 0 }) });
+      return loadPaymentSchedules(cid);
+    }
+    if (t.hasAttribute("data-sched-split")) {
+      const res = (await api(`/api/contracts/${cid}/payment-schedules`)).data;
+      const schedTotal = (res.schedules || []).reduce((s, x) => s + Number(x.planned_amount || 0), 0);
+      const ct = (resourceCaches.contract || []).find((c) => String(c.id) === String(cid)) || {};
+      const residual = Number(ct.amount || 0) - schedTotal;
+      const n = Number(box.querySelector("[data-sched-split-n]").value || 1);
+      if (residual <= 0) { window.alert("沒有剩餘可分配（各期加總已達或超過合約總額）。"); return; }
+      await api(`/api/contracts/${cid}/payment-schedules/generate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: "installment", count: n, base_amount: residual, clear: false,
+                               start_month: box.querySelector("[data-sched-start]").value || "" }) });
+      return loadPaymentSchedules(cid);
+    }
+  } catch (e) { window.alert(e.message); }
+});
+
+// 面板內：付款方式切換（顯示對應欄位）、逐期就地改（金額/日期/名目）
+document.querySelector("#contract-schedule-panel")?.addEventListener("change", async (event) => {
+  const box = document.querySelector("#contract-schedule-panel");
+  if (event.target.matches("[data-sched-method]")) { syncSchedMethodUI(box); return; }
+  const edit = event.target.closest("[data-sched-edit]");
+  if (edit) {
+    const field = edit.getAttribute("data-sched-edit");
+    let val = edit.value;
+    if (field === "planned_amount") val = Number(val);
+    try {
+      await api(`/api/payment-schedules/${edit.getAttribute("data-sid")}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ [field]: val }) });
+      loadPaymentSchedules(box.dataset.cid);  // 重載→更新加總檢查與還欠
+    } catch (e) { window.alert(e.message); }
+  }
 });
 
 // 點預算列的「比較」→ 讀衍生資料展開；收起清空
