@@ -3414,6 +3414,16 @@ def case_360(case_id: int) -> dict[str, Any]:
         projects = conn.execute("SELECT * FROM projects WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
         signoffs = conn.execute("SELECT * FROM signoffs WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
         purchases = conn.execute("SELECT * FROM purchases WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
+        # §8：全案付款彙總＝這案子「花多少、欠多少」的核心數字（主管一頁看完的重點）。
+        # 預計走付款排程、已付走實際核銷(closed)，兩者不重複計算（見需求書 §8）。
+        planned_total = float(conn.execute(
+            "SELECT COALESCE(SUM(ps.planned_amount),0) AS s FROM payment_schedules ps "
+            "JOIN contracts c ON c.id = ps.contract_id "
+            "WHERE c.case_id = ? AND ps.status <> 'cancelled'", (case_id,)).fetchone()["s"])
+        paid_total = float(conn.execute(
+            "SELECT COALESCE(SUM(CASE WHEN p.status='closed' THEN p.payment_amount ELSE 0 END),0) AS s "
+            "FROM payments p JOIN contracts c ON c.id = p.contract_id WHERE c.case_id = ?",
+            (case_id,)).fetchone()["s"])
         return {
             "case": case,
             "contracts": contracts,
@@ -3430,6 +3440,10 @@ def case_360(case_id: int) -> dict[str, Any]:
                 "budget_amount": sum(row["amount"] for row in budgets),
                 "signoff_amount": sum(row["amount"] for row in signoffs),
                 "purchase_amount": sum(row["amount"] for row in purchases),
+                # §8 核心：預計付款總額 / 已付 / 還欠
+                "planned_total": planned_total,
+                "paid_total": paid_total,
+                "unpaid_planned": max(0.0, planned_total - paid_total),
             },
         }
 

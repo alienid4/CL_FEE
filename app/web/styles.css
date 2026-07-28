@@ -1769,3 +1769,12 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .sched-summary b { font-variant-numeric:tabular-nums; }
 .sched-summary .owe { color:var(--danger); }
 .sched-summary .paid { color:var(--ok); }
+
+/* Case 360「一頁看完花多少/欠多少」金額摘要（追溯鏈頂部） */
+.case-money { display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 16px; }
+.case-money .cm-item { flex:1 1 130px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:flex; flex-direction:column; gap:3px; }
+.case-money .cm-item.cm-owe { border-color:var(--danger); background:var(--danger-bg, #fbe9e6); }
+.case-money .cm-k { font-size:.74rem; color:var(--ink-3); }
+.case-money .cm-v { font-size:1.05rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.case-money .cm-v.paid { color:var(--ok); }
+.case-money .cm-v.owe { color:var(--danger); }

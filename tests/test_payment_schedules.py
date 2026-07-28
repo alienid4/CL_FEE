@@ -173,3 +173,26 @@ def test_cio_overview_cross_year_payable(tmp_path):
         assert data["payable_planned"] == 1_000_000       # 待付款＝預計未付總額
         assert data["payable_by_year"]["2026"] == 750_000  # 今年 3 期
         assert data["payable_by_year"]["2027"] == 250_000  # 明年 1 期
+
+
+def test_case_360_shows_planned_paid_owed(tmp_path):
+    """Case 360 全案彙總：預計付款(排程)/已付(核銷)/還欠，主管一頁看完花多少、欠多少。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        case = client.post("/api/cases", json={"case_code": "C360", "title": "青埔"}).json()["data"]
+        client.post(f"/api/cases/{case['id']}/submit")
+        client.post("/api/auth/login", json={"username": "ap04", "password": "T3st!Pass"})
+        client.post(f"/api/cases/{case['id']}/approve")
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
+        ct = client.post("/api/contracts", json={
+            "contract_code": "K360", "contract_name": "合約", "amount": 1_000_000, "case_id": case["id"]}).json()["data"]
+        gen = client.post(f"/api/contracts/{ct['id']}/payment-schedules/generate",
+                          json={"method": "installment", "count": 4}).json()["data"]
+        for sid in [s["id"] for s in gen["schedules"][:2]]:  # 付掉 2 期＝50萬
+            client.post(f"/api/settle-schedule/{sid}", json={})
+
+        t = client.get(f"/api/cases/{case['id']}/360").json()["data"]["totals"]
+        assert t["planned_total"] == 1_000_000
+        assert t["paid_total"] == 500_000
+        assert t["unpaid_planned"] == 500_000  # 還欠 50 萬

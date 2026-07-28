@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.46.0 · 2026-07-27 · 系統編號 12 碼無連字號(功能碼+西元年+流水號)";
+const BUILD_TAG = "v0.47.0 · 2026-07-27 · Case 360 花多少/欠多少摘要";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1793,6 +1793,12 @@ async function loadCaseTrace(caseId) {
           <button type="button" class="secondary btn-sm" id="trace-close">收起</button>
         </div>
         <p class="muted">點項目可直接編輯，或用「＋新增」補齊缺的階段。</p>
+        <div class="case-money">
+          <div class="cm-item"><span class="cm-k">合約總額</span><span class="cm-v">${money(t.contract_amount)} 元</span></div>
+          <div class="cm-item"><span class="cm-k">預計付款</span><span class="cm-v">${money(t.planned_total)} 元</span></div>
+          <div class="cm-item"><span class="cm-k">已付</span><span class="cm-v paid">${money(t.paid_total)} 元</span></div>
+          <div class="cm-item cm-owe"><span class="cm-k">還欠</span><span class="cm-v owe">${money(t.unpaid_planned)} 元</span></div>
+        </div>
         <div class="trace-chain">
           ${chip("預算", n(d.budgets), t.budget_amount)}<span class="trace-arrow">▸</span>
           ${chip("專案", n(d.projects), null)}<span class="trace-arrow">▸</span>
