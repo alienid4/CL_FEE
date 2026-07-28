@@ -150,3 +150,26 @@ def test_settle_forbidden_for_handler(tmp_path):
         client.post("/api/auth/login", json={"username": "ap03", "password": "T3st!Pass"})
         r = client.post(f"/api/settle-schedule/{sid}", json={})
         assert r.status_code == 403, r.text
+
+
+def test_cio_overview_cross_year_payable(tmp_path):
+    """跨年度：季付合約 100萬從 2026-06 起 → 2026 收 3 期(75萬)、2027 收 1 期(25萬)。
+    決策總覽的待付款按年度拆，各由該年度預算支付（需求書 §9＋使用者確認）。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        case = client.post("/api/cases", json={"case_code": "CY-1", "title": "跨年合約"}).json()["data"]
+        # 雙人複核：ap02 送出 → ap04 核准 → 切回 ap02
+        client.post(f"/api/cases/{case['id']}/submit")
+        client.post("/api/auth/login", json={"username": "ap04", "password": "T3st!Pass"})
+        client.post(f"/api/cases/{case['id']}/approve")
+        client.post("/api/auth/login", json={"username": "ap02", "password": "T3st!Pass"})
+        ct = client.post("/api/contracts", json={
+            "contract_code": "CY-CT", "contract_name": "季付合約",
+            "amount": 1_000_000, "case_id": case["id"]}).json()["data"]
+        store.generate_payment_schedules(ct["id"], "periodic", 4, start_month="2026-06", frequency="quarterly")
+
+        data = client.get("/api/reports/cio-overview").json()["data"]
+        assert data["payable_planned"] == 1_000_000       # 待付款＝預計未付總額
+        assert data["payable_by_year"]["2026"] == 750_000  # 今年 3 期
+        assert data["payable_by_year"]["2027"] == 250_000  # 明年 1 期

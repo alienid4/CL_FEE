@@ -3099,12 +3099,55 @@ def cio_overview() -> dict[str, Any]:
                 overspent_count += 1
             upcoming.append(item)
 
+        # §8 預計付款排程（未付）＝真正的「待付款 / 下月預計付款 / 現金流」。實際核銷(payments)只
+        # 涵蓋已經核銷的，還沒核銷的預計得靠排程。跨年度預算歸屬也靠 due_date 的年份。
+        # 只算已核准案件、依 owner 範圍過濾（與上方口徑一致）。
+        sched_scope = " AND c.owner = ?" if scope is not None else ""
+
+        def _sched_sum(cond: str, extra: list[Any]) -> float:
+            params = ([scope] if scope is not None else []) + extra
+            return conn.execute(
+                "SELECT COALESCE(SUM(ps.planned_amount),0) AS s FROM payment_schedules ps "
+                "JOIN contracts k ON k.id = ps.contract_id JOIN cases c ON c.id = k.case_id "
+                f"WHERE ps.status <> 'paid' AND c.status='approved'{sched_scope} AND {cond}",
+                params,
+            ).fetchone()["s"]
+
+        payable_planned = _sched_sum("1=1", [])                          # 待付款＝所有預計未付
+        next_month_planned = _sched_sum("ps.due_date = ?", [next_month]) # 下月預計付款（來自排程）
+        this_month_planned = _sched_sum("ps.due_date = ?", [this_month])
+        planned_forecast = []
+        _y, _m = today.year, today.month
+        for _ in range(6):
+            _mon = f"{_y}-{_m:02d}"
+            planned_forecast.append({"month": _mon, "total": _sched_sum("ps.due_date = ?", [_mon])})
+            _m = 1 if _m == 12 else _m + 1
+            _y = _y + 1 if _m == 1 else _y
+
+        # 跨年度：待付款按「預計付款日的年份」拆（100萬季付跨年→75萬算今年、25萬算明年，
+        # 各由該年度預算支付）。前端可據此顯示各年度要準備的資金。
+        _year_rows = conn.execute(
+            "SELECT substr(ps.due_date,1,4) AS yr, COALESCE(SUM(ps.planned_amount),0) AS s "
+            "FROM payment_schedules ps JOIN contracts k ON k.id=ps.contract_id "
+            "JOIN cases c ON c.id=k.case_id "
+            f"WHERE ps.status <> 'paid' AND c.status='approved'{sched_scope} AND ps.due_date <> '' "
+            "GROUP BY yr ORDER BY yr",
+            ([scope] if scope is not None else []),
+        ).fetchall()
+        payable_by_year = {r["yr"]: float(r["s"]) for r in _year_rows}
+
     return {
         "this_month": this_month,
         "next_month": next_month,
         "next_month_total": next_month_total,
         "this_month_total": this_month_total,
         "funds_to_prepare": funds_to_prepare,
+        # §8 排程口徑（預計未付）——待付款、下月預計、現金流用這個才完整
+        "payable_planned": payable_planned,
+        "next_month_planned": next_month_planned,
+        "this_month_planned": this_month_planned,
+        "planned_forecast": planned_forecast,
+        "payable_by_year": payable_by_year,
         "unplanned_next_month": unplanned_total,  # 下月「預算外/計畫外」金額
         "overspent_count": overspent_count,       # 下月清單中超支案件數
         "forecast": forecast,                     # 未來 6 個月現金流

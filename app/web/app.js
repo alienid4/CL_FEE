@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.44.0 · 2026-07-27 · §8 付款排程整合面板（前端）";
+const BUILD_TAG = "v0.45.0 · 2026-07-27 · §8 決策總覽接排程(待付款/下月預計/跨年度)";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2778,22 +2778,30 @@ async function loadCioOverview() {
   const d = payload.data || {};
   const unplanned = d.unplanned_next_month || 0;
   const planned = Math.max(0, (d.next_month_total || 0) - unplanned);
+  // §8：待付款＝預計未付、下月預計付款＝來自付款排程（比只看已核銷的 payments 完整）
+  const payableYear = d.payable_by_year || {};
+  const yearLine = Object.keys(payableYear).length
+    ? `<p class="cio-year-line muted">各年度待付（依預計付款日歸屬）：${Object.entries(payableYear)
+        .map(([y, v]) => `${y} <b>${money(v)}</b> 元`).join("　｜　")}</p>`
+    : "";
   cioMetrics.innerHTML = [
-    metric("下月應付", `${money(d.next_month_total)} 元`),
-    metric("要準備的資金", `${money(d.funds_to_prepare)} 元`),
+    metric("待付款（預計未付）", `${money(d.payable_planned || 0)} 元`),
+    metric("下月預計付款", `${money(d.next_month_planned || 0)} 元`),
     metric("本月應付", `${money(d.this_month_total)} 元`),
     metric("下月預算外", `${money(unplanned)} 元`),
-  ].join("");
+  ].join("") + yearLine;
   const cioCharts = document.querySelector("#cio-charts");
   if (cioCharts) {
     const planSeg = [
       { label: "計畫內（有預算）", value: planned, color: CHART_COLORS[1], text: `${money(planned)} 元` },
       { label: "預算外（無對應預算）", value: unplanned, color: CHART_COLORS[3], text: `${money(unplanned)} 元` },
     ];
-    const flow = (d.forecast || []).map((f, i) => ({ label: f.month.slice(5), value: f.total || 0, color: i === 0 ? CHART_COLORS[6] : CHART_COLORS[0] }));
+    // 現金流用付款排程的預計（planned_forecast）——預計未付才是未來要出的錢；沒有排程時退回舊口徑
+    const flowSrc = (d.planned_forecast && d.planned_forecast.length) ? d.planned_forecast : (d.forecast || []);
+    const flow = flowSrc.map((f, i) => ({ label: f.month.slice(5), value: f.total || 0, color: i === 0 ? CHART_COLORS[6] : CHART_COLORS[0] }));
     cioCharts.innerHTML =
       chartCard("下月支出：計畫內 vs 預算外", donutSVG(planSeg, { center: unplanned > 0 ? "留意" : "OK" }) + chartLegend(planSeg)) +
-      chartCard("未來 6 個月應付現金流", flow.length ? barsSVG(flow, { width: 340 }) : `<p class="muted">尚無資料</p>`);
+      chartCard("未來 6 個月預計付款現金流", flow.length ? barsSVG(flow, { width: 340 }) : `<p class="muted">尚無資料</p>`);
   }
   if (cioNextMonthLabel) cioNextMonthLabel.textContent = d.next_month ? `付款月份：${d.next_month}` : "";
   const rows = d.upcoming_next_month || [];
