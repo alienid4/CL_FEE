@@ -1770,6 +1770,16 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .sched-summary .owe { color:var(--danger); }
 .sched-summary .paid { color:var(--ok); }
 
+/* §10 費用調整面板：增減用紅綠區分，表單跟排程面板同一套視覺 */
+.adj-form { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; margin:10px 0 6px;
+  padding-top:12px; border-top:1px dashed var(--line); }
+.adj-form label { display:flex; flex-direction:column; gap:3px; font-size:.78rem; color:var(--ink-2); }
+.adj-form input { padding:4px 6px; }
+.adj-form .adj-reason input { min-width:16rem; }
+.adj-hint { font-size:.78rem; margin:2px 0 8px; }
+.adj-up { color:var(--danger); }    /* 加錢＝要多付，用警示色 */
+.adj-down { color:var(--ok); }      /* 減錢＝少付 */
+
 /* Case 360「一頁看完花多少/欠多少」金額摘要（追溯鏈頂部） */
 .case-money { display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 16px; }
 .case-money .cm-item { flex:1 1 130px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; display:flex; flex-direction:column; gap:3px; }

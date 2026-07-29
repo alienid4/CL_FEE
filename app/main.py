@@ -233,6 +233,14 @@ class PaymentIn(BaseModel):
 
 
 # ── §8 預計付款排程 ──
+class AdjustmentIn(BaseModel):
+    # §10 費用調整：只需給「調整後金額」，舊值由系統取合約現值，避免前端傳錯造成差額算錯
+    new_amount: float
+    effective_date: str = ""   # 從哪天起適用（如電費調價生效日）
+    reason: str = ""           # 調整原因（機櫃增加 2 台 / 電價調漲…）
+    note: str = ""
+
+
 class ScheduleGenerateIn(BaseModel):
     method: str  # fixed / installment / periodic / milestone
     count: int = 1                      # 期數（installment/periodic）
@@ -706,7 +714,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.50.0 · 2026-07-28 · 到期提醒分階段：合約/保固/維護三種到期日一起按 已過期/7/30/60/90 天分五格，點格過濾；CIO 決策總覽帶到期待處理筆數"
+BACKEND_BUILD = "v0.51.0 · 2026-07-29 · §10 合約費用調整：機櫃增減/電價調漲不蓋掉原金額，每次調整留一筆（生效日/原因/從多少到多少/誰調的），合約金額變現值、歷史可查、寫稽核"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1523,6 +1531,21 @@ def create_app() -> FastAPI:
     @app.delete("/api/contracts/{contract_id}", status_code=204)
     def delete_contract(contract_id: int) -> None:
         handle_delete("contracts", contract_id)
+
+    # ── §10 合約費用調整（原始案例：機櫃電力費調價）：留歷史，不蓋掉原金額 ──
+    @app.get("/api/contracts/{contract_id}/adjustments")
+    def list_adjustments(contract_id: int) -> dict[str, Any]:
+        return ok(store.contract_adjustment_summary(contract_id))
+
+    @app.post("/api/contracts/{contract_id}/adjustments", status_code=201)
+    def add_adjustment(contract_id: int, payload: AdjustmentIn) -> dict[str, Any]:
+        try:
+            store.add_contract_adjustment(
+                contract_id, payload.new_amount, effective_date=payload.effective_date,
+                reason=payload.reason, note=payload.note)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return list_adjustments(contract_id)
 
     @app.get("/api/contracts/{contract_id}/lineage")
     def contract_lineage(contract_id: int) -> dict[str, Any]:

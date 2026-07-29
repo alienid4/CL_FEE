@@ -119,6 +119,23 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 合約費用調整紀錄（需求書 §10，原始案例：中華電信板橋機櫃電力費調整）。
+-- 同一份合約中途改金額（機櫃增減、電費調價）不是新合約、也不能直接把 contracts.amount 蓋掉——
+-- 蓋掉就答不出「什麼時候、為什麼、從多少調到多少、誰調的」。改成每次調整留一筆，
+-- contracts.amount 永遠是「調整後的現值」，歷史在這張表。
+CREATE TABLE IF NOT EXISTS contract_adjustments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER NOT NULL,
+    effective_date TEXT NOT NULL DEFAULT '',
+    old_amount REAL NOT NULL DEFAULT 0,
+    new_amount REAL NOT NULL DEFAULT 0,
+    delta REAL NOT NULL DEFAULT 0,
+    reason TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 預計付款排程（Payment Schedule）＝合約約定「應該」付的排程（第幾期、預計金額、預計付款日）。
 -- 需求書 §8：與「實際費用 Expense＝payments 表」分開但關聯，避免同一筆金額在 Dashboard 重複計算。
 -- 一份合約可有多筆排程；method 決定金額怎麼算（固定金額/固定期數/週期/里程碑%）。
@@ -751,6 +768,61 @@ def create_case_wizard(
     }
 
 
+# ── §10 合約費用調整：同一份合約中途改金額（機櫃增減、電費調價）留下歷史，不蓋掉原值 ──
+def list_contract_adjustments(contract_id: int) -> list[dict[str, Any]]:
+    """某合約的費用調整歷史，新的在前。"""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM contract_adjustments WHERE contract_id = ? ORDER BY effective_date DESC, id DESC",
+            (contract_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def add_contract_adjustment(contract_id: int, new_amount: float, effective_date: str = "",
+                            reason: str = "", note: str = "") -> dict[str, Any]:
+    """記一筆費用調整：舊值自動取合約現值，算出差額，並把 contracts.amount 更新成調整後的值。
+    合約金額永遠是「現在多少錢」，「什麼時候為什麼從多少調到多少」查這張表。
+    調整紀錄不提供刪除（稽核用）——填錯就再調一次回去，兩筆都留著才看得出經過。"""
+    new_amount = float(new_amount)
+    with connect() as conn:
+        contract = conn.execute("SELECT * FROM contracts WHERE id = ?", (contract_id,)).fetchone()
+        if contract is None:
+            raise ValueError(f"合約 ID {contract_id} 不存在。")
+        old_amount = float(contract["amount"] or 0)
+        if round(new_amount, 2) == round(old_amount, 2):
+            raise ValueError("調整後金額與現值相同，沒有東西要記錄。")
+        row = _insert_row(conn, "contract_adjustments", {
+            "contract_id": contract_id,
+            "effective_date": str(effective_date or "").strip(),
+            "old_amount": old_amount,
+            "new_amount": new_amount,
+            "delta": round(new_amount - old_amount, 2),
+            "reason": str(reason or "").strip(),
+            "note": str(note or "").strip(),
+            "created_by": _current_actor.get(),
+        })
+        before = dict(contract)
+        conn.execute("UPDATE contracts SET amount = ? WHERE id = ?", (new_amount, contract_id))
+        after = get_row(conn, "contracts", contract_id)
+        write_audit_log(conn, "contracts", contract_id, "update", before, after)
+        return row
+
+
+def contract_adjustment_summary(contract_id: int) -> dict[str, Any]:
+    """調整摘要：調過幾次、最初金額、累計增減。沒調過就回 0 筆。"""
+    rows = list_contract_adjustments(contract_id)
+    if not rows:
+        return {"count": 0, "original_amount": None, "total_delta": 0.0, "items": []}
+    oldest = rows[-1]  # 依 effective_date DESC 排序，最後一筆＝最早那次調整
+    return {
+        "count": len(rows),
+        "original_amount": float(oldest["old_amount"]),
+        "total_delta": round(sum(float(r["delta"]) for r in rows), 2),
+        "items": rows,
+    }
+
+
 # ── §8 預計付款排程（Payment Schedule）：與實際費用(payments)分離的「預計付款」層 ──
 def list_payment_schedules(contract_id: int) -> list[dict[str, Any]]:
     """某合約的所有預計付款排程，依期別序排。"""
@@ -916,6 +988,8 @@ def allowed_fields() -> dict[str, set[str]]:
                      "settle_seq", "payment_schedule_id"},
         "payment_schedules": {"contract_id", "case_id", "seq", "label", "method", "planned_amount",
                               "percent", "due_date", "status", "note"},
+        "contract_adjustments": {"contract_id", "effective_date", "old_amount", "new_amount",
+                                 "delta", "reason", "note", "created_by"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
                     "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category",

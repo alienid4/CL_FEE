@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.50.0 · 2026-07-28 · 到期提醒分階段（合約/保固/維護 × 90/60/30/7）";
+const BUILD_TAG = "v0.51.0 · 2026-07-29 · §10 合約費用調整紀錄（機櫃/電費調價留歷史）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -206,6 +206,7 @@ const resourceConfig = {
       { label: "保固/維護到期", cell: (i) => warrantyCell(i) },
       { label: "狀態", cell: (i) => statusChip(i.status) },
       { label: "付款排程", cell: (i) => `<button type="button" class="secondary btn-sm" data-schedule="${i.id}">預計/實際</button>` },
+      { label: "費用調整", cell: (i) => `<button type="button" class="secondary btn-sm" data-adjust="${i.id}">調整紀錄</button>` },
     ],
   },
   payment: {
@@ -884,6 +885,92 @@ function renderSchedulePanel(cid, ct, res) {
     + `<div class="sched-check ${mismatch ? "bad" : "ok"}">各期加總 ${money(schedTotal)} 元 ${mismatch ? `≠ 合約總額 ${money(total)} 元 ⚠ 對不上` : "＝ 合約總額 ✓"}</div>`
     + `<div class="sched-summary">預計 <b>${money(sum.planned)}</b> 元　｜　已付 <b class="paid">${money(sum.paid)}</b> 元　｜　還欠 <b class="owe">${money(sum.unpaid_planned)}</b> 元</div>`;
 }
+
+// ── §10 費用調整面板：同一份合約中途改金額（機櫃增減、電費調價）留下歷史 ──
+// 合約金額欄永遠是「現在多少錢」，這裡回答「什麼時候、為什麼、從多少調到多少、誰調的」。
+// 調整紀錄不給刪（稽核）：填錯就再調一次回去，兩筆都留著才看得出經過。
+async function loadContractAdjustments(cid) {
+  const box = document.querySelector("#contract-adjust-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.dataset.cid = cid;
+  box.innerHTML = `<p class="muted">載入費用調整紀錄…</p>`;
+  try {
+    const res = (await api(`/api/contracts/${cid}/adjustments`)).data;
+    const ct = (resourceCaches.contract || []).find((c) => String(c.id) === String(cid)) || {};
+    box.innerHTML = renderAdjustPanel(cid, ct, res);
+  } catch (e) {
+    box.innerHTML = `<p class="error">費用調整紀錄載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+function renderAdjustPanel(cid, ct, res) {
+  const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
+  const items = res.items || [];
+  const current = Number(ct.amount || 0);
+
+  const rows = items.length ? items.map((a) => {
+    const up = Number(a.delta) > 0;
+    return `<tr><td>${escapeHtml(valueOrDash(a.effective_date))}</td>`
+      + `<td>${escapeHtml(valueOrDash(a.reason))}</td>`
+      + `<td class="num">${money(a.old_amount)} → ${money(a.new_amount)}</td>`
+      + `<td class="num ${up ? "adj-up" : "adj-down"}">${up ? "＋" : "－"}${money(Math.abs(a.delta))}</td>`
+      + `<td class="muted">${escapeHtml(valueOrDash(a.created_by))}</td></tr>`;
+  }).join("") : `<tr><td colspan="5" class="muted">還沒有費用調整——合約金額就是原始金額。</td></tr>`;
+
+  const form = editable ? `
+    <div class="adj-form">
+      <label>調整後金額 <input type="number" min="0" step="1" data-adj-amount placeholder="${current}"></label>
+      <label>生效日 <input type="date" data-adj-date></label>
+      <label class="adj-reason">原因 <input type="text" data-adj-reason placeholder="如：機櫃增加 2 台 / 電價調漲"></label>
+      <button type="button" class="btn-sm" data-adj-add="${cid}">記一筆調整</button>
+    </div>
+    <p class="muted adj-hint">調整後付款排程可能跟新金額對不上——回付款排程面板看「各期加總」那行，用「把剩餘分 N 期」補差額。</p>` : "";
+
+  const summary = res.count
+    ? `<div class="sched-summary">最初 <b>${money(res.original_amount)}</b> 元　｜　調整 <b>${res.count}</b> 次`
+      + `　｜　累計 <b class="${res.total_delta >= 0 ? "adj-up" : "adj-down"}">${res.total_delta >= 0 ? "＋" : "－"}${money(Math.abs(res.total_delta))}</b> 元`
+      + `　｜　現值 <b>${money(current)}</b> 元</div>`
+    : `<div class="sched-summary">目前金額 <b>${money(current)}</b> 元（未曾調整）</div>`;
+
+  return `<div class="sched-head"><strong>費用調整紀錄</strong>　<span class="muted">${escapeHtml(ct.contract_name || "")}</span>`
+    + `<button type="button" class="btn-sm secondary sched-close" data-adj-close>收起</button></div>`
+    + `<table class="grid-table sched-table"><thead><tr><th>生效日</th><th>原因</th><th class="num">金額變動</th>`
+    + `<th class="num">增減</th><th>記錄者</th></tr></thead><tbody>${rows}</tbody></table>`
+    + form + summary;
+}
+
+// 合約列「調整紀錄」按鈕 → 展開面板
+document.querySelector("#contracts")?.addEventListener("click", (event) => {
+  const b = event.target.closest("[data-adjust]");
+  if (b) loadContractAdjustments(b.getAttribute("data-adjust"));
+});
+
+document.querySelector("#contract-adjust-panel")?.addEventListener("click", async (event) => {
+  const box = document.querySelector("#contract-adjust-panel");
+  const t = event.target.closest("button");
+  if (!t) return;
+  if (t.hasAttribute("data-adj-close")) { box.hidden = true; return; }
+  if (!t.hasAttribute("data-adj-add")) return;
+  const cid = box.dataset.cid;
+  const amountEl = box.querySelector("[data-adj-amount]");
+  const amount = Number(amountEl.value);
+  if (!amountEl.value.trim() || Number.isNaN(amount)) { window.alert("請先填調整後金額。"); return; }
+  try {
+    await api(`/api/contracts/${cid}/adjustments`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        new_amount: amount,
+        effective_date: box.querySelector("[data-adj-date]").value || "",
+        reason: box.querySelector("[data-adj-reason]").value || "",
+      }),
+    });
+    await loadResource("contract");   // 合約金額已被調成新值，清單要跟著更新
+    await loadContractAdjustments(cid);
+    const sched = document.querySelector("#contract-schedule-panel");
+    if (sched && !sched.hidden && sched.dataset.cid === cid) loadPaymentSchedules(cid);  // 重算「對不對得上」
+  } catch (e) { window.alert(e.message); }
+});
 
 function readSchedGen(box) {
   const method = box.querySelector("[data-sched-method]").value;
