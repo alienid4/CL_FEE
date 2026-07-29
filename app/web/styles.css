@@ -1397,7 +1397,7 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .pf-dot.done { background: #c9c6c0; }                                       /* 灰＝已完成 */
 .pf-dot.todo { background: var(--surface); border: 2px solid var(--line); } /* 白＝未開始 */
 .pf-dot.live { background: #0ca30c; }                                       /* 綠＝執行中正常 */
-.pf-dot.soon { background: #d9860b; }                                       /* 橘＝快到期 */
+.pf-dot.soon { background: #e3b505; }                                       /* 黃＝有延遲風險，但不影響完成日 */
 .pf-dot.over { background: var(--danger); }                                 /* 紅＝過期 */
 
 /* 專案清單「燈號」欄：圓點＋文字，讓整欄可以一眼掃過去 */
@@ -1666,7 +1666,7 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .case-dot.done { background: #c9c6c0; }                                       /* 灰＝已完成 */
 .case-dot.todo { background: var(--surface); border: 2px solid var(--line); } /* 白＝未開始 */
 .case-dot.live { background: var(--ok); }                                     /* 綠＝執行中正常 */
-.case-dot.soon { background: var(--warn); }                                   /* 橘＝快到期 */
+.case-dot.soon { background: #e3b505; }                                       /* 黃＝有延遲風險，但不影響完成日 */
 .case-dot.over { background: var(--danger); }                                 /* 紅＝過期 */
 .case-dot.na { background: transparent; border: 2px dashed var(--line-2); }   /* 虛線空心＝不適用 */
 .case-step.na, .case-step[data-na] { opacity: .55; }
@@ -1718,17 +1718,19 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
   position: relative; height: 440px; margin: 12px 0 16px; border: 1px solid var(--line);
   border-radius: 10px; background: var(--surface); overflow: hidden;
 }
-.case-matrix::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
-.case-matrix::after { content: ""; position: absolute; top: 50%; left: 0; right: 0; border-top: 1px dashed var(--line); }
+/* 只剩時間一軸（金額不代表優先）：中線＝今天/期限，右邊逾期、左邊還很久 */
+.case-matrix.timeline-only { height: 300px; }
+.case-matrix.timeline-only::before { content: ""; position: absolute; left: 52%; top: 0; bottom: 0; border-left: 2px dashed var(--warn); opacity: .5; }
 .matrix-axis { position: absolute; font-size: .72rem; color: var(--ink-2); z-index: 1; }
-.matrix-axis.y-high { top: 8px; left: 10px; }
-.matrix-axis.y-low { bottom: 8px; left: 10px; }
-.matrix-axis.x-soon { bottom: 8px; right: 10px; }
-.matrix-label { position: absolute; font-size: .8rem; font-weight: 700; color: var(--ink-2); opacity: .28; z-index: 0; }
-.matrix-label.now { top: 10%; right: 12%; }
-.matrix-label.confirm { top: 10%; left: 12%; }
-.matrix-label.week { bottom: 12%; right: 12%; }
-.matrix-label.plan { bottom: 12%; left: 12%; }
+.matrix-axis.x-far { bottom: 8px; left: 10px; }
+.matrix-axis.x-soon { bottom: 8px; right: 10px; color: var(--danger); }
+.matrix-band.today { position: absolute; top: 0; bottom: 0; left: 52%; right: 0; background: var(--danger-bg); opacity: .35; z-index: 0; }
+.matrix-label { position: absolute; font-size: .78rem; font-weight: 700; color: var(--ink-2); opacity: .5; z-index: 1; }
+.matrix-label.near-line { top: 8px; left: 52%; transform: translateX(-50%); }
+/* 點的顏色沿用階段燈號（紅=逾期、橘=快逾期），不再用象限色 */
+.matrix-item.tone-red { border-color: var(--danger); background: var(--danger-bg); }
+.matrix-item.tone-orange { border-color: var(--warn); background: var(--warn-bg); }
+.matrix-item.tone-white, .matrix-item.tone-green { border-color: var(--line); }
 .matrix-item {
   position: absolute; transform: translate(-50%, -50%); z-index: 2; max-width: 96px; box-sizing: border-box;
   padding: 3px 7px; border-radius: 7px; background: var(--surface); border: 1px solid var(--line);

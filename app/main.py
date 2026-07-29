@@ -131,8 +131,10 @@ def _load_dotenv(env_path: Path | None = None) -> None:
 _load_dotenv()
 
 
+# 案件申請欄位（助理回饋 2026-07-29）：案件編號改由系統產生，承辦不必填。
+# 組別／負責人／預算內外／費用or資本支出／預算名目／案件來源／案件說明為申請時的核心欄位。
 class CaseIn(BaseModel):
-    case_code: str = Field(min_length=1)
+    case_code: str = ""            # 留空＝系統自動配（暫時號）
     title: str = Field(min_length=1)
     owner: str = ""
     status: str = "draft"
@@ -142,6 +144,12 @@ class CaseIn(BaseModel):
     next_step: str = ""
     due_date: str = ""
     fiscal_year: str = ""  # 所屬年度；空＝用作業年度
+    group_name: str = ""
+    budget_type: str = ""          # in_budget / out_budget
+    expense_kind: str = ""         # expense / capex
+    budget_item: str = ""
+    source: str = ""
+    description: str = ""
 
 
 class CasePatch(BaseModel):
@@ -155,6 +163,12 @@ class CasePatch(BaseModel):
     next_step: str | None = None
     due_date: str | None = None
     fiscal_year: str | None = None
+    group_name: str | None = None
+    budget_type: str | None = None
+    expense_kind: str | None = None
+    budget_item: str | None = None
+    source: str | None = None
+    description: str | None = None
 
 
 class ContractIn(BaseModel):
@@ -439,8 +453,10 @@ class NameSplitIn(BaseModel):
 
 
 class ProjectIn(BaseModel):
-    project_code: str = Field(min_length=1)
+    project_code: str = ""      # 需求書 §6「不另設專案代號」：留空由系統配
     project_name: str = Field(min_length=1)
+    vendor_name: str = ""
+    cross_company: str = ""     # 是否為集團/跨子公司合作：是/否
     source: str = ""
     necessity: str = ""
     progress: float = 0
@@ -459,6 +475,8 @@ class ProjectIn(BaseModel):
 class ProjectPatch(BaseModel):
     project_code: str | None = Field(default=None, min_length=1)
     project_name: str | None = Field(default=None, min_length=1)
+    vendor_name: str | None = None
+    cross_company: str | None = None
     source: str | None = None
     necessity: str | None = None
     progress: float | None = None
@@ -558,14 +576,26 @@ class PurchasePatch(BaseModel):
 
 
 class CaseWizardCaseIn(BaseModel):
-    case_code: str = Field(min_length=1)
+    case_code: str = ""            # 系統自動配，承辦不必填
     title: str = Field(min_length=1)
     owner: str = ""
     amount: float = 0
     fiscal_year: str = ""
-    note: str = ""
-    next_step: str = ""
-    due_date: str = ""
+    group_name: str = ""
+    budget_type: str = ""
+    expense_kind: str = ""
+    budget_item: str = ""
+    source: str = ""
+    description: str = ""
+
+
+class CaseWizardProjectIn(BaseModel):
+    """新案申請的②專案：核心欄位而已，WBS 細項另外在專案模組維護。"""
+    project_name: str = Field(min_length=1)
+    level: str = ""                # 公司級/處級/部級
+    owner: str = ""                # 預設帶案件負責人，仍可改
+    vendor_name: str = ""
+    cross_company: str = ""        # 是否為集團/跨子公司合作：是/否
 
 
 class CaseWizardBudgetIn(BaseModel):
@@ -621,13 +651,15 @@ class CaseWizardPaymentIn(BaseModel):
 
 
 class CaseWizardIn(BaseModel):
-    """一條龍新案精靈：單頁多步驟表單一次送出。預算/簽呈/請購/合約/付款皆可跳過(None)；
-    付款要掛在合約下，若填了付款卻沒填合約，直接擋在驗證層（不用等寫進資料庫才發現）。"""
+    """新案申請：單頁四步一次送出——① 案件（必填）② 專案 ③ 合約 ④ 費用，後三步皆可跳過。
+    （助理回饋 2026-07-29：預算/簽呈/付款移出申請流程；付款改由付款模組事後建立。）
+    budget/signoff/payment 欄位保留給既有匯入流程，UI 不再提供。"""
     case: CaseWizardCaseIn
+    project: CaseWizardProjectIn | None = None
+    contract: CaseWizardContractIn | None = None
+    purchase: CaseWizardPurchaseIn | None = None
     budget: CaseWizardBudgetIn | None = None
     signoff: CaseWizardSignoffIn | None = None
-    purchase: CaseWizardPurchaseIn | None = None
-    contract: CaseWizardContractIn | None = None
     payment: CaseWizardPaymentIn | None = None
 
     @model_validator(mode="after")
@@ -736,7 +768,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.55.0 · 2026-07-29 · 人員主檔加組別＋後台可增刪改（轉組/離職都改得動），附四組各三人示範名單；人員下拉終於有東西可選"
+BACKEND_BUILD = "v0.56.0 · 2026-07-29 · 依助理回饋改版：新案申請砍成四步(案件/專案/合約/費用)、案件欄位換成組別/預算內外/費用or資本支出/預算名目/案件來源/案件說明、待辦改由日期自動生成、矩陣只留時間軸"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1456,6 +1488,7 @@ def create_app() -> FastAPI:
                 purchase=payload.purchase.model_dump() if payload.purchase else None,
                 contract=payload.contract.model_dump() if payload.contract else None,
                 payment=payload.payment.model_dump() if payload.payment else None,
+                project=payload.project.model_dump() if payload.project else None,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

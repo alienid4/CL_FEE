@@ -198,6 +198,20 @@ def test_case_360_shows_planned_paid_owed(tmp_path):
         assert t["unpaid_planned"] == 500_000  # 還欠 50 萬
 
 
+def test_追加排程的期別編號接續不重號(tmp_path):
+    """調價後用「把剩餘分 N 期」補的期別，編號要接在既有期別後面。
+    都叫「第1期」的話，清單與待辦上會冒出兩個第1期，看的人分不出哪個是哪個。"""
+    with _setup(tmp_path) as client:
+        import app.store as store
+
+        ct = _contract(client, "PS-SEQ", 120_000)
+        store.generate_payment_schedules(ct["id"], "installment", 3)          # 第1~3期
+        store.generate_payment_schedules(ct["id"], "installment", 2, base_amount=18_000)  # 追加
+        labels = [s["label"] for s in store.list_payment_schedules(ct["id"])]
+        assert labels == ["第1期", "第2期", "第3期", "第4期", "第5期"]
+        assert len(set(labels)) == len(labels)   # 沒有重複期別
+
+
 def test_case_360_drilldown_per_contract(tmp_path):
     """向下鑽取：案件的「花多少/欠多少」要能拆到每一份合約——主管才看得出是哪一份還欠。
     A 約 100 萬分 4 期付掉 2 期(50萬)、B 約 40 萬分 2 期一期都沒付。"""

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.55.0 · 2026-07-29 · 人員主檔加組別＋後台增刪改";
+const BUILD_TAG = "v0.56.0 · 2026-07-29 · 助理回饋改版：新案申請四步＋案件欄位＋待辦自動生成";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -467,6 +467,12 @@ function activateCaseTab(tabName) {
   if (tabName === "portfolio") loadPortfolio();  // 進度總表併入案件管理分頁
 }
 
+// 新案申請：常用動作，從頁籤列移到案件管理右上角常駐（助理回饋 2026-07-29）
+document.querySelector("#new-case-apply")?.addEventListener("click", () => {
+  activateCaseTab("wizard");
+  document.querySelector("#wizard-form")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+});
+
 // 主管儀表板底下再分子頁籤（總覽/月度支出/單位別預算/廠商別合約/系統工具）——
 // 使用者反饋一頁塞太多區塊要一直往下拉，改成一次只顯示一個子功能。
 function activateDashTab(tabName) {
@@ -496,12 +502,14 @@ function activateIoTab(tabName) {
 
 // ══ 全站統一燈號 ══════════════════════════════════════════════════════════
 // 線性進度圖、工作項、專案清單共用同一套語意，避免同一個顏色在不同畫面代表不同事。
-//   done 灰＝已完成   todo 白＝未開始   live 綠＝執行中正常
-//   soon 橘＝快到期   over 紅＝過期     na 虛線＝不適用
+// 燈號定義以助理提供的文件為準（2026-07-29）：
+//   綠＝如期執行中   黃＝有延遲風險，但目前不影響整體完成日
+//   紅＝已延遲，且影響整體完成日   白＝未開始   灰＝已完成
+//   （na 虛線空心＝這階段不適用，是本系統流程圖才有的第六種，助理文件未涉及）
 // 原則：有顏色的才需要看。完成的東西淡出，不跟「正常」搶注意力。
 const RAG_LABEL = {
-  done: "已完成", todo: "未開始", live: "執行中",
-  soon: "快到期", over: "已過期", na: "不適用",
+  done: "已完成", todo: "未開始", live: "如期執行",
+  soon: "有延遲風險", over: "已延遲", na: "不適用",
 };
 
 // 後端階段燈號沿用舊名（green＝該階段已完成…）。在這裡集中轉成統一語意，
@@ -538,7 +546,7 @@ function ragCell(rag) {
 }
 
 // ── 線性進度圖／處理優先矩陣：讀 /api/cases/progress，系統自動推導、唯讀 ──
-const TONE_LABEL = { green: "完成", white: "還沒輪到", orange: "快逾期待處理", red: "已逾期", na: "不適用" };
+const TONE_LABEL = { green: "完成", white: "還沒輪到", orange: "有延遲風險", red: "已延遲", na: "不適用" };
 let lastProgressItems = [];  // 快取最近一次進度資料，供矩陣過濾器不重打 API 重繪
 // 矩陣依狀態分類：可自由選要看哪一類（單看或組合看）
 const PHASE_META = [
@@ -547,8 +555,12 @@ const PHASE_META = [
   { key: "not_started", label: "未開始" },
 ];
 let matrixPhaseFilter = new Set(["active"]);  // 預設看進行中；點分類 chip 可切換
-const QUAD_LABEL = { now: "立即處理", confirm: "主管確認", week: "本週處理", plan: "可安排" };
-const QUAD_RANK = { now: 0, week: 1, confirm: 2, plan: 3 };
+// 使用者拍板（2026-07-29）：矩陣只用時間軸，金額不代表優先，也不切四象限。
+// 排序純看急迫度：逾期越久排越前、沒有期限可判斷的排最後。
+function urgencyRank(it) {
+  const d = it.urgency_days;
+  return d == null ? Number.MAX_SAFE_INTEGER : d;
+}
 
 function urgencyText(days) {
   if (days == null) return "待確認";
@@ -591,24 +603,24 @@ function renderMatrix(allItems) {
     for (const it of items) {
       const m = it.matrix || {};
       const el = document.createElement("div");
-      el.className = `matrix-item ${m.quadrant || "plan"}`;
+      el.className = `matrix-item tone-${m.tone || "white"}`;
       el.style.left = `${m.x}%`;
       el.style.top = `${m.y}%`;
       el.dataset.caseId = it.case_id;  // 點散佈點直接開這個案子的追溯鏈
-      el.title = `${escapeHtml(it.title)}｜${it.amount ? money(it.amount) + " 元" : "0"}｜${urgencyText(it.urgency_days)}（點擊看細項）`;
-      el.innerHTML = `<b>${escapeHtml(it.title.slice(0, 8))}</b><span>${it.amount ? money(it.amount) : 0} / ${urgencyText(it.urgency_days)}</span>`;
+      el.title = `${escapeHtml(it.title)}｜${urgencyText(it.urgency_days)}（點擊看細項）`;
+      el.innerHTML = `<b>${escapeHtml(it.title.slice(0, 8))}</b><span>${escapeHtml(urgencyText(it.urgency_days))}</span>`;
       box.appendChild(el);
     }
   }
   if (body) {
-    const sorted = [...items].sort((a, b) => (QUAD_RANK[a.matrix.quadrant] ?? 9) - (QUAD_RANK[b.matrix.quadrant] ?? 9));
+    const sorted = [...items].sort((a, b) => urgencyRank(a) - urgencyRank(b));
     body.innerHTML = sorted.length
       ? sorted.map((it, i) => `<tr data-case-id="${it.case_id}">
           <td>${i + 1}</td>
           <td>${escapeHtml(it.title)}</td>
           <td class="num">${it.amount ? money(it.amount) + " 元" : "—"}</td>
           <td>${urgencyText(it.urgency_days)}</td>
-          <td>${QUAD_LABEL[it.matrix.quadrant] || "-"} / ${escapeHtml(it.matrix.reason || "")}</td>
+          <td>${escapeHtml(it.matrix.reason || "")}</td>
           <td><span class="status-pill ${it.block.tone}">${escapeHtml(it.block.text)}</span></td>
         </tr>`).join("")
       : `<tr><td colspan="6" class="muted">目前沒有案件。</td></tr>`;
@@ -1858,7 +1870,7 @@ async function loadWorkingYear() {
   try {
     const y = (await api("/api/working-year")).data.working_year || "";
     setText("#working-year-label", y);
-    const fy = document.querySelector('#case-form [name="fiscal_year"]');
+    const fy = document.querySelector('#case-form [name="fiscal_year"]');  // 已從表單移除，留著保護舊版
     if (fy) fy.placeholder = `所屬年度（空＝作業年度 ${y}）`;
   } catch (_e) { /* ignore */ }
 }
@@ -2304,9 +2316,9 @@ function pfSortKey(c) { return c.actual >= 100 ? -2 : c.noBasis ? -1 : c.gap; }
 const PF_BUCKETS = [
   { tone: "done", label: "已完成" },
   { tone: "todo", label: "未開始" },
-  { tone: "live", label: "執行中" },
-  { tone: "soon", label: "要注意" },
-  { tone: "over", label: "已過期" },
+  { tone: "live", label: "如期執行" },
+  { tone: "soon", label: "有延遲風險" },
+  { tone: "over", label: "已延遲" },
 ];
 
 function pfOverview(group) {
@@ -2821,18 +2833,26 @@ async function loadTodo() {
   const payload = await api("/api/todo");
   const items = payload.data || [];
   setText("#tile-count-todo", `匯入預檢・待辦 ${items.length}`);
+  // 待辦改由日期自動生成（使用者拍板 2026-07-29）：卡在審核流程的案件 ＋ 快到期的合約/保固/維護
+  // ＋ 快到預計付款日的排程。不再靠人工填「下一步」。
+  const TODO_KIND_LABEL = { case: "待處理", contract: "合約到期", warranty: "保固到期",
+                            maintenance: "維護到期", payment_due: "預計付款" };
   todoList.innerHTML = items.length
     ? items
-        .map(
-          (c) => `
-            <li data-case-id="${c.id}" style="cursor:pointer" title="點此編輯此案件">
-              <span class="badge ${c.status === "reviewing" ? "warn" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span>
+        .map((c) => {
+          const overdue = c.days_left != null && c.days_left < 0;
+          const when = c.days_left == null ? ""
+            : overdue ? `（已過期 ${-c.days_left} 天）` : `（剩 ${c.days_left} 天）`;
+          const badge = c.kind === "case" ? (STATUS_LABELS[c.status] || c.status) : TODO_KIND_LABEL[c.kind];
+          return `
+            <li data-case-id="${c.id || ""}" style="cursor:pointer" title="點此開啟相關案件">
+              <span class="badge ${overdue ? "danger" : c.kind === "case" ? "warn" : "ok"}">${escapeHtml(badge)}</span>
               <strong>${escapeHtml(c.case_code)}　${escapeHtml(c.title)}</strong>
-              <small>備註：${escapeHtml(c.note || "—")}；下一步：${escapeHtml(c.next_step || "—")}；負責人：${escapeHtml(c.owner || "未指派")}</small>
-            </li>`
-        )
+              <small>${escapeHtml(c.detail || "—")}${c.due_date ? `；${escapeHtml(c.due_date)}${when}` : ""}${c.owner ? `；負責人：${escapeHtml(c.owner)}` : ""}</small>
+            </li>`;
+        })
         .join("")
-    : `<li><small class="muted">目前沒有需處理的案件。</small></li>`;
+    : `<li><small class="muted">目前沒有待辦：沒有卡在審核的案件，也沒有 30 天內要處理的到期或付款。</small></li>`;
 }
 
 let cioSort = { field: null, dir: "asc" };
@@ -3554,9 +3574,14 @@ function startEdit(id) {
   form.elements.owner.value = item.owner || "";
   form.elements.amount.value = item.amount || 0;
   form.elements.status.value = item.status || "draft";
-  form.elements.note.value = item.note || "";
-  form.elements.next_step.value = item.next_step || "";
+  // 助理回饋後的欄位組合：備註/下一步/日期已從表單移除，這裡用 optional chaining 保護，
+  // 舊資料的值仍留在 DB（沒有被清掉），只是畫面不再顯示。
+  if (form.elements.note) form.elements.note.value = item.note || "";
+  if (form.elements.next_step) form.elements.next_step.value = item.next_step || "";
   if (form.elements.due_date) form.elements.due_date.value = item.due_date || "";
+  for (const f of ["group_name", "budget_type", "expense_kind", "budget_item", "source", "description"]) {
+    if (form.elements[f]) form.elements[f].value = item[f] || "";
+  }
   formTitle.textContent = `編輯 ${item.case_code}`;
   submitCase.textContent = "儲存";
   cancelEdit.hidden = false;
@@ -3662,6 +3687,8 @@ form.addEventListener("submit", async (event) => {
   const id = data.id;
   delete data.id;
   data.amount = Number(data.amount || 0);
+  // 案件編號改由系統產生：留空就別送（新增時後端自動配，編輯時不動原本的號）
+  if (!String(data.case_code || "").trim()) delete data.case_code;
   await api(id ? `/api/cases/${id}` : "/api/cases", {
     method: id ? "PATCH" : "POST",
     headers: { "Content-Type": "application/json" },
@@ -4190,6 +4217,8 @@ async function loadPersonnelMaster() {
     personnelAllCache = masters;
     personnelMasterCache = masters.filter((p) => p.status !== "disabled");
     populatePersonnelSelects();
+    // 通知「依組別過濾的負責人下拉」重畫（名單換了、轉組了都要跟著更新）
+    document.dispatchEvent(new CustomEvent("personnel-loaded"));
     populatePersonnelGroupSelects();
     if (!box) return;
     if (!masters.length) {
@@ -5203,14 +5232,12 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   const wizardForm = document.querySelector("#wizard-form");
   if (!wizardForm) return;
   const contractToggle = wizardForm.querySelector('[data-wizard-toggle="contract"]');
-  const paymentToggle = wizardForm.querySelector('[data-wizard-toggle="payment"]');
   const REQUIRED_BY_STEP = {
-    budget: ["budget_code"],
-    signoff: ["signoff_code", "subject"],
+    project: ["project_name"],
     purchase: ["purchase_code", "item_name"],
     contract: ["contract_code", "contract_name"],
-    payment: ["payment_month", "payment_amount"],
   };
+  const OPTIONAL_STEPS = ["project", "contract", "purchase"];
 
   function stepScope(step) {
     return wizardForm.querySelector(`[data-wizard-step="${step}"]`);
@@ -5238,7 +5265,7 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
 
   // 案名沿用（精靈版）：勾選簽呈/合約步驟時，若該步驟「名稱」欄位還空著，帶入①案件名稱當預設值
   // （仍可改，不鎖死）。跟獨立表單版同一個道理：合約正式名稱常跟案子暱稱有出入。
-  const WIZARD_NAME_AUTOFILL_FIELD = { signoff: "subject", contract: "contract_name" };
+  const WIZARD_NAME_AUTOFILL_FIELD = { project: "project_name", contract: "contract_name" };
   for (const toggle of wizardForm.querySelectorAll("[data-wizard-toggle]")) {
     toggle.addEventListener("change", () => {
       const step = toggle.getAttribute("data-wizard-toggle");
@@ -5248,37 +5275,65 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
         const nameEl = fieldName && stepScope(step)?.querySelector(`[name="${fieldName}"]`);
         const titleEl = stepScope("case")?.querySelector('[name="title"]');
         if (nameEl && !nameEl.value.trim() && titleEl && titleEl.value.trim()) nameEl.value = titleEl.value.trim();
-      }
-      if (step === "contract") {
-        if (!toggle.checked && paymentToggle) {
-          paymentToggle.checked = false;
-          paymentToggle.disabled = true;
-          setStepEnabled("payment", false);
-        } else if (toggle.checked && paymentToggle) {
-          paymentToggle.disabled = false;
+        // 專案負責人預設沿用案件負責人（仍可改）
+        if (step === "project") {
+          const projOwner = stepScope("project")?.querySelector('[name="owner"]');
+          const caseOwner = stepScope("case")?.querySelector('[name="owner"]');
+          if (projOwner && !projOwner.value && caseOwner && caseOwner.value) projOwner.value = caseOwner.value;
         }
       }
     });
   }
 
+  // 負責人依組別過濾：選了組別才列該組的人（助理回饋）。組別留空＝全部列出。
+  const groupSel = wizardForm.querySelector("[data-wizard-group]");
+  const ownerSel = wizardForm.querySelector("[data-group-filtered]");
+  function filterOwnerByGroup() {
+    if (!ownerSel) return;
+    const g = groupSel ? groupSel.value : "";
+    const list = (personnelMasterCache || []).filter((p) => !g || p.group_name === g);
+    const prev = ownerSel.value;
+    ownerSel.innerHTML = `<option value="">（未選擇）負責人 *</option>`
+      + list.map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+    if (prev && list.some((p) => p.name === prev)) ownerSel.value = prev;
+  }
+  groupSel?.addEventListener("change", filterOwnerByGroup);
+  document.addEventListener("personnel-loaded", filterOwnerByGroup);
+
+  // 預算名目：預算內＝從匯入的預算表帶出既有名目給人選；預算外＝自己打（助理回饋）
+  const itemList = document.querySelector("#opt-budget-items");
+  function refreshBudgetItems() {
+    const inBudget = wizardForm.querySelector('[name="budget_type"][value="in_budget"]')?.checked;
+    const itemEl = stepScope("case")?.querySelector('[name="budget_item"]');
+    if (itemEl) {
+      itemEl.placeholder = inBudget ? "預算名目 *（從既有預算表選）" : "預算名目 *（預算外，自行填寫）";
+    }
+    if (!itemList) return;
+    itemList.innerHTML = inBudget
+      ? [...new Set((resourceCaches.budget || []).map((b) => b.budget_code).filter(Boolean))]
+          .map((v) => `<option value="${escapeHtml(v)}"></option>`).join("")
+      : "";
+  }
+  for (const r of wizardForm.querySelectorAll('[name="budget_type"]')) r.addEventListener("change", refreshBudgetItems);
+
   wizardForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const statusEl = document.querySelector("#wizard-status");
     const resultEl = document.querySelector("#wizard-result");
-    const c = readStep("case", ["case_code", "title", "owner", "amount", "fiscal_year", "note", "next_step", "due_date"]);
+    const c = readStep("case", ["title", "owner", "amount", "group_name", "expense_kind", "budget_item", "source", "description"]);
     const body = {
       case: {
-        case_code: c.case_code, title: c.title, owner: c.owner, amount: num(c.amount),
-        fiscal_year: c.fiscal_year, note: c.note, next_step: c.next_step, due_date: c.due_date,
+        title: c.title, owner: c.owner, amount: num(c.amount),
+        group_name: c.group_name, expense_kind: c.expense_kind, budget_item: c.budget_item,
+        source: c.source, description: c.description,
+        // 預算內/外是 radio，readStep 只讀得到第一個，改用 checked 判斷
+        budget_type: wizardForm.querySelector('[name="budget_type"]:checked')?.value || "",
       },
     };
-    if (wizardForm.querySelector('[data-wizard-toggle="budget"]').checked) {
-      const b = readStep("budget", ["budget_code", "category", "unit_name", "amount", "note"]);
-      body.budget = { budget_code: b.budget_code, category: b.category, unit_name: b.unit_name, amount: num(b.amount), note: b.note };
-    }
-    if (wizardForm.querySelector('[data-wizard-toggle="signoff"]').checked) {
-      const s = readStep("signoff", ["signoff_code", "subject", "applicant", "amount", "sign_date", "note"]);
-      body.signoff = { signoff_code: s.signoff_code, subject: s.subject, applicant: s.applicant, amount: num(s.amount), sign_date: s.sign_date, note: s.note };
+    if (wizardForm.querySelector('[data-wizard-toggle="project"]').checked) {
+      const p = readStep("project", ["project_name", "level", "owner", "vendor_name", "cross_company"]);
+      body.project = { project_name: p.project_name, level: p.level, owner: p.owner,
+                       vendor_name: p.vendor_name, cross_company: p.cross_company };
     }
     if (wizardForm.querySelector('[data-wizard-toggle="purchase"]').checked) {
       const p = readStep("purchase", ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "note"]);
@@ -5288,26 +5343,19 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
       const k = readStep("contract", ["contract_code", "contract_name", "vendor_name", "amount", "end_date"]);
       body.contract = { contract_code: k.contract_code, contract_name: k.contract_name, vendor_name: k.vendor_name, amount: num(k.amount), end_date: k.end_date };
     }
-    if (paymentToggle.checked) {
-      const pay = readStep("payment", ["payment_month", "payment_amount", "item", "net_amount", "tax_amount"]);
-      body.payment = { payment_month: pay.payment_month, payment_amount: num(pay.payment_amount), item: pay.item, net_amount: num(pay.net_amount), tax_amount: num(pay.tax_amount) };
-    }
 
     if (statusEl) statusEl.textContent = "送出中…";
     if (resultEl) resultEl.innerHTML = "";
     try {
       const created = (await api("/api/case-wizard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).data || {};
       if (statusEl) statusEl.textContent = "全部建立成功！";
-      const lines = [`案件 ${escapeHtml(created.case.case_code)}（案號 ${escapeHtml(caseNumber(created.case) || "—")}）`];
-      if (created.budget) lines.push(`預算 ${escapeHtml(created.budget.budget_code)}`);
-      if (created.signoff) lines.push(`簽呈 ${escapeHtml(created.signoff.signoff_code)}`);
-      if (created.purchase) lines.push(`請購 ${escapeHtml(created.purchase.purchase_code)}`);
+      const lines = [`案件 ${escapeHtml(created.case.case_code)}（${escapeHtml(caseTempNumber(created.case) || "暫時號")}，核准後才配正式案號）`];
+      if (created.project) lines.push(`專案 ${escapeHtml(created.project.project_name)}`);
       if (created.contract) lines.push(`合約 ${escapeHtml(created.contract.contract_code)}`);
-      if (created.payment) lines.push(`付款 ${escapeHtml(created.payment.settle_no || "")}（${escapeHtml(created.payment.payment_month)}）`);
+      if (created.purchase) lines.push(`費用 ${escapeHtml(created.purchase.purchase_code)}`);
       if (resultEl) resultEl.innerHTML = `<div class="callout">${lines.join("<br/>")}</div>`;
       wizardForm.reset();
-      for (const step of ["budget", "signoff", "purchase", "contract", "payment"]) setStepEnabled(step, false);
-      if (paymentToggle) paymentToggle.disabled = true;
+      for (const step of OPTIONAL_STEPS) setStepEnabled(step, false);
       await refresh();
     } catch (error) {
       if (statusEl) statusEl.textContent = `失敗：${error.message}`;

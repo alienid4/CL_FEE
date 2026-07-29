@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-55-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-56-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -52,12 +52,13 @@
           <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
           <a class="module-card" href="#admin-console" data-roles="admin"><span>⚙</span><strong>系統管理</strong><small>設定/稽核</small></a>
           <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
-          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
           <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
-          <a class="module-card" href="#signoff" data-roles="cio manager_assistant handler"><span>▦</span><strong>簽呈</strong><small id="nav-count-signoffs">簽呈 …</small></a>
           <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
-          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>請購</strong><small id="nav-count-purchases">請購 …</small></a>
+          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>費用</strong><small id="nav-count-purchases">費用 …</small></a>
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
+          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
+          <!-- 簽呈：依助理回饋移出左側選單（2026-07-29）。資料與 Case 360 追溯鏈的簽呈段都保留，
+               「這筆付款是哪張簽呈核准的」仍查得到；面板本身仍在，靠追溯鏈的「編輯」進得去。 -->
           <div class="nav-group-label">資料管理（後台）</div>
           <a class="module-card" href="#data-admin" data-roles="manager_assistant handler"><span>⛭</span><strong>資料管理</strong><small id="nav-count-dataadmin">匯入・單位・檢核</small></a>
         </nav>
@@ -153,13 +154,11 @@
                 <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
                 <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
                 <button class="tab" type="button" data-case-tab="portfolio">進度總表</button>
-                <button class="tab" type="button" data-case-tab="wizard">一條龍新案</button>
               </div>
             </div>
-            <div class="status-pills">
-              <span>案件總覽</span>
-              <span class="ok">系統檢核</span>
-              <span class="warn">待確認優先</span>
+            <!-- 新案申請是最常用的動作，從頁籤列最右邊移到這裡常駐（原本這區三個標籤沒有用途，移除） -->
+            <div class="head-actions">
+              <button type="button" id="new-case-apply" class="primary">＋ 新案申請</button>
             </div>
           </div>
 
@@ -360,22 +359,19 @@
           <section class="case-tab-panel" data-case-panel="matrix" hidden>
             <section class="watch-list">
               <div class="section-heading compact">
-                <h2>處理優先矩陣<span class="help" data-tip="只放「需要盯」的案子：預設濾掉已完成與還沒開始，讓主管專注緊急、可能掉鏈子的。橫軸=急迫度，縱軸=金額/影響。系統自動落點，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <h2>處理優先順序<span class="help" data-tip="只放「需要盯」的案子：預設濾掉已完成與還沒開始。橫軸＝時間急迫度，左邊還很久、右邊已逾期（金額不代表優先，所以不當作一個軸）。系統自動落點，唯讀；點任一案可直接開它的追溯鏈。" role="button" tabindex="0" aria-label="說明">?</span></h2>
                 <div class="matrix-filters" id="matrix-filters" role="group" aria-label="依狀態分類選要看的"></div>
               </div>
-              <div class="case-matrix" id="case-matrix" aria-label="處理優先矩陣">
-                <span class="matrix-axis y-high">金額 / 影響高</span>
-                <span class="matrix-axis y-low">金額低</span>
-                <span class="matrix-axis x-soon">期限近 →</span>
-                <span class="matrix-label confirm">主管確認</span>
-                <span class="matrix-label now">立即處理</span>
-                <span class="matrix-label plan">可安排</span>
-                <span class="matrix-label week">本週處理</span>
+              <div class="case-matrix timeline-only" id="case-matrix" aria-label="處理優先順序時間軸">
+                <span class="matrix-axis x-far">← 還很久</span>
+                <span class="matrix-axis x-soon">已逾期 →</span>
+                <span class="matrix-band today" aria-hidden="true"></span>
+                <span class="matrix-label near-line">今天／期限</span>
               </div>
               <div class="table-shell">
                 <table>
                   <thead>
-                    <tr><th>項次</th><th>案件</th><th>金額</th><th>待確認天數</th><th>矩陣位置</th><th>目前卡點</th></tr>
+                    <tr><th>項次</th><th>案件</th><th>金額</th><th>待確認天數</th><th>為什麼排這裡</th><th>目前卡點</th></tr>
                   </thead>
                   <tbody id="case-matrix-body"></tbody>
                 </table>
@@ -397,58 +393,59 @@
           <section class="case-tab-panel" data-case-panel="wizard" hidden>
             <section class="watch-list">
               <div class="section-heading compact">
-                <h2>一條龍新案精靈<span class="help" data-tip="一次填完規劃(預算)→簽呈→請購→合約→付款，送出後系統自動把後面幾步串上新案的系統編號（付款則串新合約）。「案件」是跨所有階段共用的錨點，必填；預算/簽呈/請購/合約/付款都可跳過。整批一次寫入：任一步驟失敗（例如編號重複），前面已建的一併回滾，不會留下半成品，修正後可整批重送。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <h2>新案申請<span class="help" data-tip="一次填完 案件→專案→合約→費用，送出後系統自動把後面幾步串上新案。「案件」是跨所有階段共用的錨點，必填；專案/合約/費用都可跳過，之後也能在各模組單獨補。案件編號由系統產生，不用自己填。整批一次寫入：任一步驟失敗，前面已建的一併回滾，不會留下半成品。" role="button" tabindex="0" aria-label="說明">?</span></h2>
               </div>
               <form id="wizard-form" class="wizard-form">
                 <fieldset class="wizard-step" data-wizard-step="case">
                   <legend>① 案件（必填）</legend>
-                  <input name="case_code" placeholder="案件編號 *" required />
                   <input name="title" placeholder="案件名稱 *" required />
-                  <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
+                  <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">組別 *</option></select>
+                  <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）負責人 *</option></select>
+                  <div class="wizard-radio" role="radiogroup" aria-label="預算內或預算外">
+                    <label><input type="radio" name="budget_type" value="in_budget" required /> 預算內</label>
+                    <label><input type="radio" name="budget_type" value="out_budget" /> 預算外</label>
+                  </div>
+                  <select name="expense_kind" required title="預算類別">
+                    <option value="">預算類別 *</option>
+                    <option value="expense">費用</option>
+                    <option value="capex">資本支出</option>
+                  </select>
+                  <input name="budget_item" placeholder="預算名目 *" list="opt-budget-items" required />
+                  <datalist id="opt-budget-items"></datalist>
+                  <select name="source" required title="案件來源">
+                    <option value="">案件來源 *</option>
+                    <option value="主管關注">主管關注</option>
+                    <option value="董總關注">董總關注</option>
+                    <option value="資安或稽核追蹤">資安或稽核追蹤</option>
+                    <option value="精進會議">精進會議</option>
+                    <option value="其他">其他</option>
+                  </select>
                   <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                  <select name="fiscal_year" class="fiscal-year-select" data-placeholder="所屬年度（空＝作業年度）"><option value="">所屬年度（空＝作業年度）</option></select>
-                  <input name="note" placeholder="備註" />
-                  <input name="next_step" placeholder="下一步" />
-                  <input name="due_date" placeholder="預計完成日" type="date" />
+                  <textarea name="description" placeholder="案件說明 *" rows="2" required></textarea>
                 </fieldset>
 
-                <fieldset class="wizard-step" data-wizard-step="budget">
-                  <legend><label><input type="checkbox" data-wizard-toggle="budget" /> ② 預算（可跳過）</label></legend>
+                <fieldset class="wizard-step" data-wizard-step="project">
+                  <legend><label><input type="checkbox" data-wizard-toggle="project" /> ② 專案（可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <input name="budget_code" placeholder="預算編號 *" />
-                    <input name="category" placeholder="類別" list="opt-budget-categories" />
-                    <select name="unit_name" class="unit-select" data-placeholder="單位名稱"><option value="">（未選擇）單位名稱</option></select>
-                    <input name="amount" placeholder="預算金額" type="number" min="0" step="1" />
-                    <input name="note" placeholder="備註" />
-                  </div>
-                </fieldset>
-
-                <fieldset class="wizard-step" data-wizard-step="signoff">
-                  <legend><label><input type="checkbox" data-wizard-toggle="signoff" /> ③ 簽呈（可跳過）</label></legend>
-                  <div class="wizard-step-body" hidden>
-                    <input name="signoff_code" placeholder="簽呈編號 *" />
-                    <input name="subject" placeholder="主旨 *" />
-                    <select name="applicant" class="personnel-select" data-placeholder="申請人"><option value="">（未選擇）申請人</option></select>
-                    <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                    <input name="sign_date" placeholder="簽核日" type="date" />
-                    <input name="note" placeholder="備註" />
-                  </div>
-                </fieldset>
-
-                <fieldset class="wizard-step" data-wizard-step="purchase">
-                  <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ④ 請購（可跳過）</label></legend>
-                  <div class="wizard-step-body" hidden>
-                    <input name="purchase_code" placeholder="請購編號 *" />
-                    <input name="item_name" placeholder="品項 *" />
-                    <input name="vendor_name" placeholder="廠商" />
-                    <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
-                    <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                    <input name="note" placeholder="備註" />
+                    <input name="project_name" placeholder="中文專案名稱 *" />
+                    <select name="level" title="專案等級">
+                      <option value="">專案等級</option>
+                      <option value="公司級">公司級</option>
+                      <option value="處級">處級</option>
+                      <option value="部級">部級</option>
+                    </select>
+                    <select name="owner" class="personnel-select" data-placeholder="專案負責人（預設同案件）"><option value="">（未選擇）專案負責人（預設同案件）</option></select>
+                    <input name="vendor_name" placeholder="廠商名稱" />
+                    <select name="cross_company" title="是否為集團/跨子公司合作">
+                      <option value="">是否跨子公司合作</option>
+                      <option value="是">是</option>
+                      <option value="否">否</option>
+                    </select>
                   </div>
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="contract">
-                  <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ⑤ 合約（可跳過）</label></legend>
+                  <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ③ 合約（可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
                     <input name="contract_code" placeholder="合約編號 *" />
                     <input name="contract_name" placeholder="合約名稱 *" />
@@ -458,14 +455,15 @@
                   </div>
                 </fieldset>
 
-                <fieldset class="wizard-step" data-wizard-step="payment">
-                  <legend><label><input type="checkbox" data-wizard-toggle="payment" disabled /> ⑥ 付款（可跳過，需先勾⑤合約）</label></legend>
+                <fieldset class="wizard-step" data-wizard-step="purchase">
+                  <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ④ 費用（例行性費用／無合約費用，可跳過）</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <input name="payment_month" placeholder="核銷月份 2026-07 *" pattern="\d{4}-\d{2}" />
-                    <input name="payment_amount" placeholder="含稅/核銷金額 *" type="number" min="0" step="1" />
-                    <input name="item" placeholder="核銷項目" />
-                    <input name="net_amount" placeholder="未稅金額" type="number" min="0" step="1" />
-                    <input name="tax_amount" placeholder="營業稅" type="number" min="0" step="1" />
+                    <input name="purchase_code" placeholder="費用編號 *" />
+                    <input name="item_name" placeholder="費用項目 *" />
+                    <input name="vendor_name" placeholder="廠商" />
+                    <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
+                    <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+                    <input name="note" placeholder="備註" />
                   </div>
                 </fieldset>
 
@@ -876,19 +874,36 @@
           <h2 id="form-title" hidden>新增案件</h2>
           <form id="case-form" hidden>
             <input name="id" type="hidden" />
-            <input name="case_code" placeholder="案件編號" required />
-            <input name="title" placeholder="案件名稱" required />
-            <select name="fiscal_year" class="fiscal-year-select" data-placeholder="所屬年度（空＝作業年度）"><option value="">所屬年度（空＝作業年度）</option></select>
+            <input name="case_code" placeholder="案件編號（系統產生，可不填）" />
+            <input name="title" placeholder="案件名稱 *" required />
+            <select name="group_name" class="person-group-select" title="組別"><option value="">組別</option></select>
             <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
+            <select name="budget_type" title="預算內／預算外">
+              <option value="">預算內／預算外</option>
+              <option value="in_budget">預算內</option>
+              <option value="out_budget">預算外</option>
+            </select>
+            <select name="expense_kind" title="預算類別">
+              <option value="">預算類別</option>
+              <option value="expense">費用</option>
+              <option value="capex">資本支出</option>
+            </select>
+            <input name="budget_item" placeholder="預算名目" />
+            <select name="source" title="案件來源">
+              <option value="">案件來源</option>
+              <option value="主管關注">主管關注</option>
+              <option value="董總關注">董總關注</option>
+              <option value="資安或稽核追蹤">資安或稽核追蹤</option>
+              <option value="精進會議">精進會議</option>
+              <option value="其他">其他</option>
+            </select>
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="status">
               <option value="draft">草稿</option>
               <option value="reviewing">審核中</option>
               <option value="disabled">已停用</option>
             </select>
-            <input name="note" placeholder="備註（自由文字說明）" />
-            <input name="next_step" placeholder="下一步 / 待辦動作" />
-            <input name="due_date" placeholder="預計完成日（供逾期催辦）" type="date" />
+            <input name="description" placeholder="案件說明" />
             <button type="submit" id="submit-case">儲存</button>
             <button type="button" id="cancel-edit" class="secondary" hidden>取消</button>
           </form>
@@ -1113,6 +1128,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-55-0"></script>
+    <script src="/static/app.js?v=v0-56-0"></script>
   </body>
 </html>

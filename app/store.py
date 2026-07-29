@@ -418,6 +418,9 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
         # 拒絕建立(rejected)。被拒絕與被併走的都留著（不是停用、也不是刪除），申請紀錄查得到。
         "status": {"draft", "pending_review", "reviewing", "approved", "disabled",
                    "returned", "rejected", "merged"},
+        # 第一個重要判斷：占不占用年度預算。空＝舊資料還沒分流過。
+        "budget_type": {"", "in_budget", "out_budget"},
+        "expense_kind": {"", "expense", "capex"},   # 費用 / 資本支出
     },
     "contracts": {
         "status": {"active", "reviewing", "closed", "disabled"},
@@ -484,6 +487,9 @@ def initialize_database() -> None:
         # 專案進度總表：起訖日（供甘特／落後天數計算）
         ensure_column(conn, "projects", "start_date", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "projects", "end_date", "TEXT NOT NULL DEFAULT ''")
+        # 需求書 §6 專案主檔：廠商、是否跨子公司（金控/集團合作案是主管與處長的關注條件）
+        ensure_column(conn, "projects", "vendor_name", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "projects", "cross_company", "TEXT NOT NULL DEFAULT ''")
         # 預算共同費用分攤：尾數承擔單位（整數化後湊不齊的尾數歸給哪個單位；空＝自動抓填寫部門）
         ensure_column(conn, "budgets", "remainder_unit_code", "TEXT NOT NULL DEFAULT ''")
         # 預算分攤方法：fixed(固定金額) / headcount(按人數) / category(按類別，Phase 2)
@@ -505,6 +511,15 @@ def initialize_database() -> None:
         # 系統編號：案件領「所屬年度＋四位流水號」，各階段共用此尾碼做跨階段勾稽
         ensure_column(conn, "cases", "fiscal_year", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "seq", "INTEGER NOT NULL DEFAULT 0")
+        # 助理回饋（2026-07-29）案件申請表單欄位：組別、預算內/外、費用or資本支出、預算名目、
+        # 案件來源、案件說明。「預算內/外」是第一個重要判斷——決定要不要占用年度預算，
+        # 也決定預算名目是「從匯入的預算表挑」還是「自己填」。
+        ensure_column(conn, "cases", "group_name", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "budget_type", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "expense_kind", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "budget_item", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "source", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "description", "TEXT NOT NULL DEFAULT ''")
         # 需求書 §4 審核關卡：申請階段只有暫時號（temp_seq），核准才配正式 seq；
         # 退回補件／拒絕建立要留原因；併入既有案要記併到哪一件（不能只是把申請刪掉）。
         ensure_column(conn, "cases", "temp_seq", "INTEGER NOT NULL DEFAULT 0")
@@ -708,6 +723,15 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
             "SELECT COALESCE(MAX(temp_seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
             (fields.get("fiscal_year", ""),)).fetchone()["n"]
         fields = {**fields, "temp_seq": tmp, "seq": 0}
+        # 案件編號改由系統產生（助理回饋：承辦不必填）。沒給就用暫時號當編號，
+        # 核准後系統編號（Cont/Case+年+流水）另外算，這裡不改它，避免外部已引用的號碼變動。
+        if not str(fields.get("case_code") or "").strip():
+            fields["case_code"] = f"TMP-{fields.get('fiscal_year', '')}{tmp:04d}"
+    if table == "projects" and not str(fields.get("project_code") or "").strip():
+        # 需求書 §6「專案不另設代號」＋助理回饋的新案申請沒有代號欄；系統自己配一個唯一碼，
+        # 讓內部關聯與匯出仍有穩定識別（用 id 當流水，必唯一）。
+        nxt = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM projects").fetchone()["n"]
+        fields["project_code"] = f"PRJ{get_working_year()}{nxt:04d}"
     if table == "payments" and not str(fields.get("settle_no") or "").strip():
         # 核銷編號自動發號：年度取核銷月份，流水號只計自動發的(settle_seq>0)，避免匯入真號污染
         pm = str(fields.get("payment_month") or "").strip()
@@ -743,13 +767,22 @@ def create_case_wizard(
     purchase: dict[str, Any] | None,
     contract: dict[str, Any] | None,
     payment: dict[str, Any] | None,
+    project: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """一條龍新案精靈：一次送出，依序建案件→(可選)預算/簽呈/請購/合約→(可選)付款，全部自動帶上新案的
-    case_id（付款則帶新合約的 contract_id）。單一交易：任一步驟失敗，前面已建的一併回滾、什麼都不留下，
-    使用者修正後可整批重送，不會卡在「半成功」的狀態。"""
+    """新案申請：一次送出，依序建案件→(可選)專案/合約/費用，全部自動帶上新案的 case_id。
+    單一交易：任一步驟失敗，前面已建的一併回滾、什麼都不留下，使用者修正後可整批重送，
+    不會卡在「半成功」的狀態。budget/signoff/payment 參數保留給既有呼叫方與匯入流程用。"""
     with connect() as conn:
         case_row = _insert_row(conn, "cases", case)
         case_id = case_row["id"]
+
+        project_row = None
+        if project is not None:
+            # 專案負責人預設沿用案件負責人（助理回饋：仍可人工改）
+            payload = {**project, "case_id": case_id}
+            if not str(payload.get("owner") or "").strip():
+                payload["owner"] = case.get("owner", "")
+            project_row = _insert_row(conn, "projects", payload)
 
         budget_row = None
         if budget is not None:
@@ -773,6 +806,7 @@ def create_case_wizard(
 
     return {
         "case": case_row,
+        "project": project_row,
         "budget": budget_row,
         "signoff": signoff_row,
         "purchase": purchase_row,
@@ -964,8 +998,10 @@ def generate_payment_schedules(contract_id: int, method: str, spec: Any = None,
         if method in ("installment", "periodic"):
             n = int(spec or 1)
             amounts = _split_even(amount, n, remainder_on)
+            # 期別編號接續既有排程（base_seq），不從 1 重數——調價後補的期別若也叫「第1期」，
+            # 清單與待辦上會出現兩個「第1期」，看的人分不出哪個是哪個。
             for i, a in enumerate(amounts):
-                rows.append({"seq": base_seq + i + 1, "method": method, "label": f"第{i+1}期",
+                rows.append({"seq": base_seq + i + 1, "method": method, "label": f"第{base_seq + i + 1}期",
                              "planned_amount": a, "due_date": _add_months(start_month, i * step)})
         elif method == "milestone":
             pcts = list(spec or [])
@@ -976,7 +1012,7 @@ def generate_payment_schedules(contract_id: int, method: str, spec: Any = None,
             amounts[0 if remainder_on == "first" else -1] = round(
                 amounts[0 if remainder_on == "first" else -1] + rem, 2)
             for i, (p, a) in enumerate(zip(pcts, amounts)):
-                rows.append({"seq": base_seq + i + 1, "method": "milestone", "label": f"里程碑{i+1}",
+                rows.append({"seq": base_seq + i + 1, "method": "milestone", "label": f"里程碑{base_seq + i + 1}",
                              "percent": p, "planned_amount": a, "due_date": _add_months(start_month, i)})
         else:  # fixed
             rows = [{"seq": base_seq + 1, "method": "fixed", "label": "全額",
@@ -991,7 +1027,8 @@ def generate_payment_schedules(contract_id: int, method: str, spec: Any = None,
 def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row",
-                  "temp_seq", "review_note", "merged_into_case_id"},
+                  "temp_seq", "review_note", "merged_into_case_id",
+                  "group_name", "budget_type", "expense_kind", "budget_item", "source", "description"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
                       "payment_method", "installments",
                       "start_date", "contract_type", "parent_contract_id", "relation_type",
@@ -1011,7 +1048,8 @@ def allowed_fields() -> dict[str, set[str]]:
         "unit_headcounts": {"unit_code", "unit_name", "headcount", "source_file"},
         "category_shares": {"category", "unit_code", "unit_name", "share_pct", "source_file"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
-                     "level", "progress_planned", "rag_status", "start_date", "end_date"},
+                     "level", "progress_planned", "rag_status", "start_date", "end_date",
+                     "vendor_name", "cross_company"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note", "attachment_ref"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "signoff_id", "note"},
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
@@ -3257,20 +3295,75 @@ def expense_category_summary(dimension: str = "budget") -> dict[str, Any]:
     }
 
 
+_TODO_HORIZON_DAYS = 30   # 未來 30 天內要處理的才進待辦，再遠的還不用煩
+
+
 def cases_needing_attention() -> list[dict[str, Any]]:
-    """需處理案件：未作廢，且(審核中 或 有填下一步)。承辦只看自己的。"""
+    """待辦事項：卡在流程上的案子，加上快到日子的事。
+
+    使用者拍板（2026-07-29）改為由日期自動生成，不再靠人工填「下一步」：
+      - 卡在流程：待複核、審核中、退回補件（要有人動手才會前進）
+      - 合約／保固／維護到期：已過期或 30 天內
+      - 付款排程：預計付款日已過或 30 天內、且尚未付款
+    承辦只看自己的（合約經案件歸屬過濾）。
+    """
     scope = _owner_scope.get()
-    where = "status <> 'disabled' AND (status = 'reviewing' OR TRIM(next_step) <> '')"
-    params: list[Any] = []
-    if scope is not None:
-        where = f"({where}) AND owner = ?"
-        params.append(scope)
+    today = date.today()
+    horizon = (today + timedelta(days=_TODO_HORIZON_DAYS)).isoformat()
+    today_s = today.isoformat()
+    items: list[dict[str, Any]] = []
+
     with connect() as conn:
-        return conn.execute(
-            "SELECT id, case_code, title, status, note, next_step, owner, amount "
-            f"FROM cases WHERE {where} ORDER BY id DESC LIMIT 100",
-            params,
-        ).fetchall()
+        # ① 卡在審核流程的案件
+        where = "status IN ('pending_review', 'reviewing', 'returned')"
+        params: list[Any] = []
+        if scope is not None:
+            where = f"({where}) AND owner = ?"
+            params.append(scope)
+        for r in conn.execute(
+            f"SELECT id, case_code, title, status, owner, amount, review_note FROM cases WHERE {where} "
+            "ORDER BY id DESC LIMIT 100", params):
+            items.append({
+                "kind": "case", "id": r["id"], "case_code": r["case_code"], "title": r["title"],
+                "status": r["status"], "owner": r["owner"], "amount": r["amount"],
+                "detail": r["review_note"] or "", "due_date": "", "days_left": None,
+            })
+
+        # ②③ 合約相關的到期日：合約/保固/維護到期、預計付款日
+        cw, cp = ("", [])
+        if scope is not None:
+            cw, cp = _scope_where("contracts", scope, alias="k")
+        tail = f" AND {cw}" if cw else ""
+
+        for col, kind, label in EXPIRY_KINDS:
+            for r in conn.execute(
+                f"SELECT k.id, k.case_id, k.contract_code, k.contract_name, k.{col} AS due "
+                f"FROM contracts k WHERE k.{col} <> '' AND k.{col} <= ? AND k.status <> 'disabled'{tail} "
+                "ORDER BY due LIMIT 100", [horizon, *cp]):
+                due = _pdate(r["due"])
+                items.append({
+                    "kind": kind, "id": r["case_id"], "case_code": r["contract_code"],
+                    "title": r["contract_name"], "status": "expiring", "owner": "", "amount": 0,
+                    "detail": label, "due_date": r["due"],
+                    "days_left": (due - today).days if due else None,
+                })
+
+        for r in conn.execute(
+            "SELECT ps.id, k.case_id, k.contract_code, ps.label, ps.due_date, ps.planned_amount "
+            "FROM payment_schedules ps JOIN contracts k ON k.id = ps.contract_id "
+            f"WHERE ps.status = 'planned' AND ps.due_date <> '' AND ps.due_date <= ? "
+            f"AND k.status <> 'disabled'{tail} ORDER BY ps.due_date LIMIT 100", [horizon[:7], *cp]):
+            due = _pdate(r["due_date"] + "-01" if len(r["due_date"]) == 7 else r["due_date"])
+            items.append({
+                "kind": "payment_due", "id": r["case_id"], "case_code": r["contract_code"],
+                "title": f"{r['label']} 預計付款", "status": "expiring", "owner": "",
+                "amount": r["planned_amount"], "detail": "預計付款日", "due_date": r["due_date"],
+                "days_left": (due - today).days if due else None,
+            })
+
+    # 最急的排前面：已過期 → 快到期 → 卡流程（沒有日期的排最後）
+    items.sort(key=lambda x: (x["days_left"] is None, x["days_left"] if x["days_left"] is not None else 0))
+    return items
 
 
 # 到期提醒分階段：合約沒人管就是自動續約或斷保，所以不是「快到期」一句話帶過，
@@ -4102,25 +4195,19 @@ def case_progress_overview() -> dict[str, Any]:
                 phase = "active"
             # 金額：優先用案件金額，退回合約總額、預算總額
             amount = float(c["amount"] or 0) or sum(k["amount"] for k in contracts) or sum(b["amount"] for b in budgets)
-            high = amount >= _AMOUNT_HIGH
             worst_tone = block["tone"]
             urgent = worst_tone in ("orange", "red")
-            # 象限：金額×急迫度；高金額卡在人工確認(核准/簽呈白燈、無期限)→主管確認
-            if high and urgent:
-                quadrant, reason = "now", "金額高·期限近"
-            elif high and not urgent:
-                quadrant, reason = "confirm", "金額高·待確認"
-            elif not high and urgent:
-                quadrant, reason = "week", "期限近"
+            # 使用者拍板（2026-07-29）：金額不代表優先，只用時間當急迫度，不再切四象限。
+            # reason 保留一句人看得懂的說明，回答「為什麼排這個位置」。
+            if urgency is None:
+                reason = "無期限可判斷"
+            elif urgency < 0:
+                reason = f"已逾期 {-urgency} 天"
+            elif urgency <= _ORANGE_WINDOW_DAYS:
+                reason = f"剩 {urgency} 天"
             else:
-                quadrant, reason = "plan", "可安排"
-            # 落點：真散佈（非排排站）——x 依急迫度、y 依金額，位置反映數值本身
-            # Y：以 _AMOUNT_HIGH 為中線；≥門檻→上半、以下→下半，越極端越靠邊
-            ar = amount / _AMOUNT_HIGH if _AMOUNT_HIGH else 0
-            if ar >= 1:
-                y = 50 - min((ar - 1) / 2.0, 1.0) * 38   # 門檻→50，≥3倍→12(最上)
-            else:
-                y = 50 + (1 - ar) * 36                    # 門檻→50，0→86(最下)
+                reason = f"還有 {urgency} 天"
+            # 落點：單一時間軸——x 依急迫度，逾期在右、還很久在左
             # X：逾期→最右、近期限→右、未來越久→左、無期限→偏左
             if urgency is None:
                 x = 24.0
@@ -4132,7 +4219,8 @@ def case_progress_overview() -> dict[str, Any]:
                 x = 48 - min((urgency - _ORANGE_WINDOW_DAYS) / 90.0, 1.0) * 34       # 遠 48..14
             # 穩定微抖動（用 case_id，避免同值完全疊住、但重整不亂跳）
             x = max(6, min(94, round(x + (cid % 7) - 3)))
-            y = max(6, min(94, round(y + (cid % 5) - 2)))
+            # 只剩時間一軸，垂直位置純粹用來把重疊的點錯開，不代表任何意義
+            y = 18 + (cid % 9) * 8
             items.append({
                 "case_id": cid,
                 "case_code": c["case_code"],
@@ -4145,7 +4233,7 @@ def case_progress_overview() -> dict[str, Any]:
                 "block": block,
                 "phase": phase,
                 "urgency_days": urgency,
-                "matrix": {"quadrant": quadrant, "reason": reason, "x": x, "y": y},
+                "matrix": {"reason": reason, "x": x, "y": y, "tone": worst_tone},
             })
     return {"items": items}
 
