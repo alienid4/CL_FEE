@@ -714,7 +714,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.51.0 · 2026-07-29 · §10 合約費用調整：機櫃增減/電價調漲不蓋掉原金額，每次調整留一筆（生效日/原因/從多少到多少/誰調的），合約金額變現值、歷史可查、寫稽核"
+BACKEND_BUILD = "v0.52.0 · 2026-07-29 · 搜尋依角色收斂（只回這個角色開得起來的型別，CIO 搜到案件也點不進去＝雜訊）＋進度圖/矩陣點擊直達該案追溯鏈"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -722,6 +722,12 @@ def pilot_passwordless() -> bool:
     return os.getenv("PILOT_PASSWORDLESS", "0") == "1"
 
 AUTH_COOKIE_NAME = "ai_fee_user"
+# 搜尋結果的型別 → 要有哪個模組權限才看得到（對齊前端 SEARCH_NAV 的導向目標）
+SEARCH_TYPE_MODULE = {
+    "case": "cases-module", "contract": "contracts-module", "payment": "payments-module",
+    "document": "data-review", "budget": "budget", "project": "projects",
+    "project_item": "projects", "signoff": "signoff", "purchase": "purchases",
+}
 HANDLER_FORBIDDEN_PREFIXES = ("/api/audit-logs", "/api/import-batches", "/api/dev-console",
                               "/api/settle-schedule")  # 承辦不得使用（稽核/匯入/開發者控制台；標已付僅主管/助理）
 LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
@@ -2046,8 +2052,14 @@ def create_app() -> FastAPI:
         app.add_api_route(f"/api/{_table}.csv", (lambda t: lambda: _module_csv(t))(_table), include_in_schema=False)
 
     @app.get("/api/search")
-    def search(q: str = Query(min_length=1)) -> dict[str, Any]:
-        return ok(search_records(q))
+    def search(request: Request, q: str = Query(min_length=1)) -> dict[str, Any]:
+        # 只回這個角色開得起來的型別：CIO 只有「決策總覽」，搜到案件/合約也點不進去
+        # （會導向他看不到的模組），列出來只是雜訊。承辦的「只看自己的案件」由 store 的
+        # owner scope 另外把關，兩層各管各的：這裡管「哪種模組」，那裡管「誰的資料」。
+        acct = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        modules = set(acct.get("allowed_modules") or [])
+        rows = [r for r in search_records(q) if SEARCH_TYPE_MODULE.get(r["type"]) in modules]
+        return ok(rows)
 
     @app.get("/api/cmdb")
     def cmdb_placeholder() -> dict[str, Any]:

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.51.0 · 2026-07-29 · §10 合約費用調整紀錄（機櫃/電費調價留歷史）";
+const BUILD_TAG = "v0.52.0 · 2026-07-29 · 搜尋依角色收斂＋進度圖/矩陣點擊直達細項";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -585,7 +585,8 @@ function renderMatrix(allItems) {
       el.className = `matrix-item ${m.quadrant || "plan"}`;
       el.style.left = `${m.x}%`;
       el.style.top = `${m.y}%`;
-      el.title = `${escapeHtml(it.title)}｜${it.amount ? money(it.amount) + " 元" : "0"}｜${urgencyText(it.urgency_days)}`;
+      el.dataset.caseId = it.case_id;  // 點散佈點直接開這個案子的追溯鏈
+      el.title = `${escapeHtml(it.title)}｜${it.amount ? money(it.amount) + " 元" : "0"}｜${urgencyText(it.urgency_days)}（點擊看細項）`;
       el.innerHTML = `<b>${escapeHtml(it.title.slice(0, 8))}</b><span>${it.amount ? money(it.amount) : 0} / ${urgencyText(it.urgency_days)}</span>`;
       box.appendChild(el);
     }
@@ -621,6 +622,20 @@ async function loadCaseProgress() {
     if (listEl) listEl.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
   }
 }
+// 進度圖／矩陣點擊直達細項：在總覽看到「這件要立即處理」之後，原本得自己回案件清單再翻一次；
+// 現在點那一列（或矩陣上那個點）就切回清單並展開它的追溯鏈，一頁看完花多少、欠多少。
+function openCaseFromOverview(caseId) {
+  if (!caseId) return;
+  activateCaseTab("list");
+  loadCaseTrace(caseId);
+}
+for (const sel of ["#case-progress-list", "#case-matrix", "#case-matrix-body"]) {
+  document.querySelector(sel)?.addEventListener("click", (event) => {
+    const el = event.target.closest("[data-case-id]");
+    if (el) openCaseFromOverview(el.getAttribute("data-case-id"));
+  });
+}
+
 // 矩陣分類 chip：點一下切換該分類的顯示（至少留一類），用快取重繪不重打 API
 document.querySelector("#matrix-filters")?.addEventListener("click", (event) => {
   const chip = event.target.closest(".phase-chip");
@@ -1208,6 +1223,7 @@ function rolesForCard(card) {
 
 function applyRoleVisibility(user) {
   const allowedModules = new Set(user.allowed_modules || []);
+  applySearchScopeByRole(user);  // 搜尋範圍也依角色收斂（CIO 只有決策總覽 → 停用搜尋）
   for (const card of moduleCards) {
     const targetId = card.getAttribute("href")?.replace("#", "");
     const allowedByPolicy = allowedModules.size ? allowedModules.has(targetId) : rolesForCard(card).includes(user.role_code);
@@ -4757,6 +4773,29 @@ document.addEventListener("click", (event) => {
 
 const globalSearch = document.querySelector("#global-search");
 const searchScope = document.querySelector("#search-scope");           // 縮小範圍：只看某個模組
+// 搜尋範圍下拉也依角色收斂：後端已濾掉搜不到的型別，這裡把選項一併拿掉，
+// 免得選了一個永遠 0 筆的範圍還以為是資料不見了。CIO 只有決策總覽 → 整個搜尋停用。
+const SEARCH_TYPE_MODULE = {
+  case: "cases-module", contract: "contracts-module", payment: "payments-module",
+  document: "data-review", budget: "budget", project: "projects",
+  signoff: "signoff", purchase: "purchases",
+};
+function applySearchScopeByRole(user) {
+  if (!searchScope || !user) return;
+  const mods = new Set(user.allowed_modules || []);
+  for (const opt of [...searchScope.options]) {
+    if (!opt.value) continue;  // 「全部功能」永遠留著
+    opt.hidden = !mods.has(SEARCH_TYPE_MODULE[opt.value]);
+  }
+  const searchable = Object.values(SEARCH_TYPE_MODULE).some((m) => mods.has(m));
+  if (globalSearch) {
+    globalSearch.disabled = !searchable;
+    globalSearch.placeholder = searchable
+      ? "輸入 ≥2 字搜尋八大模組"
+      : "你的角色只看決策總覽，請從總覽下探";
+  }
+  if (searchScope) searchScope.disabled = !searchable;
+}
 const searchResults = document.querySelector("#search-results");      // 側欄小提示
 const searchPanel = document.querySelector("#search-panel");           // 中間大結果區
 const searchResultsMain = document.querySelector("#search-results-main");

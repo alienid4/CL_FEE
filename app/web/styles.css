@@ -1688,6 +1688,11 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
   display: grid; grid-template-columns: minmax(180px, 1.1fr) 2.4fr minmax(120px, auto);
   align-items: center; gap: 16px; padding: 12px 8px; border-bottom: 1px solid var(--line);
 }
+/* 進度圖／矩陣表格點一列＝開該案追溯鏈，給游標與 hover 提示讓人知道可以點 */
+.case-progress-row { cursor: pointer; }
+.case-progress-row:hover { background: var(--surface-2); }
+#case-matrix-body tr { cursor: pointer; }
+#case-matrix-body tr:hover { background: var(--surface-2); }
 .case-progress-name b { display: block; font-size: .9rem; }
 .case-progress-name span { color: var(--ink-2); font-size: .74rem; }
 .case-progress-track { display: flex; align-items: flex-start; }
@@ -1727,7 +1732,7 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .matrix-item {
   position: absolute; transform: translate(-50%, -50%); z-index: 2; max-width: 96px; box-sizing: border-box;
   padding: 3px 7px; border-radius: 7px; background: var(--surface); border: 1px solid var(--line);
-  box-shadow: 0 1px 3px rgba(0,0,0,.12); font-size: .62rem; cursor: default; text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,.12); font-size: .62rem; cursor: pointer; text-align: center;
 }
 .matrix-item:hover { z-index: 5; box-shadow: 0 3px 10px rgba(0,0,0,.22); }
 .matrix-item b { display: block; font-size: .64rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
