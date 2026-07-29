@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-54-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-55-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -746,8 +746,10 @@
               </div>
               <form id="personnel-create-form" class="resource-form">
                 <input name="name" placeholder="人員姓名 *" required />
+                <select name="group_name" class="person-group-select" title="歸屬組別"><option value="">（未分組）</option></select>
                 <input name="note" placeholder="備註" />
                 <button type="submit">＋ 新增人員</button>
+                <button type="button" id="personnel-seed-demo" class="secondary">載入示範名單</button>
                 <span class="muted" id="personnel-create-status" role="status" aria-live="polite"></span>
               </form>
               <div id="personnelmaster-result"></div>
@@ -1111,6 +1113,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-54-0"></script>
+    <script src="/static/app.js?v=v0-55-0"></script>
   </body>
 </html>

@@ -499,6 +499,9 @@ def initialize_database() -> None:
         ensure_column(conn, "unit_headcounts", "source_file", "TEXT NOT NULL DEFAULT ''")
         # 簽呈附件參照：貼簽呈系統連結或檔案位置（勾稽用，不存 PDF 本身）
         ensure_column(conn, "signoffs", "attachment_ref", "TEXT NOT NULL DEFAULT ''")
+        # 人員歸屬組別（主機組/資料庫組/網路組…）：案件的「負責人」要能依組別過濾。
+        # 組別本身是可維護的選項（不同單位組織不一樣），不寫死在程式裡。
+        ensure_column(conn, "personnel_master", "group_name", "TEXT NOT NULL DEFAULT ''")
         # 系統編號：案件領「所屬年度＋四位流水號」，各階段共用此尾碼做跨階段勾稽
         ensure_column(conn, "cases", "fiscal_year", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "seq", "INTEGER NOT NULL DEFAULT 0")
@@ -2143,15 +2146,19 @@ def create_unit_master(canonical_code: str, canonical_name: str, note: str = "")
     return row
 
 
-def list_personnel_master() -> dict[str, Any]:
-    """人員主檔清單：給案件/簽呈/預算/付款/專案表單的人員欄位下拉選單用。"""
+def list_personnel_master(include_disabled: bool = False) -> dict[str, Any]:
+    """人員主檔清單：給案件/簽呈/預算/付款/專案表單的人員欄位下拉選單用。
+    後台管理要看得到已停用的（才能重新啟用），所以用 include_disabled 切換。"""
+    where = "" if include_disabled else "WHERE status <> 'disabled'"
     with connect() as conn:
         masters = [dict(m) for m in conn.execute(
-            "SELECT id, name, status, note FROM personnel_master WHERE status <> 'disabled' ORDER BY name").fetchall()]
-    return {"masters": masters, "count": len(masters)}
+            f"SELECT id, name, group_name, status, note FROM personnel_master {where} "
+            "ORDER BY group_name, name").fetchall()]
+    groups = sorted({m["group_name"] for m in masters if m["group_name"]})
+    return {"masters": masters, "count": len(masters), "groups": groups}
 
 
-def create_personnel_master(name: str, note: str = "") -> dict[str, Any]:
+def create_personnel_master(name: str, note: str = "", group_name: str = "") -> dict[str, Any]:
     """主動新增一個人員（給表單下拉選單用）。建立前擋撞名，避免同一人被打成兩種寫法。"""
     n = (name or "").strip()
     if not n:
@@ -2160,11 +2167,78 @@ def create_personnel_master(name: str, note: str = "") -> dict[str, Any]:
         dup = conn.execute("SELECT id FROM personnel_master WHERE name = ?", (n,)).fetchone()
         if dup:
             raise ValueError(f"「{n}」已存在於人員主檔，不能重複新增。")
-        cur = conn.execute("INSERT INTO personnel_master (name, note) VALUES (?, ?)", (n, note))
+        cur = conn.execute("INSERT INTO personnel_master (name, group_name, note) VALUES (?, ?, ?)",
+                           (n, (group_name or "").strip(), note))
         row_id = cur.lastrowid
         row = get_row(conn, "personnel_master", row_id)
         write_audit_log(conn, "personnel_master", row_id, "create", None, row)
     return row
+
+
+def update_personnel_master(person_id: int, fields: dict[str, Any]) -> dict[str, Any]:
+    """改人員資料（換組、改名、停用/啟用、備註）。人會轉組、會離職，這些都要能改。"""
+    allowed = {k: v for k, v in fields.items()
+               if k in ("name", "group_name", "note", "status") and v is not None}
+    if not allowed:
+        raise ValueError("沒有可更新的欄位。")
+    if "name" in allowed:
+        allowed["name"] = str(allowed["name"]).strip()
+        if not allowed["name"]:
+            raise ValueError("人員姓名不能空白。")
+    if "status" in allowed and allowed["status"] not in ("active", "disabled"):
+        raise ValueError("人員狀態只能是 active 或 disabled。")
+    with connect() as conn:
+        before = get_row(conn, "personnel_master", person_id)
+        if "name" in allowed:
+            dup = conn.execute("SELECT id FROM personnel_master WHERE name = ? AND id <> ?",
+                               (allowed["name"], person_id)).fetchone()
+            if dup:
+                raise ValueError(f"「{allowed['name']}」已存在於人員主檔。")
+        assignments = ", ".join(f"{k} = ?" for k in allowed)
+        conn.execute(f"UPDATE personnel_master SET {assignments} WHERE id = ?",
+                     [*allowed.values(), person_id])
+        after = get_row(conn, "personnel_master", person_id)
+        write_audit_log(conn, "personnel_master", person_id, "update", before, after)
+        return after
+
+
+def delete_personnel_master(person_id: int) -> None:
+    """真的刪掉一筆人員。已經被表單引用過的名字不會跟著消失（那些欄位存的是文字），
+    所以刪除只影響「以後還選不選得到」，不會弄壞歷史資料。"""
+    with connect() as conn:
+        before = get_row(conn, "personnel_master", person_id)
+        conn.execute("DELETE FROM personnel_master WHERE id = ?", (person_id,))
+        write_audit_log(conn, "personnel_master", person_id, "delete", before, None)
+
+
+# 示範名單：四組各三人，讓下拉選單一開始就有東西可選（真名單由後台自行維護／匯入）。
+# note 一律標「示範資料」，之後要清掉一眼就分得出來。
+DEMO_PERSONNEL = {
+    "資料庫組": ["張淑芬", "李冠廷", "吳佩珊"],
+    "網路組": ["黃俊傑", "劉美玲", "蔡承翰"],
+    "主機組": ["王志明", "陳怡君", "林建宏"],
+    "專案及流程管理組": ["鄭雅婷", "許家豪", "楊書瑋"],
+}
+
+
+def seed_demo_personnel() -> dict[str, Any]:
+    """載入示範人員名單（四組各三人）。已存在的同名人員跳過不覆蓋，可重複執行。"""
+    created, skipped = [], []
+    with connect() as conn:
+        for group, names in DEMO_PERSONNEL.items():
+            for name in names:
+                exists = conn.execute("SELECT id FROM personnel_master WHERE name = ?", (name,)).fetchone()
+                if exists:
+                    skipped.append(name)
+                    continue
+                cur = conn.execute(
+                    "INSERT INTO personnel_master (name, group_name, note) VALUES (?, ?, '示範資料')",
+                    (name, group))
+                row = get_row(conn, "personnel_master", cur.lastrowid)
+                write_audit_log(conn, "personnel_master", cur.lastrowid, "create", None, row)
+                created.append(row)
+    return {"created": created, "created_count": len(created),
+            "skipped": skipped, "skipped_count": len(skipped)}
 
 
 def _find_or_create_master(conn, canonical_code: str, canonical_name: str, note: str = "") -> int:

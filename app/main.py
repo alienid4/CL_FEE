@@ -391,6 +391,15 @@ class UnitCreateIn(BaseModel):
 class PersonnelCreateIn(BaseModel):
     name: str = Field(min_length=1)
     note: str = ""
+    group_name: str = ""     # 歸屬組別（主機組/資料庫組/網路組…），案件負責人要能依組別過濾
+
+
+class PersonnelPatch(BaseModel):
+    # 人會轉組、會改名、會離職，四個欄位都要能改
+    name: str | None = None
+    group_name: str | None = None
+    note: str | None = None
+    status: str | None = None   # active / disabled（停用＝下拉選不到，但歷史資料不動）
 
 
 class UnitMergeIn(BaseModel):
@@ -673,6 +682,7 @@ class SettingsPatch(BaseModel):
     opt_project_level: str | None = None
     opt_project_rag: str | None = None
     opt_contract_type: str | None = None
+    opt_person_groups: str | None = None
 
 
 class UserCreateIn(BaseModel):
@@ -694,7 +704,7 @@ class UserPatch(BaseModel):
 SETTINGS_PUBLIC_KEYS = [
     "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
     "opt_budget_categories", "opt_project_necessity", "opt_project_level", "opt_project_rag",
-    "opt_contract_type",
+    "opt_contract_type", "opt_person_groups",
 ]
 
 # 主檔選項預設（後台未設定時採用）
@@ -704,6 +714,8 @@ OPTION_DEFAULTS = {
     "opt_project_level": "公司級,處級,部級",
     "opt_project_rag": "如期執行,已完成,未開始,有延遲但不影響,有延遲且可能影響",
     "opt_contract_type": "採購,維護,租賃,軟體授權,服務,其他",
+    # 人員歸屬組別：不同單位組織不一樣，所以做成後台可改的選項，不寫死
+    "opt_person_groups": "資料庫組,網路組,主機組,專案及流程管理組",
 }
 
 
@@ -724,7 +736,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.54.0 · 2026-07-29 · §4 審核關卡：申請階段只配暫時號(TMP-)、核准才配正式號不跳號；核准以外補上退回補件(帶原因)/併入既有案(資料一起搬)/拒絕建立(留申請紀錄)"
+BACKEND_BUILD = "v0.55.0 · 2026-07-29 · 人員主檔加組別＋後台可增刪改（轉組/離職都改得動），附四組各三人示範名單；人員下拉終於有東西可選"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1076,6 +1088,7 @@ def create_app() -> FastAPI:
             "project_level": _option_list("opt_project_level"),
             "project_rag": _option_list("opt_project_rag"),
             "contract_type": _option_list("opt_contract_type"),
+            "person_groups": _option_list("opt_person_groups"),
         })
 
     @app.get("/api/dashboard")
@@ -1792,17 +1805,42 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/personnel-master")
-    def get_personnel_master() -> dict[str, Any]:
-        return ok(list_personnel_master())
+    def get_personnel_master(include_disabled: bool = False) -> dict[str, Any]:
+        # 後台管理要看得到已停用的（才能重新啟用）；表單下拉只拿在職的
+        return ok(list_personnel_master(include_disabled))
 
     @app.post("/api/personnel-master", status_code=201)
     def post_personnel_master(payload: PersonnelCreateIn, request: Request) -> dict[str, Any]:
         # 主動新增乾淨人員（給表單下拉選單用）；建立前擋撞名，避免同一人被打成兩種寫法。
         _require_unit_editor(request)
         try:
-            return ok(create_personnel_master(payload.name, payload.note))
+            return ok(create_personnel_master(payload.name, payload.note, payload.group_name))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.patch("/api/personnel-master/{person_id}")
+    def patch_personnel_master(person_id: int, payload: PersonnelPatch, request: Request) -> dict[str, Any]:
+        _require_unit_editor(request)
+        try:
+            return ok(store.update_personnel_master(person_id, payload.model_dump(exclude_unset=True)))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete("/api/personnel-master/{person_id}", status_code=204)
+    def del_personnel_master(person_id: int, request: Request) -> None:
+        _require_unit_editor(request)
+        try:
+            store.delete_personnel_master(person_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/personnel-master/seed-demo", status_code=201)
+    def seed_personnel_demo(request: Request) -> dict[str, Any]:
+        # 載入示範名單（四組各三人），讓下拉一開始就有東西可選；同名跳過，可重複執行
+        _require_unit_editor(request)
+        return ok(store.seed_demo_personnel())
 
     @app.post("/api/unit-impact")
     def post_unit_impact(payload: UnitImpactIn) -> dict[str, Any]:

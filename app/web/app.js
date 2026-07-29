@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.54.0 · 2026-07-29 · §4 審核關卡：暫時號＋退件/併案/駁回";
+const BUILD_TAG = "v0.55.0 · 2026-07-29 · 人員主檔加組別＋後台增刪改";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3441,6 +3441,8 @@ async function loadOptions() {
     fill("#opt-project-necessity", o.project_necessity);
     fill("#opt-project-level", o.project_level);
     fill("#opt-project-rag", o.project_rag);
+    personnelGroupOptions = o.person_groups || [];   // 人員組別選項（後台可維護）
+    populatePersonnelGroupSelects();
     // 合約類型是 select（不是 datalist）：保留「未分類」預設項，其餘由後台選項維護
     for (const sel of document.querySelectorAll(".contract-type-picker")) {
       const cur = sel.value;
@@ -4147,7 +4149,9 @@ async function loadUnitMaster() {
 // 人員下拉：案件/簽呈/預算/付款/專案表單的「負責人/申請人/核銷者…」只能選人員主檔已登記的名字。
 let personnelMasterCache = [];
 function populatePersonnelSelects() {
-  const rest = (personnelMasterCache || []).map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+  // 選項文字帶組別（同名不同組時分得出來），但存進資料的值仍是純姓名，不影響既有資料
+  const rest = (personnelMasterCache || []).map((p) =>
+    `<option value="${escapeHtml(p.name)}">${escapeHtml(p.group_name ? `${p.group_name}｜${p.name}` : p.name)}</option>`).join("");
   for (const sel of document.querySelectorAll("select.personnel-select")) {
     // 第一個選項文字各表單各自標記（用 data-placeholder），不要整批蓋成同一句「（未選擇）」
     const placeholder = sel.dataset.placeholder ? `（未選擇）${sel.dataset.placeholder}` : "（未選擇）";
@@ -4173,24 +4177,98 @@ function populateFiscalYearSelects() {
   }
 }
 
+// 人員管理（後台）：組別＋姓名可增刪改。人會轉組、會離職，所以每一列都能改組別、停用、刪除。
+// 停用＝下拉選不到但歷史資料不動（那些欄位存的是名字文字）；刪除只影響「以後還選不選得到」。
+let personnelGroupOptions = [];
+let personnelAllCache = [];   // 含已停用（後台列表用）；personnelMasterCache 只留在職的給表單下拉
 async function loadPersonnelMaster() {
   const box = document.querySelector("#personnelmaster-result");
   try {
-    const data = (await api("/api/personnel-master")).data || {};
+    // 後台要看得到已停用的（才能重新啟用）；表單下拉只吃在職的
+    const data = (await api("/api/personnel-master?include_disabled=true")).data || {};
     const masters = data.masters || [];
-    personnelMasterCache = masters;
+    personnelAllCache = masters;
+    personnelMasterCache = masters.filter((p) => p.status !== "disabled");
     populatePersonnelSelects();
+    populatePersonnelGroupSelects();
     if (!box) return;
-    box.innerHTML = masters.length
-      ? `<div class="grid-scroll"><table class="grid-table">
-          <thead><tr><th>姓名</th><th>備註</th></tr></thead>
-          <tbody>${masters.map((p) => `<tr><td><strong>${escapeHtml(p.name)}</strong></td><td class="muted">${escapeHtml(valueOrDash(p.note))}</td></tr>`).join("")}</tbody>
-        </table></div>`
-      : `<p class="muted">還沒有登記過人員，用上面「＋新增人員」登記。</p>`;
+    if (!masters.length) {
+      box.innerHTML = `<p class="muted">還沒有登記過人員。用上面「＋新增人員」逐筆登記，或按「載入示範名單」先放四組各三人試用。</p>`;
+      return;
+    }
+    // 依組別分段列出，一眼看得出哪組有幾個人
+    const groups = [...new Set(masters.map((p) => p.group_name || "（未分組）"))];
+    box.innerHTML = groups.map((g) => {
+      const rows = masters.filter((p) => (p.group_name || "（未分組）") === g);
+      return `<div class="person-group">
+        <h4>${escapeHtml(g)} <span class="muted">${rows.length} 人</span></h4>
+        <div class="grid-scroll"><table class="grid-table">
+          <thead><tr><th>姓名</th><th>組別</th><th>狀態</th><th>備註</th><th class="col-actions">操作</th></tr></thead>
+          <tbody>${rows.map((p) => `<tr${p.status === "disabled" ? ' class="person-off"' : ""}>
+            <td><strong>${escapeHtml(p.name)}</strong></td>
+            <td>${escapeHtml(valueOrDash(p.group_name))}</td>
+            <td>${p.status === "disabled" ? '<span class="badge neutral">已停用</span>' : '<span class="badge ok">在職</span>'}</td>
+            <td class="muted">${escapeHtml(valueOrDash(p.note))}</td>
+            <td class="col-actions"><span class="row-actions">
+              <button type="button" class="btn-sm secondary" data-person-edit="${p.id}">改</button>
+              <button type="button" class="btn-sm secondary" data-person-toggle="${p.id}">${p.status === "disabled" ? "啟用" : "停用"}</button>
+              <button type="button" class="btn-sm secondary danger" data-person-del="${p.id}">刪除</button>
+            </span></td></tr>`).join("")}</tbody>
+        </table></div></div>`;
+    }).join("");
   } catch (error) {
     if (box) box.innerHTML = `<p class="muted">人員名單載入失敗：${escapeHtml(error.message)}</p>`;
   }
 }
+
+// 組別下拉：選項由後台維護（不同單位組織不一樣），並補上名單裡已出現、但選項清單還沒登記的組別
+function populatePersonnelGroupSelects() {
+  const used = [...new Set((personnelMasterCache || []).map((p) => p.group_name).filter(Boolean))];
+  const all = [...new Set([...personnelGroupOptions, ...used])];
+  for (const sel of document.querySelectorAll("select.person-group-select")) {
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">（未分組）</option>`
+      + all.map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+    if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  }
+}
+
+document.querySelector("#personnelmaster-result")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-person-edit],[data-person-toggle],[data-person-del]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-person-edit") || btn.getAttribute("data-person-toggle") || btn.getAttribute("data-person-del");
+  const person = (personnelAllCache || []).find((p) => String(p.id) === String(id));
+  try {
+    if (btn.hasAttribute("data-person-del")) {
+      if (!window.confirm(`確定刪除「${person ? person.name : "這位人員"}」？\n已經填在案件/簽呈上的名字不會消失，只是以後下拉選不到。`)) return;
+      await api(`/api/personnel-master/${id}`, { method: "DELETE" });
+    } else if (btn.hasAttribute("data-person-toggle")) {
+      const next = person && person.status === "disabled" ? "active" : "disabled";
+      await api(`/api/personnel-master/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }) });
+    } else {
+      const name = window.prompt("姓名：", person ? person.name : "");
+      if (name === null) return;
+      const group = window.prompt("組別（留空＝未分組）：", person ? person.group_name : "");
+      if (group === null) return;
+      await api(`/api/personnel-master/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim(), group_name: group.trim() }) });
+    }
+    await loadPersonnelMaster();
+  } catch (error) { window.alert(error.message); }
+});
+
+document.querySelector("#personnel-seed-demo")?.addEventListener("click", async () => {
+  const statusEl = document.querySelector("#personnel-create-status");
+  if (!window.confirm("載入示範名單（四組各三人，備註會標「示範資料」）？同名的會跳過。")) return;
+  try {
+    const res = (await api("/api/personnel-master/seed-demo", { method: "POST" })).data || {};
+    if (statusEl) statusEl.textContent = `已新增 ${res.created_count} 人${res.skipped_count ? `，跳過 ${res.skipped_count} 位同名` : ""}`;
+    await loadPersonnelMaster();
+  } catch (error) {
+    if (statusEl) statusEl.textContent = `失敗：${error.message}`;
+  }
+});
 
 // 影響預覽：這些變體現在佔幾筆分攤、金額多少
 async function unitImpactLine(variants) {

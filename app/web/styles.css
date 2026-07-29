@@ -1779,6 +1779,12 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .sched-summary .owe { color:var(--danger); }
 .sched-summary .paid { color:var(--ok); }
 
+/* 人員管理（後台）：依組別分段，停用的整列淡化但仍看得到（才能重新啟用） */
+.person-group { margin-bottom: 16px; }
+.person-group h4 { margin: 0 0 6px; font-size: .92rem; color: var(--ink-2); }
+.person-group h4 .muted { font-weight: 400; font-size: .78rem; }
+tr.person-off td { opacity: .55; }
+
 /* 需求書 §4 審核關卡：暫時號、退件/駁回原因、併案挑選面板 */
 .temp-code { background: var(--surface-2); border: 1px dashed var(--line); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .review-note { margin-top: 3px; font-size: .72rem; color: var(--ink-3); max-width: 14rem;
