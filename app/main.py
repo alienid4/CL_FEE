@@ -233,6 +233,16 @@ class PaymentIn(BaseModel):
 
 
 # ── §8 預計付款排程 ──
+class ReviewDecisionIn(BaseModel):
+    # 退回補件／拒絕建立都必須寫原因：退件是要讓申請人知道補什麼，駁回是審核紀錄的一部分
+    reason: str = ""
+
+
+class MergeCaseIn(BaseModel):
+    target_case_id: int      # 併到哪一件既有案
+    reason: str = ""
+
+
 class AdjustmentIn(BaseModel):
     # §10 費用調整：只需給「調整後金額」，舊值由系統取合約現值，避免前端傳錯造成差額算錯
     new_amount: float
@@ -714,7 +724,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.53.0 · 2026-07-29 · 費用類別分析：錢花在哪一類，預算類別/合約類型兩種維度可切；歸不出來的（沒預算、一案跨多類別）獨立標「待歸戶」不塞進其他"
+BACKEND_BUILD = "v0.54.0 · 2026-07-29 · §4 審核關卡：申請階段只配暫時號(TMP-)、核准才配正式號不跳號；核准以外補上退回補件(帶原因)/併入既有案(資料一起搬)/拒絕建立(留申請紀錄)"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1505,6 +1515,49 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # ── 需求書 §4：核准以外的三條審核路徑（都不刪資料）──
+    @app.post("/api/cases/{case_id}/return")
+    def return_case_endpoint(case_id: int, payload: ReviewDecisionIn, request: Request) -> dict[str, Any]:
+        actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        if (get_account(actor) or {}).get("role_code") != "manager_assistant":
+            raise HTTPException(status_code=403, detail="只有助理/主管能退回補件。")
+        try:
+            return ok(store.return_case(case_id, actor, payload.reason))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/cases/{case_id}/reject")
+    def reject_case_endpoint(case_id: int, payload: ReviewDecisionIn, request: Request) -> dict[str, Any]:
+        actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        if (get_account(actor) or {}).get("role_code") != "manager_assistant":
+            raise HTTPException(status_code=403, detail="只有助理/主管能駁回案件申請。")
+        try:
+            return ok(store.reject_case(case_id, actor, payload.reason))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/cases/{case_id}/merge")
+    def merge_case_endpoint(case_id: int, payload: MergeCaseIn, request: Request) -> dict[str, Any]:
+        actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        if (get_account(actor) or {}).get("role_code") != "manager_assistant":
+            raise HTTPException(status_code=403, detail="只有助理/主管能把申請併入既有案件。")
+        try:
+            return ok(store.merge_case_into(case_id, payload.target_case_id, actor, payload.reason))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 

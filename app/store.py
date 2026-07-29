@@ -414,7 +414,10 @@ CREATE TABLE IF NOT EXISTS name_decisions (
 
 STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     "cases": {
-        "status": {"draft", "pending_review", "reviewing", "approved", "disabled"},
+        # 需求書 §4 的審核結果：核准新案(approved)／退回補件(returned)／併入既有案(merged)／
+        # 拒絕建立(rejected)。被拒絕與被併走的都留著（不是停用、也不是刪除），申請紀錄查得到。
+        "status": {"draft", "pending_review", "reviewing", "approved", "disabled",
+                   "returned", "rejected", "merged"},
     },
     "contracts": {
         "status": {"active", "reviewing", "closed", "disabled"},
@@ -499,6 +502,11 @@ def initialize_database() -> None:
         # 系統編號：案件領「所屬年度＋四位流水號」，各階段共用此尾碼做跨階段勾稽
         ensure_column(conn, "cases", "fiscal_year", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "seq", "INTEGER NOT NULL DEFAULT 0")
+        # 需求書 §4 審核關卡：申請階段只有暫時號（temp_seq），核准才配正式 seq；
+        # 退回補件／拒絕建立要留原因；併入既有案要記併到哪一件（不能只是把申請刪掉）。
+        ensure_column(conn, "cases", "temp_seq", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "cases", "review_note", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "merged_into_case_id", "INTEGER")
         # Excel 來源勾稽：記匯入來源檔＋原始列號，清單顯示 📎 讓人回 Excel 核對
         ensure_column(conn, "cases", "source_file", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "source_row", "INTEGER NOT NULL DEFAULT 0")
@@ -691,10 +699,12 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         if cid:
             fields["case_id"] = cid
     if table == "cases":
-        nxt = conn.execute(
-            "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
+        # 需求書 §4＋使用者拍板(A案)：申請階段只配「暫時號」，核准才配正式流水號。
+        # 這樣被駁回／被併走的申請不會吃掉正式號，年度編號不跳號。正式號在 approve_case 配。
+        tmp = conn.execute(
+            "SELECT COALESCE(MAX(temp_seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
             (fields.get("fiscal_year", ""),)).fetchone()["n"]
-        fields = {**fields, "seq": nxt}  # 案件年度流水號（四位尾碼＝案件身分證）
+        fields = {**fields, "temp_seq": tmp, "seq": 0}
     if table == "payments" and not str(fields.get("settle_no") or "").strip():
         # 核銷編號自動發號：年度取核銷月份，流水號只計自動發的(settle_seq>0)，避免匯入真號污染
         pm = str(fields.get("payment_month") or "").strip()
@@ -977,7 +987,8 @@ def generate_payment_schedules(contract_id: int, method: str, spec: Any = None,
 
 def allowed_fields() -> dict[str, set[str]]:
     return {
-        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row"},
+        "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row",
+                  "temp_seq", "review_note", "merged_into_case_id"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
                       "payment_method", "installments",
                       "start_date", "contract_type", "parent_contract_id", "relation_type",
@@ -1095,13 +1106,14 @@ def disable_row(table: str, row_id: int) -> dict[str, Any]:
 
 
 def submit_case(case_id: int) -> dict[str, Any]:
-    """送出複核：draft/reviewing -> pending_review。承辦可送自己的（套 owner 範圍）。"""
+    """送出複核：draft/reviewing/returned -> pending_review。承辦可送自己的（套 owner 範圍）。
+    退回補件(returned)的案子補完可以直接再送，沿用原暫時號、不用重開一件（需求書 §4）。"""
     scope = _owner_scope.get()
     with connect() as conn:
         before = get_row(conn, "cases", case_id)
         if scope is not None and not _row_in_scope(conn, "cases", case_id, scope):
             raise LookupError(f"cases row {case_id} not found")  # 非本人範圍，視同不存在
-        if before["status"] not in ("draft", "reviewing"):
+        if before["status"] not in ("draft", "reviewing", "returned"):
             raise RuntimeError(f"案件目前狀態為 {before['status']}，無法送出複核。")
         conn.execute("UPDATE cases SET status = 'pending_review' WHERE id = ?", (case_id,))
         after = get_row(conn, "cases", case_id)
@@ -1134,13 +1146,87 @@ def approve_case(case_id: int, approver: str) -> dict[str, Any]:
             raise RuntimeError(f"案件目前狀態為 {before['status']}，只有『待複核』能核准。")
         if (before.get("created_by") or "") == approver:
             raise PermissionError("不能核准自己建立的案件，需由另一人複核。")
+        # 正式流水號在這裡才配（使用者拍板 A 案）：申請階段用暫時號，核准通過才佔正式號，
+        # 被駁回／被併走的申請不吃號，年度編號不跳號。已配過就不重配（重複核准不會換號）。
+        seq = int(before.get("seq") or 0)
+        if seq <= 0:
+            seq = conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?",
+                (before.get("fiscal_year") or "",)).fetchone()["n"]
         conn.execute(
-            "UPDATE cases SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?",
-            (approver, case_id),
+            "UPDATE cases SET status = 'approved', seq = ?, approved_by = ?, approved_at = datetime('now') "
+            "WHERE id = ?",
+            (seq, approver, case_id),
         )
         after = get_row(conn, "cases", case_id)
         write_audit_log(conn, "cases", case_id, "approve", before, after)
         return after
+
+
+# ── 需求書 §4 審核關卡：核准以外的三條路（退回補件／併入既有案／拒絕建立）──
+# 三者都不刪資料：退件要能補完再送、併案要留得住「這兩件本來是同一件」、拒絕也要留申請紀錄。
+def _reviewable(conn: sqlite3.Connection, case_id: int, action_label: str) -> dict[str, Any]:
+    before = get_row(conn, "cases", case_id)
+    if before["status"] not in ("pending_review", "draft", "returned"):
+        raise RuntimeError(f"案件目前狀態為 {before['status']}，無法{action_label}。")
+    return before
+
+
+def return_case(case_id: int, actor: str, reason: str) -> dict[str, Any]:
+    """退回補件：pending_review -> returned，必須寫退件原因（否則申請人不知道要補什麼）。
+    沿用原暫時號，申請人補完直接再送，不用重開一件。"""
+    reason = str(reason or "").strip()
+    if not reason:
+        raise ValueError("請填退件原因，讓申請人知道要補什麼。")
+    with connect() as conn:
+        before = _reviewable(conn, case_id, "退回補件")
+        conn.execute("UPDATE cases SET status = 'returned', review_note = ? WHERE id = ?", (reason, case_id))
+        after = get_row(conn, "cases", case_id)
+        write_audit_log(conn, "cases", case_id, "return", before, after, actor=actor)
+        return after
+
+
+def reject_case(case_id: int, actor: str, reason: str) -> dict[str, Any]:
+    """拒絕建立：不產生正式 Case（不配正式號），但申請與審核紀錄留著——
+    停用會讓它看起來像資料被藏起來，查不到「這件曾經被申請過、被誰以什麼理由駁回」。"""
+    reason = str(reason or "").strip()
+    if not reason:
+        raise ValueError("請填駁回原因，這是審核紀錄的一部分。")
+    with connect() as conn:
+        before = _reviewable(conn, case_id, "拒絕建立")
+        conn.execute("UPDATE cases SET status = 'rejected', review_note = ? WHERE id = ?", (reason, case_id))
+        after = get_row(conn, "cases", case_id)
+        write_audit_log(conn, "cases", case_id, "reject", before, after, actor=actor)
+        return after
+
+
+# 併案要一起搬走的關聯資料：這些都是掛 case_id 的。付款掛合約、合約搬過去付款自然跟著走。
+_MERGE_TABLES = ("budgets", "projects", "signoffs", "purchases", "contracts", "documents")
+
+
+def merge_case_into(case_id: int, target_case_id: int, actor: str, reason: str = "") -> dict[str, Any]:
+    """併入既有 Case：把這件申請底下的資料轉到目標案，來源標 merged 並記「併到哪一件」。
+    重點是關聯要留得住——只把新申請停用、人工把資料補到舊案，事後沒人看得出這兩件是同一件事。"""
+    if int(case_id) == int(target_case_id):
+        raise ValueError("不能併入自己。")
+    with connect() as conn:
+        before = _reviewable(conn, case_id, "併入既有案")
+        target = conn.execute("SELECT id, status FROM cases WHERE id = ?", (target_case_id,)).fetchone()
+        if target is None:
+            raise ValueError(f"要併入的案件 ID {target_case_id} 不存在。")
+        if target["status"] in ("merged", "rejected"):
+            raise ValueError("目標案件本身已被併入或已駁回，不能當併入對象。")
+        moved: dict[str, int] = {}
+        for table in _MERGE_TABLES:
+            cur = conn.execute(f"UPDATE {table} SET case_id = ? WHERE case_id = ?", (target_case_id, case_id))
+            if cur.rowcount:
+                moved[table] = cur.rowcount
+        conn.execute(
+            "UPDATE cases SET status = 'merged', merged_into_case_id = ?, review_note = ? WHERE id = ?",
+            (target_case_id, str(reason or "").strip(), case_id))
+        after = get_row(conn, "cases", case_id)
+        write_audit_log(conn, "cases", case_id, "merge", before, after, actor=actor)
+        return {**after, "moved": moved}
 
 
 CHILD_REFS: dict[str, list[tuple[str, str]]] = {

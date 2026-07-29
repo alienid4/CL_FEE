@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.53.0 · 2026-07-29 · 費用類別分析（預算類別/合約類型雙維度）";
+const BUILD_TAG = "v0.54.0 · 2026-07-29 · §4 審核關卡：暫時號＋退件/併案/駁回";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -369,10 +369,18 @@ const SYS_PREFIX = { case: "Case", budget: "Budg", project: "Proj", signoff: "Si
 function caseNumber(c) {
   return (c && c.fiscal_year && c.seq) ? `${c.fiscal_year}${String(c.seq).padStart(4, "0")}` : "";
 }
+// 使用者拍板 A 案：核准前只有暫時號（TMP-年+四位），核准當下才配正式號。
+// 這樣被駁回／被併走的申請不會吃掉正式號，年度編號不跳號。
+function caseTempNumber(c) {
+  return (c && c.fiscal_year && c.temp_seq) ? `TMP-${c.fiscal_year}${String(c.temp_seq).padStart(4, "0")}` : "";
+}
 function systemCodeCell(prefix, caseId) {
   const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
   const n = caseNumber(c);
-  return n ? `<strong>${escapeHtml(prefix + n)}</strong>` : `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
+  if (n) return `<strong>${escapeHtml(prefix + n)}</strong>`;
+  const tmp = caseTempNumber(c);
+  if (tmp) return `<span class="temp-code" title="案件尚未核准，這是暫時號；核准後才會配正式編號">${escapeHtml(tmp)}</span>`;
+  return `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
 }
 // 付款經「合約」再回溯到案件（付款掛合約、合約掛案件）
 function systemCodeCellPayment(payment) {
@@ -1797,13 +1805,30 @@ function sourceTag(item) {
 // 不要像以前那樣用 flex/grid 卡片擠在一起（曾經 6 個欄位只設定 5 個 grid-template-columns，
 // 案號徽章跟案件編號會疊在一起）。
 function renderCaseRow(item) {
-  const statusClass = item.status === "approved" ? "ok" : item.status === "pending_review" ? "warn" : item.status === "disabled" ? "neutral" : "";
+  const statusClass = item.status === "approved" ? "ok"
+    : item.status === "pending_review" || item.status === "returned" ? "warn"
+    : item.status === "rejected" ? "danger"
+    : item.status === "disabled" || item.status === "merged" ? "neutral" : "";
+  // 核准前顯示暫時號（灰底），核准後才是正式案號——一眼看得出這件還沒過
+  const num = caseNumber(item)
+    ? `<span class="badge" title="案號（年度＋流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item))}</span>`
+    : `<span class="badge temp-code" title="尚未核准，這是暫時號；核准後才配正式案號">${escapeHtml(caseTempNumber(item) || "—")}</span>`;
+  // 退件原因/駁回理由/併到哪一件：直接顯示在狀態底下，不用點進去才知道為什麼
+  const mergedInto = item.merged_into_case_id
+    ? (caseCache || []).find((c) => String(c.id) === String(item.merged_into_case_id))
+    : null;
+  const noteBits = [];
+  if (mergedInto) noteBits.push(`併入 ${mergedInto.case_code}`);
+  // 只在還停在該狀態時顯示；補件後重新送出就不再掛著舊退件原因（歷史仍在稽核軌跡查得到）
+  if (item.review_note && ["returned", "rejected", "merged"].includes(item.status)) noteBits.push(item.review_note);
+  const note = noteBits.length
+    ? `<div class="review-note" title="${escapeHtml(noteBits.join("｜"))}">${escapeHtml(noteBits.join("｜"))}</div>` : "";
   return `<tr data-case-id="${item.id}">
-    <td class="col-narrow"><span class="badge" title="案號（年度-流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item) || "—")}</span></td>
+    <td class="col-narrow">${num}</td>
     <td class="col-narrow"><strong>${escapeHtml(item.case_code)}</strong>${sourceTag(item)}</td>
     <td>${escapeHtml(item.title)}</td>
     <td class="col-narrow muted">${escapeHtml(item.owner || "未指派")}</td>
-    <td class="col-narrow"><span class="badge ${statusClass}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+    <td class="col-narrow"><span class="badge ${statusClass}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${note}</td>
     <td class="col-actions">
       <span class="row-actions">
         ${caseWorkflowButtons(item)}
@@ -2704,12 +2729,68 @@ async function loadDocuments() {
   await loadResource("document");
 }
 
-const STATUS_LABELS = { draft: "草稿", pending_review: "待複核", reviewing: "審核中", approved: "已核准", disabled: "已停用" };
+const STATUS_LABELS = { draft: "草稿", pending_review: "待複核", reviewing: "審核中", approved: "已核准", disabled: "已停用",
+                        returned: "退回補件", rejected: "已駁回", merged: "已併入他案" };
 
-// 依角色/建立者算出案件的複核動作按鈕（送出複核 / 核准）
+// 併案時會一起搬過去的資料表 → 中文（tableLabels 只涵蓋四個模組，這裡六個都要有名字）
+const MERGE_TABLE_LABEL = { budgets: "預算", projects: "專案", signoffs: "簽呈",
+                            purchases: "請購", contracts: "合約", documents: "文件" };
+
+// 併案挑目標：不能叫使用者自己去記案件 ID，開一個小面板列出既有案件、可打字過濾、點一列就選定。
+// 已被併走／已駁回的不能當目標（併過去會接不下去）。回傳 null＝使用者取消。
+function pickMergeTarget(caseId) {
+  return new Promise((resolve) => {
+    const candidates = (caseCache || []).filter(
+      (c) => String(c.id) !== String(caseId) && !["merged", "rejected"].includes(c.status));
+    if (!candidates.length) {
+      window.alert("目前沒有可以併入的既有案件。");
+      resolve(null);
+      return;
+    }
+    const box = document.createElement("div");
+    box.className = "merge-picker-backdrop";
+    box.innerHTML = `
+      <div class="merge-picker" role="dialog" aria-label="併入既有案件">
+        <div class="section-heading compact"><h3>併入哪一件既有案件？</h3></div>
+        <p class="muted">這件申請底下的預算／專案／簽呈／請購／合約／文件會一起轉過去，並記錄「併自哪一件」。</p>
+        <input type="search" class="merge-filter" placeholder="輸入案件編號或名稱過濾" aria-label="過濾案件">
+        <div class="merge-list"></div>
+        <label class="merge-reason">併案原因（選填）<input type="text" placeholder="如：與 CASE-0007 同一件冷氣維護"></label>
+        <div class="merge-actions"><button type="button" class="secondary btn-sm" data-merge-cancel>取消</button></div>
+      </div>`;
+    document.body.appendChild(box);
+    const listEl = box.querySelector(".merge-list");
+    const filterEl = box.querySelector(".merge-filter");
+    const draw = () => {
+      const q = filterEl.value.trim().toLowerCase();
+      const rows = candidates.filter((c) => !q
+        || (c.case_code || "").toLowerCase().includes(q) || (c.title || "").toLowerCase().includes(q));
+      listEl.innerHTML = rows.length
+        ? rows.map((c) => `<button type="button" class="merge-row" data-target="${c.id}">`
+            + `<strong>${escapeHtml(c.case_code)}</strong> ${escapeHtml(c.title || "")}`
+            + `<span class="muted">${escapeHtml(STATUS_LABELS[c.status] || c.status)}｜${escapeHtml(c.owner || "未指派")}</span></button>`).join("")
+        : `<p class="muted">沒有符合的案件。</p>`;
+    };
+    draw();
+    filterEl.addEventListener("input", draw);
+    const close = (value) => { box.remove(); resolve(value); };
+    box.addEventListener("click", (event) => {
+      if (event.target === box || event.target.closest("[data-merge-cancel]")) { close(null); return; }
+      const row = event.target.closest("[data-merge-row], .merge-row");
+      if (!row) return;
+      const target = candidates.find((c) => String(c.id) === row.getAttribute("data-target"));
+      close({ id: target.id, label: `${target.case_code} ${target.title || ""}`.trim(),
+              reason: box.querySelector(".merge-reason input").value.trim() });
+    });
+    filterEl.focus();
+  });
+}
+
+// 依角色/建立者算出案件的複核動作按鈕（需求書 §4 四種審核結果）
 function caseWorkflowButtons(item) {
   const btns = [];
-  if (item.status === "draft" || item.status === "reviewing") {
+  // 退回補件的案子補完可以直接再送，沿用原暫時號、不用重開一件
+  if (["draft", "reviewing", "returned"].includes(item.status)) {
     btns.push(`<button type="button" class="secondary btn-sm" data-action="submit">送出複核</button>`);
   }
   if (item.status === "pending_review") {
@@ -2720,6 +2801,12 @@ function caseWorkflowButtons(item) {
     }
     if (isManager && isSubmitter) {
       btns.push(`<span class="muted" title="不能核准自己建立的案件">待他人複核</span>`);
+    }
+    if (isManager) {
+      // 核准以外的三條路：資料不齊→退回補件；已經有同一件→併案；不該立案→駁回但留紀錄
+      btns.push(`<button type="button" class="secondary btn-sm" data-action="return" title="資料不齊，退回讓申請人補">退回補件</button>`);
+      btns.push(`<button type="button" class="secondary btn-sm" data-action="merge" title="這件事已經有案子了，併過去">併入既有案</button>`);
+      btns.push(`<button type="button" class="secondary btn-sm danger" data-action="reject" title="不該立案，但申請紀錄留著">駁回</button>`);
     }
     // 取消複核（退回草稿）：原提交者或主管/助理都可以，不像核准有球員兼裁判風險
     if (isSubmitter || isManager) {
@@ -4671,6 +4758,26 @@ cases.addEventListener("click", async (event) => {
     }
     if (action === "cancel-review") {
       await api(`/api/cases/${id}/cancel-review`, { method: "POST" });
+    }
+    // 需求書 §4 核准以外的三條路。退件/駁回一定要寫原因，取消輸入就中止、不送出。
+    if (action === "return" || action === "reject") {
+      const label = action === "return" ? "退回補件" : "駁回";
+      const hint = action === "return" ? "請說明要補什麼，申請人會看到：" : "請說明駁回理由（會留在審核紀錄）：";
+      const reason = window.prompt(`${label}：${hint}`, "");
+      if (reason === null) return;                       // 按取消＝不做
+      if (!reason.trim()) { window.alert(`請填${label}原因。`); return; }
+      await api(`/api/cases/${id}/${action}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }) });
+    }
+    if (action === "merge") {
+      const target = await pickMergeTarget(id);
+      if (!target) return;
+      const res = (await api(`/api/cases/${id}/merge`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_case_id: target.id, reason: target.reason }) })).data || {};
+      const moved = Object.entries(res.moved || {}).map(([k, n]) => `${MERGE_TABLE_LABEL[k] || k} ${n} 筆`).join("、");
+      window.alert(`已併入 ${target.label}。${moved ? `\n一併轉過去的資料：${moved}` : "\n這件申請底下還沒有資料要轉。"}`);
     }
     if (action === "disable") {
       await api(`/api/cases/${id}/disable`, { method: "POST" });

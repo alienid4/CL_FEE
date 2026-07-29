@@ -1779,6 +1779,24 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .sched-summary .owe { color:var(--danger); }
 .sched-summary .paid { color:var(--ok); }
 
+/* 需求書 §4 審核關卡：暫時號、退件/駁回原因、併案挑選面板 */
+.temp-code { background: var(--surface-2); border: 1px dashed var(--line); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.review-note { margin-top: 3px; font-size: .72rem; color: var(--ink-3); max-width: 14rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.merge-picker-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center; padding: 20px; }
+.merge-picker { background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 18px 20px; width: min(560px, 100%); max-height: 80vh; display: flex; flex-direction: column; gap: 8px; }
+.merge-picker .merge-filter { padding: 6px 8px; }
+.merge-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; min-height: 60px; }
+.merge-row { text-align: left; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface); cursor: pointer; font: inherit; font-size: .84rem; display: flex; flex-direction: column; gap: 2px; }
+.merge-row:hover { border-color: var(--accent); background: var(--surface-2); }
+.merge-row span { font-size: .72rem; }
+.merge-reason { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: var(--ink-2); }
+.merge-reason input { padding: 5px 7px; }
+.merge-actions { display: flex; justify-content: flex-end; }
+
 /* §10 費用調整面板：增減用紅綠區分，表單跟排程面板同一套視覺 */
 .adj-form { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; margin:10px 0 6px;
   padding-top:12px; border-top:1px dashed var(--line); }
