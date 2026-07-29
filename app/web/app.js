@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.56.0 · 2026-07-29 · 助理回饋改版：新案申請四步＋案件欄位＋待辦自動生成";
+const BUILD_TAG = "v0.56.1 · 2026-07-29 · 預算移回第2個＋「請購」字樣全站改「費用」";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -85,7 +85,7 @@ if (modulePanels.length && !document.querySelector("#module-unbuilt")) {
   ph.hidden = true;
   ph.innerHTML =
     '<div class="watch-list"><div class="section-heading compact"><h2>此功能尚未啟用</h2></div>' +
-    '<p class="muted">此模組（預算 / 專案 / 簽呈 / 請購）仍在規劃中，pilot 階段先不開放。核心流程請用「案件管理」。</p></div>';
+    '<p class="muted">此模組（預算 / 專案 / 簽呈 / 費用）仍在規劃中，pilot 階段先不開放。核心流程請用「案件管理」。</p></div>';
   modulePanels[0].parentNode.appendChild(ph);
   modulePanels.push(ph);
 }
@@ -310,12 +310,12 @@ const resourceConfig = {
   },
   purchase: {
     plural: "purchases", idAttr: "purchase-id", idField: "purchaseId", api: "/api/purchases",
-    navCount: "nav-count-purchases", navLabel: "請購",
+    navCount: "nav-count-purchases", navLabel: "費用",
     fields: ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "signoff_id", "note"],
     numberFields: ["quantity", "amount", "case_id", "signoff_id"], canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.purchase, i.case_id) },
-      { label: "請購編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
+      { label: "費用編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
       { label: "品項", cell: (i) => escapeHtml(i.item_name) },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
       { label: "數量", cls: "num", cell: (i) => `${Number(i.quantity || 0)}` },
@@ -1940,7 +1940,7 @@ async function loadPurchaseOptions() {
   if (!pickers.length) return;
   let list = [];
   try { list = (await api("/api/purchases")).data || []; } catch (_e) { return; }
-  const opts = `<option value="">（不關聯請購）</option>` +
+  const opts = `<option value="">（不關聯費用）</option>` +
     list.map((p) => `<option value="${p.id}">${escapeHtml(p.purchase_code)}｜${escapeHtml(p.item_name || "")}</option>`).join("");
   for (const sel of pickers) {
     const cur = sel.value;
@@ -2048,7 +2048,7 @@ async function loadCaseTrace(caseId) {
           ${chip("預算", n(d.budgets), t.budget_amount)}<span class="trace-arrow">▸</span>
           ${chip("專案", n(d.projects), null)}<span class="trace-arrow">▸</span>
           ${chip("簽呈", n(d.signoffs), t.signoff_amount)}<span class="trace-arrow">▸</span>
-          ${chip("請購", n(d.purchases), t.purchase_amount)}<span class="trace-arrow">▸</span>
+          ${chip("費用", n(d.purchases), t.purchase_amount)}<span class="trace-arrow">▸</span>
           ${chip("合約", n(d.contracts), t.contract_amount)}<span class="trace-arrow">▸</span>
           ${chip("付款", n(d.payments), t.payment_amount)}
         </div>
@@ -2056,8 +2056,8 @@ async function loadCaseTrace(caseId) {
           <div><h4>預算</h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
           <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
           <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
-          <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯請購")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("請購", k.purchase_id, d.purchases, "purchase_code")}`
+          <div><h4>費用</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯費用")}</ul></div>
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
             + traceContractMoney(k), "無關聯合約")}</ul></div>
           <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
@@ -2746,7 +2746,7 @@ const STATUS_LABELS = { draft: "草稿", pending_review: "待複核", reviewing:
 
 // 併案時會一起搬過去的資料表 → 中文（tableLabels 只涵蓋四個模組，這裡六個都要有名字）
 const MERGE_TABLE_LABEL = { budgets: "預算", projects: "專案", signoffs: "簽呈",
-                            purchases: "請購", contracts: "合約", documents: "文件" };
+                            purchases: "費用", contracts: "合約", documents: "文件" };
 
 // 併案挑目標：不能叫使用者自己去記案件 ID，開一個小面板列出既有案件、可打字過濾、點一列就選定。
 // 已被併走／已駁回的不能當目標（併過去會接不下去）。回傳 null＝使用者取消。
@@ -2764,7 +2764,7 @@ function pickMergeTarget(caseId) {
     box.innerHTML = `
       <div class="merge-picker" role="dialog" aria-label="併入既有案件">
         <div class="section-heading compact"><h3>併入哪一件既有案件？</h3></div>
-        <p class="muted">這件申請底下的預算／專案／簽呈／請購／合約／文件會一起轉過去，並記錄「併自哪一件」。</p>
+        <p class="muted">這件申請底下的預算／專案／簽呈／費用／合約／文件會一起轉過去，並記錄「併自哪一件」。</p>
         <input type="search" class="merge-filter" placeholder="輸入案件編號或名稱過濾" aria-label="過濾案件">
         <div class="merge-list"></div>
         <label class="merge-reason">併案原因（選填）<input type="text" placeholder="如：與 CASE-0007 同一件冷氣維護"></label>
@@ -3298,7 +3298,7 @@ async function loadCioDrill(caseId) {
       .join("") || `<li class="muted">無關聯簽呈</li>`;
     const purchases = (d.purchases || [])
       .map((p) => `<li><strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")} ｜ 廠商：${escapeHtml(valueOrDash(p.vendor_name))} ｜ 金額：${money(p.amount)} 元 ｜ ${escapeHtml(labelStatus(p.status))}</li>`)
-      .join("") || `<li class="muted">無關聯請購</li>`;
+      .join("") || `<li class="muted">無關聯費用</li>`;
     const projects = (d.projects || [])
       .map((p) => `<li><strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")} ｜ 進度 ${Number(p.progress || 0)}% ｜ ${escapeHtml(labelStatus(p.status))}</li>`)
       .join("") || `<li class="muted">無關聯專案</li>`;
@@ -3316,7 +3316,7 @@ async function loadCioDrill(caseId) {
       <h3>對應預算</h3><ul class="note-list">${budgets}</ul>
       <h3>對應專案</h3><ul class="note-list">${projects}</ul>
       <h3>對應簽呈</h3><ul class="note-list">${signoffs}</ul>
-      <h3>對應請購</h3><ul class="note-list">${purchases}</ul>
+      <h3>對應費用</h3><ul class="note-list">${purchases}</ul>
       <h3>關聯合約</h3><ul class="note-list">${contracts}</ul>
       <h3>付款明細</h3><ul class="note-list">${payments}</ul>
       <h3>文件</h3><ul class="note-list">${documents}</ul>`;
@@ -4448,7 +4448,7 @@ document.querySelector("#unitdecisions-result")?.addEventListener("click", async
 // 整個資料庫重置（測試用危險鈕）：比照後端一樣只在 ALLOW_DB_RESET 開著時看得到按鈕；
 // 動作不可逆（雖然後端有自動備份），要求手動打字確認，不是按一下就送出。
 document.querySelector("#admin-db-reset")?.addEventListener("click", async () => {
-  if (!window.confirm("整個資料庫重置：會清空所有案件/合約/預算/專案/簽呈/請購/付款…全部資料，只留空白結構。\n會自動先備份一份到 data/reset_backups/ 才清空，但這是測試用的危險操作，正式資料請勿使用。確定要繼續嗎？")) return;
+  if (!window.confirm("整個資料庫重置：會清空所有案件/合約/預算/專案/簽呈/費用/付款…全部資料，只留空白結構。\n會自動先備份一份到 data/reset_backups/ 才清空，但這是測試用的危險操作，正式資料請勿使用。確定要繼續嗎？")) return;
   const typed = window.prompt('請輸入「RESET」以確認執行（防止手滑）：');
   if (typed !== "RESET") { window.alert("已取消（輸入不符）。"); return; }
   try {
@@ -5056,7 +5056,7 @@ function applySearchScopeByRole(user) {
 const searchResults = document.querySelector("#search-results");      // 側欄小提示
 const searchPanel = document.querySelector("#search-panel");           // 中間大結果區
 const searchResultsMain = document.querySelector("#search-results-main");
-const SEARCH_LABEL = { case: "案件", contract: "合約", payment: "付款", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "請購", project_item: "專案子項" };
+const SEARCH_LABEL = { case: "案件", contract: "合約", payment: "付款", document: "文件", budget: "預算", project: "專案", signoff: "簽呈", purchase: "費用", project_item: "專案子項" };
 // 每種類型 → 對應模組 nav + 開啟該筆的動作（開編輯表單、顯示細節）
 const SEARCH_NAV = {
   case: { href: "#cases-module", open: (id) => startEdit(id) },

@@ -763,12 +763,12 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "budgets": [("budget_code", "預算編號"), ("category", "類別"), ("unit_name", "單位"), ("fiscal_year", "年度"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
     "projects": [("project_code", "標號"), ("project_name", "專案名稱"), ("level", "專案分類"), ("necessity", "必要性"), ("start_date", "開始日"), ("end_date", "結束日"), ("progress_planned", "進度預計%"), ("progress", "進度實際%"), ("rag_status", "燈號"), ("owner", "負責人"), ("source", "來源"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
     "signoffs": [("signoff_code", "簽呈編號"), ("subject", "主旨"), ("applicant", "申請人"), ("amount", "金額"), ("status", "狀態"), ("sign_date", "簽核日"), ("case_id", "案件ID")],
-    "purchases": [("purchase_code", "請購編號"), ("item_name", "品項"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
+    "purchases": [("purchase_code", "費用編號"), ("item_name", "費用項目"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
 }
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.56.0 · 2026-07-29 · 依助理回饋改版：新案申請砍成四步(案件/專案/合約/費用)、案件欄位換成組別/預算內外/費用or資本支出/預算名目/案件來源/案件說明、待辦改由日期自動生成、矩陣只留時間軸"
+BACKEND_BUILD = "v0.56.1 · 2026-07-29 · 預算移回左側第 2 個；「請購」字樣全站改「費用」（清單欄位、追溯鏈、搜尋結果、CSV 匯出、併案說明都跟著改）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2216,7 +2216,7 @@ _WIZARD_CODE_LABEL = {
     "cases.case_code": "案件編號",
     "budgets.budget_code": "預算編號",
     "signoffs.signoff_code": "簽呈編號",
-    "purchases.purchase_code": "請購編號",
+    "purchases.purchase_code": "費用編號",
     "contracts.contract_code": "合約編號",
 }
 

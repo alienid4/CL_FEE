@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-56-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-56-1" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -40,7 +40,7 @@
             <option value="budget">預算</option>
             <option value="project">專案</option>
             <option value="signoff">簽呈</option>
-            <option value="purchase">請購</option>
+            <option value="purchase">費用</option>
             <option value="payment">付款</option>
             <option value="document">文件</option>
           </select>
@@ -52,11 +52,11 @@
           <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
           <a class="module-card" href="#admin-console" data-roles="admin"><span>⚙</span><strong>系統管理</strong><small>設定/稽核</small></a>
           <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
+          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
           <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
           <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
           <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>費用</strong><small id="nav-count-purchases">費用 …</small></a>
           <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
-          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
           <!-- 簽呈：依助理回饋移出左側選單（2026-07-29）。資料與 Case 360 追溯鏈的簽呈段都保留，
                「這筆付款是哪張簽呈核准的」仍查得到；面板本身仍在，靠追溯鏈的「編輯」進得去。 -->
           <div class="nav-group-label">資料管理（後台）</div>
@@ -341,7 +341,7 @@
               <div class="section-heading compact">
                 <h2>線性進度圖<span class="help" data-tip="每案只顯示用得到的階段。燈號：🟢完成 ⚪還沒輪到 🟠東西到了/快逾期待處理 🔴已逾期。系統依案件關聯資料自動判定，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
                 <div class="toolbar">
-                  <span class="muted" id="progress-source">資料來源：案件關聯（預算/專案/簽呈/核准/合約/請購/付款/發票），系統自動推導</span>
+                  <span class="muted" id="progress-source">資料來源：案件關聯（預算/專案/簽呈/核准/合約/費用/付款/發票），系統自動推導</span>
                 </div>
               </div>
               <div class="case-legend" aria-label="燈號說明">
@@ -607,7 +607,7 @@
               <button class="subtab" type="button" data-io-tab="project">專案</button>
               <button class="subtab" type="button" data-io-tab="signoff">簽呈</button>
               <button class="subtab" type="button" data-io-tab="contract">合約</button>
-              <button class="subtab" type="button" data-io-tab="purchase">請購</button>
+              <button class="subtab" type="button" data-io-tab="purchase">費用</button>
               <button class="subtab" type="button" data-io-tab="document">文件</button>
               <button class="subtab" type="button" data-io-tab="payment">付款</button>
             </div>
@@ -674,7 +674,7 @@
               </div>
               <div class="io-subtab-panel" data-io-panel="purchase" hidden>
                 <div class="io-card">
-                  <h4>請購</h4>
+                  <h4>費用</h4>
                   <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/purchases.csv">下載 CSV</button></div>
                 </div>
               </div>
@@ -789,7 +789,7 @@
           <section class="dashboard-panel module-panel" id="purchases" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">請購</p>
+                <p class="breadcrumb">費用（例行性費用／無合約費用）</p>
               </div>
               <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="purchase-form">＋ 新增</button>
             </div>
@@ -919,7 +919,7 @@
             <input name="vendor_name" placeholder="廠商" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
-            <select name="purchase_id" class="purchase-picker" title="關聯請購（此合約源自哪筆請購）"><option value="">（不關聯請購）</option></select>
+            <select name="purchase_id" class="purchase-picker" title="關聯費用（此合約源自哪筆費用申請）"><option value="">（不關聯費用）</option></select>
             <select name="status">
               <option value="active">有效</option>
               <option value="reviewing">審核中</option>
@@ -1106,13 +1106,13 @@
         <section class="panel crud-zone module-extra" data-module-parent="purchases" hidden>
           <form id="purchase-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
-            <input name="purchase_code" placeholder="請購編號" required />
+            <input name="purchase_code" placeholder="費用編號" required />
             <input name="item_name" placeholder="品項" required />
             <input name="vendor_name" placeholder="廠商" />
             <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
-            <select name="signoff_id" class="signoff-picker" title="關聯簽呈（此請購經哪張簽呈核准）"><option value="">（不關聯簽呈）</option></select>
+            <select name="signoff_id" class="signoff-picker" title="關聯簽呈（此費用經哪張簽呈核准）"><option value="">（不關聯簽呈）</option></select>
             <select name="status">
               <option value="pending">待處理</option>
               <option value="ordered">已下單</option>
@@ -1128,6 +1128,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-56-0"></script>
+    <script src="/static/app.js?v=v0-56-1"></script>
   </body>
 </html>
