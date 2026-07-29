@@ -3011,6 +3011,92 @@ def vendor_amount_summary() -> dict[str, Any]:
     return {"rows": rows, "totals": totals}
 
 
+def expense_category_summary(dimension: str = "budget") -> dict[str, Any]:
+    """費用類別分析：錢花在哪一類。
+
+    「類別」有兩種合理讀法，這裡兩種都給、由使用者切換，不預先幫他決定：
+      dimension='budget'  ：走預算類別（基礎建設/工具/資訊安全…）。付款→合約→案件→該案預算的
+                            category。一個案子底下若有多個不同類別的預算，歸屬有歧義，
+                            不硬猜，統一進「多類別（需人工歸戶）」讓人自己看。
+      dimension='contract'：走合約類型（採購/維護/租賃/軟體授權/服務）。直接掛在合約上，
+                            沒有歧義，但顆粒度是合約而非預算科目。
+    金額口徑：已付＝payments.status='closed'（真的花掉的），待付＝其餘（已排未付）。
+    停用的合約不列入。承辦只看自己案件下的（沿用 owner scope）。
+    """
+    UNCLASSIFIED = "（未分類）"
+    MIXED = "（多類別，需人工歸戶）"
+    scope = _owner_scope.get()
+    with connect() as conn:
+        where = "k.status <> 'disabled'"
+        params: list[Any] = []
+        if scope is not None:
+            sw, sp = _scope_where("contracts", scope, alias="k")
+            if sw:
+                where = f"{where} AND {sw}"
+                params += sp
+        contracts = conn.execute(
+            f"SELECT k.id, k.case_id, k.contract_type, k.amount FROM contracts k WHERE {where}", params).fetchall()
+        if not contracts:
+            return {"dimension": dimension, "rows": [], "totals": {"paid": 0.0, "pending": 0.0, "contract_amount": 0.0}}
+
+        # 案件 → 該案預算的類別集合（一個案子多個不同類別＝歸屬有歧義，不硬猜）
+        case_category: dict[int, str] = {}
+        if dimension == "budget":
+            for r in conn.execute(
+                "SELECT case_id, category FROM budgets WHERE case_id IS NOT NULL AND status <> 'disabled'"):
+                cat = (r["category"] or "").strip()
+                if not cat:
+                    continue
+                cur = case_category.get(r["case_id"])
+                case_category[r["case_id"]] = cat if cur is None else (cur if cur == cat else MIXED)
+
+        def _key_of(row) -> str:
+            if dimension == "contract":
+                return (row["contract_type"] or "").strip() or UNCLASSIFIED
+            return case_category.get(row["case_id"]) or UNCLASSIFIED
+
+        key_by_contract = {r["id"]: _key_of(r) for r in contracts}
+        contract_amount: dict[str, float] = {}
+        for r in contracts:
+            key = key_by_contract[r["id"]]
+            contract_amount[key] = contract_amount.get(key, 0.0) + float(r["amount"] or 0)
+
+        paid: dict[str, float] = {}
+        pending: dict[str, float] = {}
+        counts: dict[str, int] = {}
+        marks = ",".join("?" * len(key_by_contract))
+        for r in conn.execute(
+            f"SELECT contract_id, payment_amount, status FROM payments WHERE contract_id IN ({marks})",
+            tuple(key_by_contract)):
+            key = key_by_contract.get(r["contract_id"])
+            if key is None:
+                continue
+            bucket = paid if r["status"] == "closed" else pending
+            bucket[key] = bucket.get(key, 0.0) + float(r["payment_amount"] or 0)
+            counts[key] = counts.get(key, 0) + 1
+
+    rows = []
+    for key in set(contract_amount) | set(paid) | set(pending):
+        rows.append({
+            "category": key,
+            "contract_amount": contract_amount.get(key, 0.0),
+            "paid": paid.get(key, 0.0),
+            "pending": pending.get(key, 0.0),
+            "payment_count": counts.get(key, 0),
+            "needs_attention": key in (UNCLASSIFIED, MIXED),  # 前端標出來提示要人工歸戶
+        })
+    rows.sort(key=lambda x: (-(x["paid"] or 0), -(x["contract_amount"] or 0), x["category"]))
+    return {
+        "dimension": dimension,
+        "rows": rows,
+        "totals": {
+            "contract_amount": sum(contract_amount.values()),
+            "paid": sum(paid.values()),
+            "pending": sum(pending.values()),
+        },
+    }
+
+
 def cases_needing_attention() -> list[dict[str, Any]]:
     """需處理案件：未作廢，且(審核中 或 有填下一步)。承辦只看自己的。"""
     scope = _owner_scope.get()

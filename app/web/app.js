@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.52.0 · 2026-07-29 · 搜尋依角色收斂＋進度圖/矩陣點擊直達細項";
+const BUILD_TAG = "v0.53.0 · 2026-07-29 · 費用類別分析（預算類別/合約類型雙維度）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -470,6 +470,7 @@ function activateDashTab(tabName) {
     panel.hidden = !isActive;
     panel.classList.toggle("active", isActive);
   }
+  if (tabName === "category") loadExpenseCategories();  // 切到才載，不拖慢首頁
 }
 
 // 匯入／匯出（資料管理）底下依模組分子頁籤，順序＝案件→預算→專案→簽呈→合約→請購→文件→付款，
@@ -2909,6 +2910,48 @@ async function loadVendorAmt() {
   }
   body.innerHTML = lines.join("") || `<tr><td colspan="6" class="muted">目前沒有合約或付款資料。</td></tr>`;
 }
+
+// 費用類別分析：「錢花在哪一類」有兩種合理讀法（預算類別 vs 合約類型），兩種都給、由使用者切，
+// 不預先幫他決定。歸不出來的（沒預算、或一案跨多類別）獨立成列並標黃，提示要人工歸戶——
+// 塞進「其他」會讓數字看起來很完整，其實是把問題藏起來。
+async function loadExpenseCategories() {
+  const body = document.querySelector("#expense-category-body");
+  if (!body) return;
+  const dim = document.querySelector("#category-dimension")?.value || "budget";
+  const data = (await api(`/api/reports/expense-categories?dimension=${dim}`)).data || {};
+  const rows = data.rows || [];
+  const t = data.totals || {};
+  const fmt = (n) => Number(n || 0).toLocaleString();
+  const lines = rows.map((r) => {
+    const pct = t.paid ? `${Math.round((r.paid / t.paid) * 100)}%` : "—";
+    const flag = r.needs_attention ? ' <span class="badge warn">待歸戶</span>' : "";
+    return `<tr${r.needs_attention ? ' class="needs-attention"' : ""}>
+      <td>${escapeHtml(r.category)}${flag}</td>
+      <td class="num">${fmt(r.contract_amount)}</td>
+      <td class="num">${fmt(r.paid)}</td>
+      <td class="num">${fmt(r.pending)}</td>
+      <td class="num">${r.payment_count}</td>
+      <td class="num">${pct}</td>
+    </tr>`;
+  });
+  if (rows.length) {
+    lines.push(`<tr class="total-row"><td>合計</td><td class="num">${fmt(t.contract_amount)}</td>`
+      + `<td class="num">${fmt(t.paid)}</td><td class="num">${fmt(t.pending)}</td>`
+      + `<td class="num">${rows.reduce((s, r) => s + r.payment_count, 0)}</td><td class="num">100%</td></tr>`);
+  }
+  body.innerHTML = lines.join("") || `<tr><td colspan="6" class="muted">目前沒有合約或付款資料。</td></tr>`;
+
+  const chart = document.querySelector("#category-chart");
+  if (chart) {
+    const seg = rows.filter((r) => r.paid > 0)
+      .map((r, i) => ({ label: r.category, value: r.paid, color: CHART_COLORS[i % CHART_COLORS.length], text: `${fmt(r.paid)} 元` }));
+    chart.innerHTML = seg.length
+      ? chartCard(dim === "budget" ? "已付金額：依預算類別" : "已付金額：依合約類型",
+                  donutSVG(seg, { center: "已付" }) + chartLegend(seg))
+      : `<p class="muted">還沒有已付款項可以分類。</p>`;
+  }
+}
+document.querySelector("#category-dimension")?.addEventListener("change", loadExpenseCategories);
 
 // 待辦清單類（合約續約提醒／催辦清單）預設只顯示前 N 筆，其餘收在「展開」按鈕後面，避免一次全灌爆版面。
 const EXPANDABLE_LIST_LIMIT = 5;

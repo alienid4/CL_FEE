@@ -714,7 +714,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.52.0 · 2026-07-29 · 搜尋依角色收斂（只回這個角色開得起來的型別，CIO 搜到案件也點不進去＝雜訊）＋進度圖/矩陣點擊直達該案追溯鏈"
+BACKEND_BUILD = "v0.53.0 · 2026-07-29 · 費用類別分析：錢花在哪一類，預算類別/合約類型兩種維度可切；歸不出來的（沒預算、一案跨多類別）獨立標「待歸戶」不塞進其他"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1100,6 +1100,11 @@ def create_app() -> FastAPI:
     @app.get("/api/reports/vendor-amount-summary")
     def vendor_amount_summary_report() -> dict[str, Any]:
         return ok(vendor_amount_summary())
+
+    @app.get("/api/reports/expense-categories")
+    def expense_categories(dimension: str = Query("budget", pattern="^(budget|contract)$")) -> dict[str, Any]:
+        # 費用類別分析：dimension=budget 走預算類別、contract 走合約類型，兩種讀法都給
+        return ok(store.expense_category_summary(dimension))
 
     @app.get("/api/reports/cio-overview.xlsx", include_in_schema=False)
     def cio_overview_export_xlsx() -> Response:

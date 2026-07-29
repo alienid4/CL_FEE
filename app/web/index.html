@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-52-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-53-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -224,6 +224,7 @@
               <button class="subtab" type="button" data-dash-tab="monthly">月度支出</button>
               <button class="subtab" type="button" data-dash-tab="unit-bva">單位別預算</button>
               <button class="subtab" type="button" data-dash-tab="vendor">廠商別合約</button>
+              <button class="subtab" type="button" data-dash-tab="category">費用類別</button>
               <button class="subtab" type="button" data-dash-tab="tools" data-roles="manager_assistant">系統工具</button>
             </div>
 
@@ -276,6 +277,27 @@
                       <tr><th>廠商</th><th class="num">合約金額</th><th class="num">已付</th><th class="num">待付</th><th class="num">剩餘</th><th class="num">使用率</th></tr>
                     </thead>
                     <tbody id="vendor-amt-body"></tbody>
+                  </table>
+                </div>
+              </section>
+            </section>
+
+            <section class="dash-subtab-panel" data-dash-panel="category" hidden>
+              <section class="watch-list" id="expense-category" aria-label="費用類別分析">
+                <div class="section-heading compact">
+                  <h2>費用類別分析<span class="help" data-tip="錢花在哪一類。「類別」有兩種讀法，兩種都給你切：預算類別＝走案件底下預算的類別（基礎建設/工具/資訊安全…），一個案子有多個不同類別的預算就歸「多類別」不硬猜；合約類型＝直接看合約上的類型（採購/維護/租賃…），沒有歧義但顆粒度較粗。已付＝已結案付款、待付＝其餘。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                  <select id="category-dimension" aria-label="分析維度">
+                    <option value="budget">依預算類別</option>
+                    <option value="contract">依合約類型</option>
+                  </select>
+                </div>
+                <div id="category-chart" class="chart-row"></div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr><th>類別</th><th class="num">合約金額</th><th class="num">已付</th><th class="num">待付</th><th class="num">付款筆數</th><th class="num">佔比</th></tr>
+                    </thead>
+                    <tbody id="expense-category-body"></tbody>
                   </table>
                 </div>
               </section>
@@ -1089,6 +1111,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-52-0"></script>
+    <script src="/static/app.js?v=v0-53-0"></script>
   </body>
 </html>

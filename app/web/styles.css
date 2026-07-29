@@ -1745,6 +1745,10 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 /* 單位別預算vs實付：合計列描邊加粗、超支列淡紅底 */
 #unit-bva tr.total-row td { border-top: 2px solid var(--line); font-weight: 700; }
 #unit-bva tr.over-budget td { background: var(--danger-bg); }
+/* 費用類別分析：歸不出類別的列標黃提示要人工歸戶（不塞進「其他」把問題藏起來） */
+#expense-category tr.needs-attention td { background: var(--warn-bg); }
+#expense-category .section-heading select { margin-left: auto; }
+#expense-category .chart-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
 #unit-bva select { margin-left: auto; }
 /* 數字欄縮到內容寬（width:1%技巧），標籤欄吸收剩餘空間——避免右對齊數字離標題太遠、難以對照 */
 #unit-bva th.num, #unit-bva td.num, #vendor-amt th.num, #vendor-amt td.num { width: 1%; white-space: nowrap; }
