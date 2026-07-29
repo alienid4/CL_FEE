@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-48-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-49-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -887,7 +887,18 @@
               <option value="closed">已結案</option>
               <option value="disabled">已停用</option>
             </select>
+            <select name="contract_type" class="contract-type-picker" title="合約類型"><option value="">（未分類）合約類型</option></select>
+            <input name="start_date" placeholder="起始日" type="date" title="合約起始日（付款排程的起始月會自動帶它）" />
             <input name="end_date" placeholder="到期日" type="date" />
+            <input name="warranty_end_date" placeholder="保固到期" type="date" title="保固到期日（常晚於合約到期日）" />
+            <input name="maintenance_end_date" placeholder="維護到期" type="date" title="維護服務到期日" />
+            <select name="relation_type" title="與舊約的關係">
+              <option value="">全新合約</option>
+              <option value="renew">續約自…</option>
+              <option value="addon">增購自…</option>
+              <option value="merge">整併自…</option>
+            </select>
+            <select name="parent_contract_id" class="parent-contract-picker" title="來源合約（續約/增購/整併的那份舊約）"><option value="">（無來源合約）</option></select>
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
@@ -1077,6 +1088,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-48-0"></script>
+    <script src="/static/app.js?v=v0-49-0"></script>
   </body>
 </html>

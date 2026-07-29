@@ -401,6 +401,8 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     },
     "contracts": {
         "status": {"active", "reviewing", "closed", "disabled"},
+        # 與舊約的關係：空＝全新合約；renew續約 / addon增購 / merge整併（三者都要指 parent_contract_id）
+        "relation_type": {"", "renew", "addon", "merge"},
     },
     "payments": {
         "invoice_status": {"not_received", "received", "verified"},
@@ -500,6 +502,17 @@ def initialize_database() -> None:
         # 簽呈/請購串接（方案A：只存關聯，不重做簽核系統）：請購可關聯核准它的簽呈，合約可關聯源自的請購
         ensure_column(conn, "purchases", "signoff_id", "INTEGER")
         ensure_column(conn, "contracts", "purchase_id", "INTEGER")
+        # 合約模型補齊：原本只有到期日，無起始日／類型／續約增購關係／保固維護期限，
+        # 導致「這份約什麼時候開始、是續哪一份、保固到哪天」都得翻紙本合約。
+        ensure_column(conn, "contracts", "start_date", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "contracts", "contract_type", "TEXT NOT NULL DEFAULT ''")
+        # 續約/增購/整併：三者都是「本約源自哪一份舊約」，用同一組欄位表達，不另開關聯表。
+        # parent_contract_id 空＝全新合約；relation_type 見 STATUS_VALUES.contracts.relation_type。
+        ensure_column(conn, "contracts", "parent_contract_id", "INTEGER")
+        ensure_column(conn, "contracts", "relation_type", "TEXT NOT NULL DEFAULT ''")
+        # 保固／維護到期日：與合約到期日不同（合約結束後保固/維護常還在跑），到期提醒要分開看
+        ensure_column(conn, "contracts", "warranty_end_date", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "contracts", "maintenance_end_date", "TEXT NOT NULL DEFAULT ''")
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -513,6 +526,7 @@ _FK_REFS = {
     "contract_id": ("contracts", "合約"),
     "signoff_id": ("signoffs", "簽呈"),
     "purchase_id": ("purchases", "請購"),
+    "parent_contract_id": ("contracts", "來源合約"),  # 續約/增購/整併指向的舊約
 }
 
 
@@ -524,6 +538,53 @@ def _validate_fks(conn: sqlite3.Connection, fields: dict[str, Any]) -> None:
             continue
         if conn.execute(f"SELECT 1 FROM {ref_table} WHERE id = ?", (val,)).fetchone() is None:
             raise ValueError(f"關聯的{label} ID {val} 不存在，請確認後再填。")
+
+
+_LINEAGE_MAX_DEPTH = 20  # 續約鏈往上追的層數上限（正常合約不會超過；純粹防資料異常繞不完）
+
+
+def _validate_contract_parent(conn: sqlite3.Connection, contract_id: int, parent_id: int) -> None:
+    """續約/增購/整併指的『來源合約』不能是自己，也不能繞回自己（A續B、B又續A）——
+    否則續約鏈會追不完，畫面會卡死。"""
+    if int(parent_id) == int(contract_id):
+        raise ValueError("來源合約不能是自己。")
+    seen = {int(contract_id)}
+    cur = int(parent_id)
+    for _ in range(_LINEAGE_MAX_DEPTH):
+        if cur in seen:
+            raise ValueError("這樣設定會讓合約續約關係繞成一個圈，請改指到正確的舊約。")
+        seen.add(cur)
+        row = conn.execute("SELECT parent_contract_id FROM contracts WHERE id = ?", (cur,)).fetchone()
+        if row is None or row["parent_contract_id"] is None:
+            return
+        cur = int(row["parent_contract_id"])
+
+
+def contract_lineage(contract_id: int) -> list[dict[str, Any]]:
+    """本約的來源鏈（續約/增購/整併一路往上追的舊約），由近而遠。
+    主管問「這份維護約續幾年了」時，看這條鏈就知道，不用翻紙本。"""
+    out: list[dict[str, Any]] = []
+    seen: set[int] = {int(contract_id)}
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT parent_contract_id, relation_type FROM contracts WHERE id = ?", (contract_id,)).fetchone()
+        relation = row["relation_type"] if row else ""
+        cur = row["parent_contract_id"] if row else None
+        while cur is not None and len(out) < _LINEAGE_MAX_DEPTH:
+            if int(cur) in seen:
+                break  # 資料異常繞圈：停在這裡，不讓畫面追不完
+            seen.add(int(cur))
+            parent = conn.execute(
+                "SELECT id, contract_code, contract_name, amount, start_date, end_date, "
+                "parent_contract_id, relation_type FROM contracts WHERE id = ?", (cur,)).fetchone()
+            if parent is None:
+                break
+            item = dict(parent)
+            item["relation_to_child"] = relation  # 下一份約是用什麼關係接上來的（續約/增購/整併）
+            out.append(item)
+            relation = item["relation_type"]
+            cur = item["parent_contract_id"]
+    return out
 
 
 def get_working_year() -> str:
@@ -846,7 +907,9 @@ def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
-                      "payment_method", "installments"},
+                      "payment_method", "installments",
+                      "start_date", "contract_type", "parent_contract_id", "relation_type",
+                      "warranty_end_date", "maintenance_end_date"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount",
@@ -897,7 +960,7 @@ def fetch_one(table: str, row_id: int) -> dict[str, Any] | None:
 
 
 NULLABLE_FIELDS: dict[str, set[str]] = {
-    "contracts": {"case_id", "purchase_id"},
+    "contracts": {"case_id", "purchase_id", "parent_contract_id"},
     "documents": {"case_id", "contract_id"},
     "budgets": {"case_id"},
     "projects": {"case_id"},
@@ -927,6 +990,8 @@ def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, An
         if scope is not None and not _row_in_scope(conn, table, row_id, scope):
             raise LookupError(f"{table} row {row_id} not found")  # 非本人範圍，視同不存在
         _validate_fks(conn, fields)
+        if table == "contracts" and fields.get("parent_contract_id") is not None:
+            _validate_contract_parent(conn, row_id, int(fields["parent_contract_id"]))
         cursor = conn.execute(
             f"UPDATE {table} SET {assignments} WHERE id = ?",
             [*fields.values(), row_id],
@@ -3435,6 +3500,13 @@ def case_360(case_id: int) -> dict[str, Any]:
             "COALESCE(SUM(CASE WHEN p.status='closed' THEN p.payment_amount ELSE 0 END),0) AS s "
             "FROM payments p JOIN contracts c ON c.id = p.contract_id "
             "WHERE c.case_id = ? GROUP BY p.contract_id", (case_id,)).fetchall()}
+        # 續約/增購/整併：帶出「本約源自哪一份舊約」的編號，追溯鏈才看得出這不是全新的約
+        parent_ids = {r["parent_contract_id"] for r in contracts if r["parent_contract_id"] is not None}
+        parent_codes = {}
+        if parent_ids:
+            marks = ",".join("?" * len(parent_ids))
+            parent_codes = {r["id"]: r["contract_code"] for r in conn.execute(
+                f"SELECT id, contract_code FROM contracts WHERE id IN ({marks})", tuple(parent_ids)).fetchall()}
         contract_rows = []
         for row in contracts:
             item = dict(row)
@@ -3443,6 +3515,7 @@ def case_360(case_id: int) -> dict[str, Any]:
             item["planned_total"] = planned
             item["paid_total"] = paid
             item["unpaid_planned"] = max(0.0, planned - paid)
+            item["parent_contract_code"] = parent_codes.get(item.get("parent_contract_id"), "")
             contract_rows.append(item)
         return {
             "case": case,

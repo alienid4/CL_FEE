@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.48.0 · 2026-07-28 · Case 360 向下鑽取到每份合約付款明細";
+const BUILD_TAG = "v0.49.0 · 2026-07-28 · 合約模型補齊：起訖/類型/保固維護/續約來源";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -191,16 +191,19 @@ const resourceConfig = {
     idAttr: "contract-id",
     idField: "contractId",
     api: "/api/contracts",
-    fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "purchase_id", "status", "end_date"],
-    numberFields: ["amount", "case_id", "purchase_id"],
+    fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "purchase_id", "status", "end_date",
+             "contract_type", "start_date", "warranty_end_date", "maintenance_end_date", "relation_type", "parent_contract_id"],
+    numberFields: ["amount", "case_id", "purchase_id", "parent_contract_id"],
     canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
-      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>` },
+      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>${relationTag(i)}` },
       { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name) },
+      { label: "類型", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.contract_type))}</span>` },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
-      { label: "到期日", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.end_date))}</span>` },
+      { label: "合約期間", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.start_date))} ~ ${escapeHtml(valueOrDash(i.end_date))}</span>` },
+      { label: "保固/維護到期", cell: (i) => warrantyCell(i) },
       { label: "狀態", cell: (i) => statusChip(i.status) },
       { label: "付款排程", cell: (i) => `<button type="button" class="secondary btn-sm" data-schedule="${i.id}">預計/實際</button>` },
     ],
@@ -374,6 +377,30 @@ function systemCodeCell(prefix, caseId) {
 function systemCodeCellPayment(payment) {
   const k = (resourceCaches.contract || []).find((x) => String(x.id) === String(payment.contract_id));
   return systemCodeCell(SYS_PREFIX.payment, k ? k.case_id : null);
+}
+
+// 合約與舊約的關係：續約/增購/整併都指向同一個「來源合約」欄位，清單上直接標出來源編號，
+// 免得看到兩份相似的約以為重複建檔。
+const RELATION_LABEL = { renew: "續約自", addon: "增購自", merge: "整併自" };
+function relationTag(k) {
+  const label = RELATION_LABEL[k.relation_type];
+  if (!label) return "";
+  const parent = (resourceCaches.contract || []).find((x) => String(x.id) === String(k.parent_contract_id));
+  const code = parent ? parent.contract_code : (k.parent_contract_code || (k.parent_contract_id ? `#${k.parent_contract_id}` : "?"));
+  return ` <span class="relation-tag" title="本約${label} ${escapeHtml(code)}">${label} ${escapeHtml(code)}</span>`;
+}
+
+// 保固/維護到期：跟合約到期日是兩回事（合約結束後保固常還在跑），過期的標紅提醒
+function warrantyCell(k) {
+  const today = new Date().toISOString().slice(0, 10);
+  const part = (label, value) => {
+    const v = String(value || "").trim();
+    if (!v) return "";
+    const cls = v < today ? "overdue" : "";
+    return `<span class="warranty-part ${cls}">${label} ${escapeHtml(v)}</span>`;
+  };
+  const out = [part("保固", k.warranty_end_date), part("維護", k.maintenance_end_date)].filter(Boolean).join(" ");
+  return out || `<span class="muted">-</span>`;
 }
 
 // 簽呈附件參照：是網址就做成可點連結（新視窗），否則顯示 📎＋文字（如檔案路徑）
@@ -759,6 +786,7 @@ async function loadPaymentSchedules(cid) {
     const ct = (resourceCaches.contract || []).find((c) => String(c.id) === String(cid)) || {};
     box.innerHTML = renderSchedulePanel(cid, ct, res);
     syncSchedMethodUI(box);
+    suggestPeriodCount(box, ct);  // 期數依合約起訖日先算好，使用者仍可改
   } catch (e) {
     box.innerHTML = `<p class="error">付款排程載入失敗：${escapeHtml(e.message)}</p>`;
   }
@@ -771,6 +799,27 @@ function syncSchedMethodUI(box) {
   box.querySelectorAll("[data-when]").forEach((el) => {
     el.style.display = el.getAttribute("data-when").split(" ").includes(m) ? "" : "none";
   });
+}
+
+// 合約起訖日跨幾個月（含頭尾）。2026-08 ~ 2027-07 → 12。算不出來回 0。
+function monthSpan(startDate, endDate) {
+  const p = (v) => {
+    const m = /^(\d{4})-(\d{2})/.exec(String(v || "").trim());
+    return m ? Number(m[1]) * 12 + Number(m[2]) - 1 : null;
+  };
+  const a = p(startDate), b = p(endDate);
+  if (a === null || b === null || b < a) return 0;
+  return b - a + 1;
+}
+
+// 週期月租接合約起訖日：期數不用自己數——月租 12 個月＝12 期、季付＝4 期、年繳＝1 期。
+const FREQ_MONTHS = { monthly: 1, quarterly: 3, yearly: 12 };
+function suggestPeriodCount(box, ct) {
+  const span = monthSpan(ct.start_date, ct.end_date);
+  if (!span) return;  // 沒填起訖日就不動使用者輸入的期數
+  const freq = box.querySelector("[data-sched-freq]")?.value || "monthly";
+  const countEl = box.querySelector("[data-sched-count]");
+  if (countEl) countEl.value = Math.max(1, Math.ceil(span / (FREQ_MONTHS[freq] || 1)));
 }
 
 function renderSchedulePanel(cid, ct, res) {
@@ -794,7 +843,7 @@ function renderSchedulePanel(cid, ct, res) {
       <label data-when="periodic">週期 <select data-sched-freq>
         <option value="monthly">每月</option><option value="quarterly">每季</option><option value="yearly">每年</option></select></label>
       <label data-when="milestone">各期%（逗號分隔）<input type="text" placeholder="30,30,40" data-sched-pcts></label>
-      <label>起始月 <input type="month" data-sched-start></label>
+      <label>起始月 <input type="month" data-sched-start value="${escapeHtml(String(ct.start_date || "").slice(0, 7))}"></label>
       <label data-when="installment periodic milestone">零頭 <select data-sched-rem>
         <option value="last">放最後期</option><option value="first">放第一期</option></select></label>
       <button type="button" class="btn-sm" data-sched-gen="${cid}"${locked ? " disabled title='已有核銷回填，不能整個重產'" : ""}>產生排程</button>
@@ -825,7 +874,9 @@ function renderSchedulePanel(cid, ct, res) {
         <button type="button" class="btn-sm" data-sched-split="${cid}">分配</button></span>
     </div>` : "";
 
-  return `<div class="sched-head"><strong>付款排程</strong>　<span class="muted">${escapeHtml(ct.contract_name || "")}　合約總額 ${money(total)} 元</span>`
+  const span = (ct.start_date || ct.end_date)
+    ? `　合約期間 ${escapeHtml(valueOrDash(ct.start_date))} ~ ${escapeHtml(valueOrDash(ct.end_date))}` : "";
+  return `<div class="sched-head"><strong>付款排程</strong>　<span class="muted">${escapeHtml(ct.contract_name || "")}　合約總額 ${money(total)} 元${span}</span>`
     + `<button type="button" class="btn-sm secondary sched-close" data-sched-close>收起</button></div>`
     + gen
     + `<table class="grid-table sched-table"><thead><tr><th>期別/名目</th><th class="num">預計金額</th><th>預計付款日</th><th>狀態</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -901,7 +952,10 @@ document.querySelector("#contract-schedule-panel")?.addEventListener("click", as
 // 面板內：付款方式切換（顯示對應欄位）、逐期就地改（金額/日期/名目）
 document.querySelector("#contract-schedule-panel")?.addEventListener("change", async (event) => {
   const box = document.querySelector("#contract-schedule-panel");
-  if (event.target.matches("[data-sched-method]")) { syncSchedMethodUI(box); return; }
+  const ctOf = () => (resourceCaches.contract || []).find((c) => String(c.id) === String(box.dataset.cid)) || {};
+  if (event.target.matches("[data-sched-method]")) { syncSchedMethodUI(box); suggestPeriodCount(box, ctOf()); return; }
+  // 換週期(月/季/年)→ 期數跟著合約起訖重算：12 個月的約，月租 12 期、季付 4 期
+  if (event.target.matches("[data-sched-freq]")) { suggestPeriodCount(box, ctOf()); return; }
   const edit = event.target.closest("[data-sched-edit]");
   if (edit) {
     const field = edit.getAttribute("data-sched-edit");
@@ -1722,6 +1776,24 @@ async function loadSignoffOptions() {
   }
 }
 
+// 來源合約下拉（續約/增購/整併要指哪一份舊約）。編輯中的那份合約要從清單拿掉——
+// 自己不能是自己的來源，後端也會擋，但這裡先不給選，免得使用者白填一次。
+async function loadParentContractOptions() {
+  const pickers = document.querySelectorAll(".parent-contract-picker");
+  if (!pickers.length) return;
+  let list = [];
+  try { list = (await api("/api/contracts")).data || []; } catch (_e) { return; }
+  for (const sel of pickers) {
+    const form = sel.closest("form");
+    const editingId = form && form.elements.id ? form.elements.id.value : "";
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">（無來源合約）</option>`
+      + list.filter((k) => String(k.id) !== String(editingId))
+            .map((k) => `<option value="${k.id}">${escapeHtml(k.contract_code)}｜${escapeHtml(k.contract_name || "")}</option>`).join("");
+    if (cur) sel.value = cur;
+  }
+}
+
 async function loadPurchaseOptions() {
   const pickers = document.querySelectorAll(".purchase-picker");
   if (!pickers.length) return;
@@ -1844,7 +1916,7 @@ async function loadCaseTrace(caseId) {
           <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
           <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
           <div><h4>請購</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯請購")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong> ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("請購", k.purchase_id, d.purchases, "purchase_code")}`
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("請購", k.purchase_id, d.purchases, "purchase_code")}`
             + traceContractMoney(k), "無關聯合約")}</ul></div>
           <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
@@ -3094,6 +3166,13 @@ async function loadOptions() {
     fill("#opt-project-necessity", o.project_necessity);
     fill("#opt-project-level", o.project_level);
     fill("#opt-project-rag", o.project_rag);
+    // 合約類型是 select（不是 datalist）：保留「未分類」預設項，其餘由後台選項維護
+    for (const sel of document.querySelectorAll(".contract-type-picker")) {
+      const cur = sel.value;
+      sel.innerHTML = `<option value="">（未分類）合約類型</option>`
+        + (o.contract_type || []).map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+      if (cur) sel.value = cur;
+    }
   } catch (error) {
     /* 選項載入失敗不影響主流程 */
   }
@@ -3125,7 +3204,7 @@ async function refresh() {
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadVendorAmt(), loadExpiring(), loadCioOverview(), loadReminders(),
     loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
-    loadSignoffOptions(), loadPurchaseOptions(),
+    loadSignoffOptions(), loadPurchaseOptions(), loadParentContractOptions(),
   ]);
 }
 
@@ -3242,6 +3321,9 @@ async function startResourceEdit(type, id) {
   const targetForm = resourceForms[type];
   setManualForm(targetForm, true);  // 編輯時自動展開
   targetForm.elements.id.value = item.id;
+  // 合約：來源合約下拉要把「正在編輯的這份」拿掉（自己不能是自己的續約來源）。
+  // 必須在下面填值之前重建選項，否則剛設好的 parent_contract_id 會被清掉。
+  if (type === "contract") await loadParentContractOptions();
   for (const field of config.fields) {
     const el = targetForm.elements[field];
     const val = item[field] ?? "";

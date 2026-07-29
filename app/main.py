@@ -169,6 +169,13 @@ class ContractIn(BaseModel):
     # §8：付款方式，供預計付款排程自動產生（fixed/installment/periodic/milestone）
     payment_method: str = ""
     installments: int = 0
+    # 合約模型：起始日（排程起始月預設帶它）、類型、與舊約的關係、保固/維護到期
+    start_date: str = ""
+    contract_type: str = ""
+    parent_contract_id: int | None = None
+    relation_type: str = ""
+    warranty_end_date: str = ""
+    maintenance_end_date: str = ""
 
     @field_validator("amount")
     @classmethod
@@ -186,6 +193,14 @@ class ContractPatch(BaseModel):
     case_id: int | None = None
     purchase_id: int | None = None
     end_date: str | None = None
+    payment_method: str | None = None
+    installments: int | None = None
+    start_date: str | None = None
+    contract_type: str | None = None
+    parent_contract_id: int | None = None
+    relation_type: str | None = None
+    warranty_end_date: str | None = None
+    maintenance_end_date: str | None = None
 
 
 class PaymentIn(BaseModel):
@@ -639,6 +654,7 @@ class SettingsPatch(BaseModel):
     opt_project_necessity: str | None = None
     opt_project_level: str | None = None
     opt_project_rag: str | None = None
+    opt_contract_type: str | None = None
 
 
 class UserCreateIn(BaseModel):
@@ -660,6 +676,7 @@ class UserPatch(BaseModel):
 SETTINGS_PUBLIC_KEYS = [
     "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
     "opt_budget_categories", "opt_project_necessity", "opt_project_level", "opt_project_rag",
+    "opt_contract_type",
 ]
 
 # 主檔選項預設（後台未設定時採用）
@@ -668,6 +685,7 @@ OPTION_DEFAULTS = {
     "opt_project_necessity": "必要,非必要",
     "opt_project_level": "公司級,處級,部級",
     "opt_project_rag": "如期執行,已完成,未開始,有延遲但不影響,有延遲且可能影響",
+    "opt_contract_type": "採購,維護,租賃,軟體授權,服務,其他",
 }
 
 
@@ -677,7 +695,7 @@ def _option_list(key: str) -> list[str]:
 
 
 CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
-    "contracts": [("contract_code", "合約編號"), ("contract_name", "合約名稱"), ("vendor_name", "廠商"), ("amount", "金額"), ("status", "狀態"), ("end_date", "到期日"), ("case_id", "案件ID")],
+    "contracts": [("contract_code", "合約編號"), ("contract_name", "合約名稱"), ("vendor_name", "廠商"), ("contract_type", "合約類型"), ("amount", "金額"), ("status", "狀態"), ("start_date", "起始日"), ("end_date", "到期日"), ("warranty_end_date", "保固到期"), ("maintenance_end_date", "維護到期"), ("relation_type", "與舊約關係"), ("parent_contract_id", "來源合約ID"), ("case_id", "案件ID")],
     "payments": [("item", "核銷項目"), ("settle_no", "核銷編號"), ("ref_no", "參照碼"), ("vendor", "廠商"), ("period", "期別"), ("billing_period", "計費期間"), ("payment_month", "核銷月份"), ("net_amount", "未稅金額"), ("tax_amount", "營業稅"), ("payment_amount", "含稅/核銷金額"), ("approval_level", "簽核層級"), ("settled_by", "核銷者"), ("owner", "窗口"), ("owner_email", "窗口Email"), ("invoice_status", "發票狀態"), ("status", "處理進度"), ("contract_id", "合約ID")],
     "documents": [("file_name", "檔案名稱"), ("document_type", "類型"), ("source_note", "來源說明"), ("status", "狀態"), ("case_id", "案件ID"), ("contract_id", "合約ID")],
     "budgets": [("budget_code", "預算編號"), ("category", "類別"), ("unit_name", "單位"), ("fiscal_year", "年度"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
@@ -688,7 +706,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.48.0 · 2026-07-28 · Case 360 向下鑽取：案件的「花多少/欠多少」再拆到每一份合約（case_360 的 contracts 各自帶 預計/已付/還欠），合約列可就地展開該合約每期付款明細，不必離開案件頁"
+BACKEND_BUILD = "v0.49.0 · 2026-07-28 · 合約模型補齊：起始日/合約類型/保固維護到期/續約增購整併來源（parent_contract_id+relation_type，擋自指與繞圈），付款排程的起始月與期數改由合約起訖日自動帶"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1033,6 +1051,7 @@ def create_app() -> FastAPI:
             "project_necessity": _option_list("opt_project_necessity"),
             "project_level": _option_list("opt_project_level"),
             "project_rag": _option_list("opt_project_rag"),
+            "contract_type": _option_list("opt_contract_type"),
         })
 
     @app.get("/api/dashboard")
@@ -1504,6 +1523,11 @@ def create_app() -> FastAPI:
     @app.delete("/api/contracts/{contract_id}", status_code=204)
     def delete_contract(contract_id: int) -> None:
         handle_delete("contracts", contract_id)
+
+    @app.get("/api/contracts/{contract_id}/lineage")
+    def contract_lineage(contract_id: int) -> dict[str, Any]:
+        # 續約/增購/整併鏈：本約一路往上追的舊約（由近而遠），主管看得出這份約續幾年了
+        return ok({"lineage": store.contract_lineage(contract_id)})
 
     # ── §8 預計付款排程（Payment Schedule）：與實際核銷(payments)分離的預計付款層 ──
     @app.get("/api/contracts/{contract_id}/payment-schedules")

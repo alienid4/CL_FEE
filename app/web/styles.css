@@ -1785,3 +1785,9 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .trace-ct-money .owe { color:var(--danger); }
 .trace-sched { margin:8px 0 4px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); border-radius:10px; }
 .trace-sched .sched-summary { margin-top:6px; padding-top:8px; }
+
+/* 合約模型：續約/增購/整併來源標籤、保固維護到期（過期標紅） */
+.relation-tag { display:inline-block; margin-left:4px; padding:1px 6px; border-radius:999px; font-size:.72rem;
+  background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
+.warranty-part { display:inline-block; margin-right:6px; font-size:.8rem; white-space:nowrap; color:var(--ink-2); }
+.warranty-part.overdue { color:var(--danger); font-weight:600; }
