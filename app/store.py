@@ -2953,22 +2953,72 @@ def cases_needing_attention() -> list[dict[str, Any]]:
         ).fetchall()
 
 
-def expiring_contracts(within_days: int = 90) -> list[dict[str, Any]]:
-    """快到期或已過期的合約：有到期日且 <= 今天+within_days，未作廢。承辦只看自己案件下的。"""
+# 到期提醒分階段：合約沒人管就是自動續約或斷保，所以不是「快到期」一句話帶過，
+# 而是按剩餘天數分四階段，讓主管知道哪些要現在處理、哪些還能排。
+# 合約到期／保固到期／維護到期是三種不同的事（保固常晚於合約），三種一起看才不會漏。
+EXPIRY_STAGES = ["overdue", "d7", "d30", "d60", "d90"]
+EXPIRY_KINDS = [("end_date", "contract", "合約到期"),
+                ("warranty_end_date", "warranty", "保固到期"),
+                ("maintenance_end_date", "maintenance", "維護到期")]
+
+
+def _expiry_stage(days_left: int, within_days: int) -> str | None:
+    """剩餘天數 → 階段。已過期最急；超過 within_days 不列入（回 None）。"""
+    if days_left < 0:
+        return "overdue"
+    if days_left <= 7:
+        return "d7"
+    if days_left <= 30:
+        return "d30"
+    if days_left <= 60:
+        return "d60"
+    if days_left <= within_days:
+        return "d90"
+    return None
+
+
+def expiring_contracts(within_days: int = 90) -> dict[str, Any]:
+    """到期雷達：合約／保固／維護三種到期日，按 90/60/30/7 天分階段（已過期另計）。
+    一份合約三種日期各算一筆，因為要處理的事不一樣（續約 vs 續保 vs 續維護）。
+    未作廢才列入；承辦只看自己案件下的合約。"""
     scope = _owner_scope.get()
-    threshold = (date.today() + timedelta(days=within_days)).isoformat()
-    where = "end_date <> '' AND end_date <= ? AND status <> 'disabled'"
-    params: list[Any] = [threshold]
+    today = date.today()
+    threshold = (today + timedelta(days=within_days)).isoformat()
+    date_cols = " OR ".join(f"({col} <> '' AND {col} <= ?)" for col, _, _ in EXPIRY_KINDS)
+    where = f"({date_cols}) AND status <> 'disabled'"
+    params: list[Any] = [threshold] * len(EXPIRY_KINDS)
     if scope is not None:
         sw, sp = _scope_where("contracts", scope)
         if sw:
             where = f"({where}) AND {sw}"
             params += sp
     with connect() as conn:
-        return conn.execute(
-            f"SELECT * FROM contracts WHERE {where} ORDER BY end_date ASC LIMIT 100",
-            params,
-        ).fetchall()
+        rows = conn.execute(
+            f"SELECT * FROM contracts WHERE {where} ORDER BY end_date ASC LIMIT 200", params).fetchall()
+
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        for col, kind, kind_label in EXPIRY_KINDS:
+            raw = str(row[col] or "").strip()
+            if not raw:
+                continue
+            due = _pdate(raw)
+            if due is None:
+                continue
+            days_left = (due - today).days
+            stage = _expiry_stage(days_left, within_days)
+            if stage is None:
+                continue
+            items.append({
+                "contract_id": row["id"], "contract_code": row["contract_code"],
+                "contract_name": row["contract_name"], "vendor_name": row["vendor_name"],
+                "amount": row["amount"], "case_id": row["case_id"],
+                "kind": kind, "kind_label": kind_label,
+                "due_date": raw, "days_left": days_left, "stage": stage,
+            })
+    items.sort(key=lambda x: (x["due_date"], x["contract_code"]))
+    counts = {stage: sum(1 for x in items if x["stage"] == stage) for stage in EXPIRY_STAGES}
+    return {"items": items, "counts": counts, "total": len(items), "within_days": within_days}
 
 
 def overdue_reminders(within_days: int = 14) -> list[dict[str, Any]]:
@@ -3217,6 +3267,8 @@ def cio_overview() -> dict[str, Any]:
         "overspent_count": overspent_count,       # 下月清單中超支案件數
         "forecast": forecast,                     # 未來 6 個月現金流
         "upcoming_next_month": upcoming,
+        # 到期雷達摘要：合約/保固/維護沒人管就是自動續約或斷保，CIO 一頁要看得到還有幾件沒處理
+        "expiry_counts": expiring_contracts()["counts"],
     }
 
 

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.49.0 · 2026-07-28 · 合約模型補齊：起訖/類型/保固維護/續約來源";
+const BUILD_TAG = "v0.50.0 · 2026-07-28 · 到期提醒分階段（合約/保固/維護 × 90/60/30/7）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2828,22 +2828,57 @@ document.addEventListener("click", (event) => {
   if (key === "reminders") loadReminders();
 });
 
+// 到期提醒分階段：合約沒人管就是自動續約或斷保，所以不是「快到期」一句話帶過，而是
+// 已過期 / 7 / 30 / 60 / 90 天五格，點格就地過濾（沿用進度總表 B2 的統計列互動）。
+// 合約到期、保固到期、維護到期是三件不同的事，各自一列，才不會續了約卻忘了續保。
+const EXPIRY_BUCKETS = [
+  { key: "overdue", label: "已過期" },
+  { key: "d7", label: "7 天內" },
+  { key: "d30", label: "30 天內" },
+  { key: "d60", label: "60 天內" },
+  { key: "d90", label: "90 天內" },
+];
+let expiryFilter = null;  // null＝全部；否則是某一格的 key
+
 async function loadExpiring() {
   const el = document.querySelector("#expiring-list");
   if (!el) return;
-  const payload = await api("/api/reports/expiring-contracts");
-  const items = payload.data || [];
-  const today = new Date().toISOString().slice(0, 10);
-  renderExpandableList(el, "expiring", items, (c) => {
-    const overdue = c.end_date && c.end_date < today;
+  const d = (await api("/api/reports/expiring-contracts")).data || {};
+  const all = d.items || [];
+  const counts = d.counts || {};
+  if (expiryFilter && !counts[expiryFilter]) expiryFilter = null;  // 那格被處理完就自動回全部
+
+  const stat = (key, label, n) =>
+    `<button type="button" class="pf-stat${key ? "" : " pf-stat-all"}${expiryFilter === key ? " active" : ""}"`
+    + ` data-expiry-filter="${key || ""}"${n === 0 ? " disabled" : ""}>`
+    + `${key ? `<span class="pf-dot exp-${key}"></span>` : ""}${label} <b>${n}</b></button>`;
+  const stats = `<li class="expiry-stats-row"><div class="pf-stats" role="group" aria-label="依到期階段篩選">`
+    + stat(null, "全部", all.length)
+    + EXPIRY_BUCKETS.map((b) => stat(b.key, b.label, counts[b.key] || 0)).join("")
+    + `</div></li>`;
+
+  const items = expiryFilter ? all.filter((x) => x.stage === expiryFilter) : all;
+  const body = document.createElement("ul");
+  renderExpandableList(body, "expiring", items, (x) => {
+    const left = x.days_left < 0 ? `已過期 ${-x.days_left} 天` : `剩 ${x.days_left} 天`;
     return `
       <li>
-        <span class="badge ${overdue ? "danger" : "warn"}">${overdue ? "已過期" : "快到期"}</span>
-        <strong>${escapeHtml(c.contract_code)}　${escapeHtml(c.contract_name)}</strong>
-        <small>到期日：${escapeHtml(c.end_date)}；廠商：${escapeHtml(c.vendor_name || "—")}；金額：${Number(c.amount || 0).toLocaleString()}</small>
+        <span class="pf-dot exp-${x.stage}"></span>
+        <span class="expiry-kind">${escapeHtml(x.kind_label)}</span>
+        <strong>${escapeHtml(x.contract_code)}　${escapeHtml(x.contract_name)}</strong>
+        <small>${escapeHtml(x.due_date)}（${left}）；廠商：${escapeHtml(x.vendor_name || "—")}；金額：${money(x.amount)} 元</small>
       </li>`;
-  }, "目前沒有快到期或已過期的合約。");
+  }, expiryFilter ? "這個階段目前沒有要處理的到期項目。" : "目前沒有 90 天內到期或已過期的合約／保固／維護。");
+  el.innerHTML = stats + body.innerHTML;
 }
+
+document.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-expiry-filter]");
+  if (!btn) return;
+  const key = btn.getAttribute("data-expiry-filter") || null;
+  expiryFilter = (expiryFilter === key) ? null : key;  // 再點同一格＝取消過濾
+  loadExpiring();
+});
 
 // ---- 內嵌 SVG 圖表（不依賴外部函式庫，離線可用）----
 const CHART_COLORS = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2", "#64748b"];
@@ -2914,12 +2949,19 @@ async function loadCioOverview() {
     ? `<p class="cio-year-line muted">各年度待付（依預計付款日歸屬）：${Object.entries(payableYear)
         .map(([y, v]) => `${y} <b>${money(v)}</b> 元`).join("　｜　")}</p>`
     : "";
+  // 到期雷達：合約/保固/維護沒人續就是自動續約或斷保，CIO 一頁要看得到還有幾件沒處理
+  const xc = d.expiry_counts || {};
+  const urgent = (xc.overdue || 0) + (xc.d7 || 0);
+  const expiryLine = (xc.overdue || xc.d7 || xc.d30)
+    ? `<p class="cio-expiry-line ${urgent ? "urgent" : "muted"}">到期待處理（合約／保固／維護）：`
+      + `已過期 <b>${xc.overdue || 0}</b>　｜　7 天內 <b>${xc.d7 || 0}</b>　｜　30 天內 <b>${xc.d30 || 0}</b></p>`
+    : "";
   cioMetrics.innerHTML = [
     metric("待付款（預計未付）", `${money(d.payable_planned || 0)} 元`),
     metric("下月預計付款", `${money(d.next_month_planned || 0)} 元`),
     metric("本月應付", `${money(d.this_month_total)} 元`),
     metric("下月預算外", `${money(unplanned)} 元`),
-  ].join("") + yearLine;
+  ].join("") + yearLine + expiryLine;
   const cioCharts = document.querySelector("#cio-charts");
   if (cioCharts) {
     const planSeg = [

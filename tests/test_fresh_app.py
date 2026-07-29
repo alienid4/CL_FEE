@@ -154,7 +154,7 @@ def test_health_openapi_and_web(tmp_path):
         assert 'id="todo-list"' in home.text  # 由 /api/todo 動態載入
         assert "月度支出彙總" in home.text  # 真月度支出面板
         assert 'id="monthly-spending-body"' in home.text
-        assert "合約續約提醒" in home.text  # 真合約續約面板
+        assert "到期提醒" in home.text  # 真到期提醒面板（合約/保固/維護分階段）
         assert 'id="expiring-list"' in home.text
         assert "EVID-2026-0001" not in home.text  # 假舉證編號已隨假資料一併移除（v0.9.97）
         assert "檢視角色" not in home.text

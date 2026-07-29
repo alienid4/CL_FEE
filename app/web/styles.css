@@ -1791,3 +1791,18 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
   background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
 .warranty-part { display:inline-block; margin-right:6px; font-size:.8rem; white-space:nowrap; color:var(--ink-2); }
 .warranty-part.overdue { color:var(--danger); font-weight:600; }
+
+/* 到期提醒分階段（已過期/7/30/60/90）：越急越紅，統計列沿用進度總表的 .pf-stats */
+.pf-dot.exp-overdue { background:var(--danger); }
+.pf-dot.exp-d7 { background:#d9860b; }
+.pf-dot.exp-d30 { background:#e3b505; }
+.pf-dot.exp-d60 { background:#5b8def; }
+.pf-dot.exp-d90 { background:#c9c6c0; }
+/* CIO 決策總覽的到期待處理提示：有已過期或 7 天內的就轉紅，其餘維持低調 */
+.cio-expiry-line { margin:6px 0 0; font-size:.85rem; }
+.cio-expiry-line.urgent { color:var(--danger); font-weight:600; }
+.cio-expiry-line b { font-variant-numeric:tabular-nums; }
+.expiry-stats-row { list-style:none; margin:0 0 4px; padding:0; }
+.expiry-stats-row .pf-stats { margin-bottom:8px; }
+.expiry-kind { display:inline-block; margin:0 6px 0 4px; padding:1px 7px; border-radius:999px;
+  background:var(--surface-2); border:1px solid var(--line); font-size:.72rem; color:var(--ink-2); white-space:nowrap; }
