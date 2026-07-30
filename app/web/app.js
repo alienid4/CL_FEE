@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.60.0 · 2026-07-30 · 案件清單勾選批次處理";
+const BUILD_TAG = "v0.60.1 · 2026-07-30 · 匯入入口統一收在資料管理";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3984,10 +3984,9 @@ async function budgetXlsx(commit, ids) {
 }
 document.querySelector("#budget-xlsx-preview")?.addEventListener("click", () => budgetXlsx(false));
 document.querySelector("#budget-xlsx-commit")?.addEventListener("click", () => budgetXlsx(true));
-// 預算模組內嵌匯入（B：不用跑去資料管理，就地匯入 Excel）
-const BUD_INLINE_IDS = { file: "#bud-inline-file", status: "#bud-inline-status", commitBtn: "#bud-inline-commit" };
-document.querySelector("#bud-inline-preview")?.addEventListener("click", () => budgetXlsx(false, BUD_INLINE_IDS));
-document.querySelector("#bud-inline-commit")?.addEventListener("click", () => budgetXlsx(true, BUD_INLINE_IDS));
+// 預算模組內嵌的那個匯入入口已移除（2026-07-30）：匯入統一收在資料管理 / 匯入匯出，
+// 不讓同一件事有兩個地方可按。budgetXlsx() 仍保留可傳 ids 的參數，之後若要再加別的
+// 入口不必改函式本身。
 
 // ===== 共同費用分攤：以費用項目看（某預算攤給哪些單位）＋ 以單位看（部門負擔彙總）=====
 // 容器可切換：fee-alloc 模組用 #budget-alloc；預算面板用 #budget-annual-alloc（分攤編輯就地做，不用跳資料管理）
