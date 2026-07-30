@@ -252,6 +252,13 @@ class ReviewDecisionIn(BaseModel):
     reason: str = ""
 
 
+class BatchCaseIn(BaseModel):
+    """批次審核／狀態動作。第一次上線要處理幾十筆匯入資料，一筆一筆按不合理。
+    逐筆獨立處理：某一筆失敗（例如自己建的案不能自己核）不影響其他筆，回報每一筆結果。"""
+    ids: list[int] = Field(min_length=1, max_length=500)
+    reason: str = ""
+
+
 class MergeCaseIn(BaseModel):
     target_case_id: int      # 併到哪一件既有案
     reason: str = ""
@@ -770,7 +777,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.59.0 · 2026-07-30 · WBS 自動彙總：進度%＝子項完成÷總數、專案完成%按子項加權、起訖日取第一/最後個 WBS、總燈號取最嚴重（紅>黃>綠>白>灰）；紅黃燈必填關鍵風險點"
+BACKEND_BUILD = "v0.60.0 · 2026-07-30 · 案件清單可勾選批次處理（送審/核准/退件/駁回/開始執行/結案）：第一次上線幾十筆匯入資料不必一筆一筆按；逐筆處理並回報哪幾筆沒過、為什麼"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1622,6 +1629,45 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # ── 批次審核／批次狀態動作 ──
+    # 第一次上線會有幾十筆匯入資料要一起處理，逐筆點按不現實。
+    # 刻意不做成單一交易：一筆失敗（最常見的是「不能核准自己建立的案件」）不該讓其他
+    # 幾十筆一起回滾。改成逐筆處理並回報每一筆結果，讓使用者看得到哪幾筆沒過、為什麼。
+    _BATCH_ACTIONS = ("submit", "approve", "return", "reject", "start", "pause", "resume", "close", "cancel", "reopen")
+
+    # 路徑刻意不用 /api/cases/batch/{action}：那會被前面註冊的 /api/cases/{case_id}/submit
+    # 之類的路由先吃掉（"batch" 被當成 case_id，回 422 說無法解析成整數）。
+    # 靠註冊順序來避開太脆弱——後人搬動一個端點就會再撞一次，所以換成獨立前綴。
+    @app.post("/api/case-batch/{action}")
+    def batch_case_action(action: str, payload: BatchCaseIn, request: Request) -> dict[str, Any]:
+        if action not in _BATCH_ACTIONS:
+            raise HTTPException(status_code=404, detail=f"沒有這個批次動作：{action}")
+        actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        role = (get_account(actor) or {}).get("role_code")
+        if action in ("approve", "return", "reject") and role not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="批次審核限組長／部長／助理。")
+        if action in ("cancel", "reopen") and role not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="批次取消／重開限組長／部長／助理。")
+
+        done, failed = [], []
+        for cid in payload.ids:
+            try:
+                if action == "submit":
+                    submit_case(cid)
+                elif action == "approve":
+                    approve_case(cid, actor)
+                elif action == "return":
+                    store.return_case(cid, actor, payload.reason)
+                elif action == "reject":
+                    store.reject_case(cid, actor, payload.reason)
+                else:
+                    store.change_case_status(cid, action, actor, payload.reason)
+                done.append(cid)
+            except (LookupError, ValueError, RuntimeError, PermissionError) as exc:
+                failed.append({"id": cid, "reason": str(exc)})
+        return ok({"done": done, "done_count": len(done),
+                   "failed": failed, "failed_count": len(failed)})
 
     # ── 需求書 §4 核准之後的生命週期：進行中／暫停／結案／取消／重開 ──
     # 誰能推進：執行類（開始/暫停/復工/結案）承辦對自己的案就能做（他在執行）；

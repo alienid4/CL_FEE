@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.59.0 · 2026-07-30 · WBS 自動彙總（進度/起訖日/燈號都由工作項算）";
+const BUILD_TAG = "v0.60.0 · 2026-07-30 · 案件清單勾選批次處理";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1846,7 +1846,8 @@ function renderCaseRow(item) {
   }
   const note = noteBits.length
     ? `<div class="review-note" title="${escapeHtml(noteBits.join("｜"))}">${escapeHtml(noteBits.join("｜"))}</div>` : "";
-  return `<tr data-case-id="${item.id}">
+  return `<tr data-case-id="${item.id}"${caseSelection.has(String(item.id)) ? ' class="picked"' : ""}>
+    <td class="col-pick"><input type="checkbox" data-case-pick="${item.id}"${caseSelection.has(String(item.id)) ? " checked" : ""} aria-label="選取 ${escapeHtml(item.case_code)}" /></td>
     <td class="col-narrow">${num}</td>
     <td class="col-narrow"><strong>${escapeHtml(item.case_code)}</strong>${sourceTag(item)}</td>
     <td>${escapeHtml(item.title)}</td>
@@ -1867,14 +1868,129 @@ function renderCaseRow(item) {
 async function loadCases() {
   const payload = await api("/api/cases");
   caseCache = payload.data;
+  // 勾選狀態只保留還在畫面上的案件（重載後被過濾掉的就不該還算在選取裡）
+  const visible = new Set(caseCache.map((c) => String(c.id)));
+  caseSelection = new Set([...caseSelection].filter((id) => visible.has(id)));
   cases.innerHTML = caseCache.length
-    ? `<div class="grid-scroll"><table class="grid-table">
-        <thead><tr><th class="col-narrow">案號</th><th class="col-narrow">案件編號</th><th>案件名稱</th><th class="col-narrow">負責人</th><th class="col-narrow">狀態</th><th class="col-actions">操作</th></tr></thead>
+    ? `${renderBatchBar()}<div class="grid-scroll"><table class="grid-table">
+        <thead><tr>
+          <th class="col-pick"><input type="checkbox" id="case-pick-all" title="全選／取消全選" aria-label="全選案件" /></th>
+          <th class="col-narrow">案號</th><th class="col-narrow">案件編號</th><th>案件名稱</th><th class="col-narrow">負責人</th><th class="col-narrow">狀態</th><th class="col-actions">操作</th></tr></thead>
         <tbody>${caseCache.map(renderCaseRow).join("")}</tbody>
       </table></div>`
     : `<p class="muted">目前沒有案件資料。</p>`;
+  syncPickAll();
   renderCioTable();
 }
+
+// ── 批次處理：第一次上線有幾十筆匯入資料要一起送審，一筆一筆按不現實 ──
+let caseSelection = new Set();
+
+// 哪些批次動作對「目前選到的這些案件」有意義：只列出至少有一筆走得過去的動作，
+// 免得按下去整批都失敗還要看錯誤訊息才知道。
+const BATCH_ACTION_META = [
+  { act: "submit", label: "送出複核", from: ["draft", "reviewing", "returned"] },
+  { act: "approve", label: "核准", from: ["pending_review"], reviewer: true },
+  { act: "return", label: "退回補件", from: ["pending_review", "draft", "returned"], reviewer: true, ask: "退件原因（所有選取的案件都會用這個原因）：" },
+  { act: "reject", label: "駁回", from: ["pending_review", "draft", "returned"], reviewer: true, ask: "駁回原因（所有選取的案件都會用這個原因）：" },
+  { act: "start", label: "開始執行", from: ["approved"] },
+  { act: "close", label: "結案", from: ["in_progress"] },
+];
+
+function renderBatchBar() {
+  const n = caseSelection.size;
+  if (!n) {
+    return `<p class="batch-hint muted">勾選左邊的框可以一次處理多筆（例如剛匯入的一批一起送審）。</p>`;
+  }
+  const picked = caseCache.filter((c) => caseSelection.has(String(c.id)));
+  const btns = BATCH_ACTION_META
+    .filter((a) => (!a.reviewer || isReviewer(currentUser)) && picked.some((c) => a.from.includes(c.status)))
+    .map((a) => {
+      const hit = picked.filter((c) => a.from.includes(c.status)).length;
+      return `<button type="button" class="btn-sm${a.act === "reject" ? " danger" : ""}" data-batch-act="${a.act}">`
+        + `${a.label}<span class="batch-n">${hit}</span></button>`;
+    }).join(" ");
+  return `<div class="batch-bar">
+    <strong>已選 ${n} 筆</strong>
+    ${btns || '<span class="muted">選取的案件目前沒有可一起執行的動作。</span>'}
+    <button type="button" class="secondary btn-sm" data-batch-clear>清除選取</button>
+  </div>`;
+}
+
+function syncPickAll() {
+  const all = document.querySelector("#case-pick-all");
+  if (!all) return;
+  const total = caseCache.length;
+  const n = caseSelection.size;
+  all.checked = n > 0 && n === total;
+  all.indeterminate = n > 0 && n < total;   // 部分選取時顯示成「半選」，不要假裝全選
+}
+
+cases.addEventListener("change", (event) => {
+  const all = event.target.closest("#case-pick-all");
+  if (all) {
+    caseSelection = all.checked ? new Set(caseCache.map((c) => String(c.id))) : new Set();
+    loadCases();
+    return;
+  }
+  const box = event.target.closest("[data-case-pick]");
+  if (!box) return;
+  const id = box.getAttribute("data-case-pick");
+  if (box.checked) caseSelection.add(id); else caseSelection.delete(id);
+  // 只重畫批次列與全選狀態，不重載整表（重載會把勾選的視覺閃掉）
+  const bar = cases.querySelector(".batch-bar, .batch-hint");
+  if (bar) bar.outerHTML = renderBatchBar();
+  syncPickAll();
+});
+
+cases.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-batch-clear]")) {
+    caseSelection = new Set();
+    loadCases();
+    return;
+  }
+  const btn = event.target.closest("[data-batch-act]");
+  if (!btn) return;
+  const act = btn.getAttribute("data-batch-act");
+  const meta = BATCH_ACTION_META.find((a) => a.act === act);
+  const ids = caseCache.filter((c) => caseSelection.has(String(c.id)) && meta.from.includes(c.status))
+                       .map((c) => c.id);
+  if (!ids.length) return;
+  let reason = "";
+  if (meta.ask) {
+    const input = window.prompt(`${meta.label}（${ids.length} 筆）：${meta.ask}`, "");
+    if (input === null) return;
+    if (!input.trim()) { window.alert(`請填${meta.label}原因。`); return; }
+    reason = input.trim();
+  } else if (!window.confirm(`確定將 ${ids.length} 筆案件「${meta.label}」？`)) {
+    return;
+  }
+  btn.disabled = true;
+  const label = btn.innerHTML;
+  btn.innerHTML = "處理中…";
+  try {
+    const res = (await api(`/api/case-batch/${act}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, reason }) })).data || {};
+    caseSelection = new Set();
+    await refresh();
+    if (res.failed_count) {
+      // 逐筆回報失敗原因：最常見的是「不能核准自己建立的案件」，要讓人看得懂而不是只說失敗
+      const lines = res.failed.slice(0, 8).map((f) => {
+        const c = caseCache.find((x) => x.id === f.id);
+        return `・${c ? c.case_code : "#" + f.id}：${f.reason}`;
+      });
+      const more = res.failed_count > 8 ? `\n（還有 ${res.failed_count - 8} 筆）` : "";
+      window.alert(`${meta.label}完成 ${res.done_count} 筆，${res.failed_count} 筆沒過：\n${lines.join("\n")}${more}`);
+    } else {
+      window.alert(`${meta.label}完成 ${res.done_count} 筆。`);
+    }
+  } catch (error) {
+    btn.disabled = false;
+    btn.innerHTML = label;
+    window.alert(error.message);
+  }
+});
 
 // 作業年度：新案件「所屬年度」的預設；顯示＋可改
 async function loadWorkingYear() {

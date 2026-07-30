@@ -1781,6 +1781,22 @@ th.sortable:hover { background: var(--surface); text-decoration: underline; }
 .sched-summary .owe { color:var(--danger); }
 .sched-summary .paid { color:var(--ok); }
 
+/* 批次處理：勾選欄 ＋ 選取後浮出的動作列（匯入一批要一起送審時用） */
+.col-pick { width: 1%; white-space: nowrap; text-align: center; }
+.col-pick input { cursor: pointer; }
+#cases tbody tr.picked { background: var(--accent-weak); }
+.batch-hint { font-size: .78rem; margin: 0 0 8px; }
+.batch-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px;
+  padding: 8px 12px; border: 1px solid var(--accent); border-radius: 10px;
+  background: var(--accent-weak); font-size: .84rem;
+}
+.batch-bar strong { margin-right: 4px; }
+.batch-bar .batch-n {
+  display: inline-block; margin-left: 5px; padding: 0 6px; border-radius: 999px;
+  background: rgba(255, 255, 255, .75); font-variant-numeric: tabular-nums; font-size: .76rem;
+}
+
 /* 人員管理（後台）：依組別分段，停用的整列淡化但仍看得到（才能重新啟用） */
 .person-group { margin-bottom: 16px; }
 .person-group h4 { margin: 0 0 6px; font-size: .92rem; color: var(--ink-2); }
