@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-58-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-59-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -1059,12 +1059,12 @@
             <input name="necessity" placeholder="必要性（必要/非必要）" list="opt-project-necessity" />
             <datalist id="opt-project-necessity"></datalist>
             <input name="progress_planned" placeholder="進度預計 %" type="number" min="0" max="100" step="1" />
-            <input name="progress" placeholder="進度實際 %" type="number" min="0" max="100" step="1" />
-            <input name="rag_status" placeholder="燈號（如期執行/延遲…）" list="opt-project-rag" />
+            <input name="progress" placeholder="進度實際 %（拆了 WBS 就由系統彙總）" type="number" min="0" max="100" step="1" title="一旦這個專案底下有 WBS 工作項，完成度會改由「所有子項目完成數÷總數」自動算，手填值會被覆蓋。" />
+            <input name="rag_status" placeholder="燈號（拆了 WBS 就取最嚴重）" list="opt-project-rag" title="有 WBS 時，總燈號＝所有工作項燈號取最嚴重（紅>黃>綠>白>灰），系統自動判定。" />
             <datalist id="opt-project-rag"></datalist>
             <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
-            <input name="start_date" placeholder="開始日" type="date" />
-            <input name="end_date" placeholder="結束日" type="date" />
+            <input name="start_date" placeholder="開始日（拆了 WBS 取第一項）" type="date" title="有 WBS 時＝第一個工作項的開始日，系統自動帶。" />
+            <input name="end_date" placeholder="結束日（拆了 WBS 取最後一項）" type="date" title="有 WBS 時＝最後一個工作項的完成日，系統自動帶。" />
             <input name="due_date" placeholder="預計完成日（供催辦）" type="date" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="status">
@@ -1129,6 +1129,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-58-0"></script>
+    <script src="/static/app.js?v=v0-59-0"></script>
   </body>
 </html>

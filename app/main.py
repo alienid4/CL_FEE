@@ -763,14 +763,14 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
     "payments": [("item", "核銷項目"), ("settle_no", "核銷編號"), ("ref_no", "參照碼"), ("vendor", "廠商"), ("period", "期別"), ("billing_period", "計費期間"), ("payment_month", "核銷月份"), ("net_amount", "未稅金額"), ("tax_amount", "營業稅"), ("payment_amount", "含稅/核銷金額"), ("approval_level", "簽核層級"), ("settled_by", "核銷者"), ("owner", "窗口"), ("owner_email", "窗口Email"), ("invoice_status", "發票狀態"), ("status", "處理進度"), ("contract_id", "合約ID")],
     "documents": [("file_name", "檔案名稱"), ("document_type", "類型"), ("source_note", "來源說明"), ("status", "狀態"), ("case_id", "案件ID"), ("contract_id", "合約ID")],
     "budgets": [("budget_code", "預算編號"), ("category", "類別"), ("unit_name", "單位"), ("fiscal_year", "年度"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
-    "projects": [("project_code", "標號"), ("project_name", "專案名稱"), ("level", "專案分類"), ("necessity", "必要性"), ("start_date", "開始日"), ("end_date", "結束日"), ("progress_planned", "進度預計%"), ("progress", "進度實際%"), ("rag_status", "燈號"), ("owner", "負責人"), ("source", "來源"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
+    "projects": [("project_code", "標號"), ("project_name", "專案名稱"), ("level", "專案分類"), ("necessity", "必要性"), ("vendor_name", "廠商"), ("cross_company", "跨子公司合作"), ("start_date", "開始日"), ("end_date", "結束日"), ("progress_planned", "進度預計%"), ("progress", "進度實際%"), ("rag_status", "燈號"), ("owner", "負責人"), ("source", "來源"), ("status", "狀態"), ("due_date", "預計完成日"), ("case_id", "案件ID")],
     "signoffs": [("signoff_code", "簽呈編號"), ("subject", "主旨"), ("applicant", "申請人"), ("amount", "金額"), ("status", "狀態"), ("sign_date", "簽核日"), ("case_id", "案件ID")],
     "purchases": [("purchase_code", "費用編號"), ("item_name", "費用項目"), ("vendor_name", "廠商"), ("quantity", "數量"), ("amount", "金額"), ("status", "狀態"), ("case_id", "案件ID")],
 }
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.58.0 · 2026-07-30 · §4 完整狀態機：已核准→進行中→(暫停)→已結案／已取消，結案可重開且記錄重開人·時間·原因；核准後各狀態的付款仍算進 CIO 金額（只有已取消不算）"
+BACKEND_BUILD = "v0.59.0 · 2026-07-30 · WBS 自動彙總：進度%＝子項完成÷總數、專案完成%按子項加權、起訖日取第一/最後個 WBS、總燈號取最嚴重（紅>黃>綠>白>灰）；紅黃燈必填關鍵風險點"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2147,25 +2147,72 @@ def create_app() -> FastAPI:
     def project_items(project_id: int) -> dict[str, Any]:
         return ok(list_project_items(project_id))
 
+    # WBS 自動彙總（助理文件）：進度%由子項目數算、燈號沒指定就自動判、紅/黃必填關鍵風險點，
+    # 寫完一律把專案主檔的完成%/起訖日/總燈號重算一次。
+    def _prepare_wbs_fields(data: dict[str, Any], existing: dict[str, Any] | None = None) -> dict[str, Any]:
+        base = dict(existing or {})
+        base.update({k: v for k, v in data.items() if v is not None})
+        total, done = base.get("sub_total", 0), base.get("sub_done", 0)
+        try:
+            if float(done or 0) > float(total or 0):
+                raise HTTPException(status_code=422, detail="子項目完成數不能大於總數。")
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="子項目數必須是數字。") from None
+        progress = store.wbs_item_progress(total, done)
+        data["progress"] = progress
+        # 燈號：這次有明確帶 rag＝人工指定（記 rag_manual=1，之後不被系統覆蓋）；
+        # 帶空字串＝把它交回系統自動判；沒帶就沿用原本是人工還是自動的狀態。
+        # 不分這三種的話，自動判出來的值會被誤當人工指定，改完子項數燈號就不會跟著變。
+        if "rag" in data:
+            manual = store.normalize_wbs_rag(data.get("rag"))
+            data["rag_manual"] = 1 if manual else 0
+            data["rag"] = manual or store.wbs_auto_rag(progress, base.get("start_date"), base.get("end_date"))
+        elif int(base.get("rag_manual") or 0) == 1:
+            data["rag"] = store.normalize_wbs_rag(base.get("rag"))
+        else:
+            data["rag"] = store.wbs_auto_rag(progress, base.get("start_date"), base.get("end_date"))
+        rag = data["rag"]
+        # 助理文件：「如果承辦人將燈號改為紅燈或黃燈，此欄位則為必填」
+        if rag in ("red", "yellow") and not str(base.get("risk_note") or "").strip():
+            raise HTTPException(
+                status_code=422,
+                detail=f"燈號是「{store.WBS_RAG_LABEL[rag]}」時，關鍵風險點必填（要寫清楚卡在哪）。")
+        return data
+
     @app.post("/api/projects/{project_id}/items", status_code=201)
     def create_project_item(project_id: int, payload: ProjectItemIn) -> dict[str, Any]:
         data = payload.model_dump()
         data["project_id"] = project_id
         if not data.get("seq"):
             data["seq"] = next_project_item_seq(project_id)  # 標號自動排，不用使用者自己打
-        return handle_create("project_items", data)
+        result = handle_create("project_items", _prepare_wbs_fields(data))
+        store.recompute_project_rollup(project_id)
+        return result
 
     @app.patch("/api/project-items/{item_id}")
     def update_project_item(item_id: int, payload: ProjectItemPatch) -> dict[str, Any]:
-        return handle_change("project_items", item_id, payload.model_dump(exclude_unset=True))
+        existing = store.fetch_one("project_items", item_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="找不到這個工作項。")
+        data = _prepare_wbs_fields(payload.model_dump(exclude_unset=True), existing)
+        result = handle_change("project_items", item_id, data)
+        store.recompute_project_rollup(existing["project_id"])
+        return result
 
     @app.post("/api/project-items/{item_id}/disable")
     def disable_project_item(item_id: int) -> dict[str, Any]:
-        return handle_disable("project_items", item_id)
+        existing = store.fetch_one("project_items", item_id)
+        result = handle_disable("project_items", item_id)
+        if existing:
+            store.recompute_project_rollup(existing["project_id"])   # 停用一項＝彙總要跟著變
+        return result
 
     @app.delete("/api/project-items/{item_id}", status_code=204)
     def delete_project_item(item_id: int) -> None:
+        existing = store.fetch_one("project_items", item_id)
         handle_delete("project_items", item_id)
+        if existing:
+            store.recompute_project_rollup(existing["project_id"])
 
     @app.post("/api/projects/import-xlsx")
     async def import_projects_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:

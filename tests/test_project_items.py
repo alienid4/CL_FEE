@@ -70,13 +70,16 @@ def test_work_item_crud(tmp_path):
     with _client(tmp_path) as client:
         pj = client.post("/api/projects", json={"project_code": "WI-1", "project_name": "手建專案"}).json()["data"]
         pid = pj["id"]
-        # 新增工作項（承辦/助理可直接改，即時生效）
+        # 新增工作項（承辦/助理可直接改，即時生效）。進度改由「子項目完成數÷總數」自動算
+        # （助理文件 2026-07-29），所以這裡填子項數而不是直接填 progress。
         it = client.post(f"/api/projects/{pid}/items",
-                         json={"item_name": "第一項", "owner": "王小明", "progress": 20, "exec_status": "進行中"}).json()["data"]
+                         json={"item_name": "第一項", "owner": "王小明", "sub_total": 5, "sub_done": 1,
+                               "exec_status": "進行中"}).json()["data"]
         assert it["item_name"] == "第一項" and it["project_id"] == pid
-        # 編輯
-        upd = client.patch(f"/api/project-items/{it['id']}", json={"progress": 60}).json()["data"]
-        assert upd["progress"] == 60
+        assert it["progress"] == 20.0        # 1/5
+        # 編輯：改完成數，進度跟著重算
+        upd = client.patch(f"/api/project-items/{it['id']}", json={"sub_done": 3}).json()["data"]
+        assert upd["progress"] == 60.0       # 3/5
         assert len(client.get(f"/api/projects/{pid}/items").json()["data"]) == 1
         # 承辦也能維護（專案不隔離）
         h = client
@@ -94,8 +97,8 @@ def test_project_list_includes_item_counts(tmp_path):
     """專案清單要帶每案的工作項計數：item_count＝總數、item_done＝完成度100%的數。"""
     with _client(tmp_path) as client:
         pid = client.post("/api/projects", json={"project_code": "WI-C", "project_name": "計數專案"}).json()["data"]["id"]
-        client.post(f"/api/projects/{pid}/items", json={"item_name": "甲", "progress": 100})  # 完成
-        client.post(f"/api/projects/{pid}/items", json={"item_name": "乙", "progress": 30})   # 未完成
+        client.post(f"/api/projects/{pid}/items", json={"item_name": "甲", "sub_total": 2, "sub_done": 2})   # 完成
+        client.post(f"/api/projects/{pid}/items", json={"item_name": "乙", "sub_total": 10, "sub_done": 3})  # 未完成
         proj = next(p for p in client.get("/api/projects").json()["data"] if p["id"] == pid)
         assert proj["item_count"] == 2
         assert proj["item_done"] == 1

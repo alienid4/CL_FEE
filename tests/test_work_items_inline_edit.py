@@ -39,11 +39,13 @@ def test_inline_patch_single_and_composite_fields(tmp_path):
         pid, it = _new_item(client)
         iid = it["id"]
 
-        # 執行進度格：exec_status + 燈號一起改
+        # 執行進度格：exec_status + 燈號一起改。燈號送中文會正規化成內部代碼，
+        # 而紅/黃燈依助理文件必須附關鍵風險點，所以同一次要一起送。
         upd = client.patch(
-            f"/api/project-items/{iid}", json={"exec_status": "已完成", "rag": "紅"}
+            f"/api/project-items/{iid}",
+            json={"exec_status": "已完成", "rag": "紅", "risk_note": "供應商延誤"},
         ).json()["data"]
-        assert upd["exec_status"] == "已完成" and upd["rag"] == "紅"
+        assert upd["exec_status"] == "已完成" and upd["rag"] == "red"
 
         # 追蹤事項格：風險/決策/支援三欄一起送
         upd = client.patch(
@@ -63,8 +65,9 @@ def test_inline_patch_single_and_composite_fields(tmp_path):
         )
         assert final["owner"] == "陳美惠"
         assert final["start_date"] == "2026-06-01"
-        # 前面設過的值沒被後續單欄 PATCH 洗掉（exclude_unset 生效）
-        assert final["exec_status"] == "已完成" and final["rag"] == "紅"
+        # 前面設過的值沒被後續單欄 PATCH 洗掉（exclude_unset 生效）；
+        # 人工指定的紅燈也不會被自動判定蓋回去（rag_manual 記著）
+        assert final["exec_status"] == "已完成" and final["rag"] == "red"
         assert final["risk_note"] == "供應商延誤"
 
 

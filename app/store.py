@@ -507,6 +507,10 @@ def initialize_database() -> None:
         # 需求書 §6 專案主檔：廠商、是否跨子公司（金控/集團合作案是主管與處長的關注條件）
         ensure_column(conn, "projects", "vendor_name", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "projects", "cross_company", "TEXT NOT NULL DEFAULT ''")
+        # WBS 燈號是「人工指定」還是「系統自動判的」——不分開的話，自動判出來的值存進去之後
+        # 會被誤認為人工指定，之後改子項目數就再也不會重算（做完了還掛著黃燈）。
+        # 需求書 §6：「燈號可由系統判斷，也保留人工調整」，所以兩種都要留得住。
+        ensure_column(conn, "project_items", "rag_manual", "INTEGER NOT NULL DEFAULT 0")
         # 預算共同費用分攤：尾數承擔單位（整數化後湊不齊的尾數歸給哪個單位；空＝自動抓填寫部門）
         ensure_column(conn, "budgets", "remainder_unit_code", "TEXT NOT NULL DEFAULT ''")
         # 預算分攤方法：fixed(固定金額) / headcount(按人數) / category(按類別，Phase 2)
@@ -1086,7 +1090,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "signoff_id", "note"},
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
-                          "support_needed", "duration_days", "status"},
+                          "support_needed", "duration_days", "status", "rag_manual"},
         "budget_allocations": {"budget_id", "seq", "unit_code", "unit_name", "share_pct", "amount", "source_file"},
     }
 
@@ -1763,6 +1767,7 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
         created: list[str] = []
         updated: list[str] = []
         items_written = 0
+        rollup_ids: list[int] = []
         for rec in records:
             name = str(rec.get("project_name", "")).strip()
             if not name:
@@ -1801,6 +1806,14 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
             for it in rec.get("items", []):
                 ifields = {k: v for k, v in it.items() if k in item_fields}
                 ifields["project_id"] = rid
+                # 匯入也走同一套自動計算：進度由子項目數算、燈號正規化（Excel 是中文）後
+                # 沒指定就自動判。匯入不強制「紅/黃要填風險點」——舊總表沒填的很多，
+                # 擋下來會讓整批匯入失敗；那是人在系統裡編輯時才強制。
+                ifields["progress"] = wbs_item_progress(ifields.get("sub_total"), ifields.get("sub_done"))
+                rag = normalize_wbs_rag(ifields.get("rag"))
+                ifields["rag_manual"] = 1 if rag else 0   # Excel 有填燈號＝視為人工指定
+                ifields["rag"] = rag or wbs_auto_rag(
+                    ifields["progress"], ifields.get("start_date"), ifields.get("end_date"))
                 iname = ifields.get("item_name", "")
                 if iname in seen:
                     upd = {k: v for k, v in ifields.items() if k not in ("project_id", "item_name")}
@@ -1813,8 +1826,13 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                     c2 = conn.execute(f"INSERT INTO project_items ({cols}) VALUES ({ph})", list(ifields.values()))
                     seen[iname] = c2.lastrowid
                 items_written += 1
-        return {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
-                "items_count": items_written, "created": created, "updated": updated}
+            rollup_ids.append(rid)
+        result = {"created_count": len(created), "updated_count": len(updated), "skipped_count": 0,
+                  "items_count": items_written, "created": created, "updated": updated}
+    # 交易結束後才彙總（recompute 自己開連線），把每個匯入專案的完成%/起訖日/總燈號算出來
+    for rid in dict.fromkeys(rollup_ids):
+        recompute_project_rollup(rid)
+    return result
 
 
 def list_project_items(project_id: int) -> list[dict[str, Any]]:
@@ -1825,6 +1843,112 @@ def list_project_items(project_id: int) -> list[dict[str, Any]]:
             (project_id,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── WBS 自動彙總（助理文件 2026-07-29）──
+# 助理定義的算法：
+#   WBS 進度% ＝ 子項目完成數 ÷ 子項目總數（系統算，人只填兩個數字）
+#   專案完成% ＝ 所有 WBS 的子項目完成數 ÷ 子項目總數（不是各 WBS 進度的平均——
+#                20 個子項的 WBS 跟 1 個子項的 WBS 權重本來就不同）
+#   專案起訖日 ＝ 第一個 WBS 的開始日、最後一個 WBS 的完成日
+#   專案燈號   ＝ 所有 WBS 燈號取最嚴重，紅>黃>綠>白>灰
+# 燈號五色（灰＝已完成，跟本系統流程圖的「灰＝不適用」是不同語意，別混用）
+WBS_RAG_ORDER = ("red", "yellow", "green", "white", "gray")   # 越前面越嚴重
+WBS_RAG_LABEL = {"red": "已延遲", "yellow": "有延遲風險", "green": "如期執行",
+                 "white": "未開始", "gray": "已完成"}
+
+
+def normalize_wbs_rag(value: Any) -> str:
+    """人工填的燈號轉成內部代碼。舊資料與 Excel 匯入常是中文（「如期執行」「有延遲」…），
+    這裡一併吃下來；認不出來就回空字串＝交給系統自動判定。"""
+    v = str(value or "").strip()
+    if not v:
+        return ""
+    if v in WBS_RAG_ORDER:
+        return v
+    zh = {"紅": "red", "紅燈": "red", "已延遲": "red", "有延遲且可能影響": "red",
+          "黃": "yellow", "黃燈": "yellow", "有延遲風險": "yellow", "有延遲但不影響": "yellow",
+          "綠": "green", "綠燈": "green", "如期執行": "green", "如期執行中": "green",
+          "白": "white", "白燈": "white", "未開始": "white",
+          "灰": "gray", "灰燈": "gray", "已完成": "gray"}
+    return zh.get(v, "")
+
+
+def wbs_item_progress(sub_total: Any, sub_done: Any) -> float:
+    """子項目完成數 ÷ 總數 → 進度%。總數 0（還沒拆子項）就回 0，不要除以零。"""
+    try:
+        total = float(sub_total or 0)
+        done = float(sub_done or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    if total <= 0:
+        return 0.0
+    return round(max(0.0, min(100.0, done / total * 100)), 1)
+
+
+def wbs_auto_rag(progress: float, start_date: Any, end_date: Any) -> str:
+    """依進度與起訖日自動判燈（助理定義）：
+      灰＝已完成（100%）／白＝未開始（0% 且還沒到開始日，或沒排日期）
+      紅＝已延遲（過了完成日還沒做完，會影響整體完成日）
+      黃＝有延遲風險（進度落後時間軸推算的預期，或完成日在兩週內還沒做完）
+      綠＝如期執行中
+    """
+    if progress >= 100:
+        return "gray"
+    today = date.today()
+    start = _pdate(start_date)
+    end = _pdate(end_date)
+    if progress <= 0 and ((start and today < start) or (not start and not end)):
+        return "white"
+    if end and today > end:
+        return "red"
+    behind = False
+    if start and end and end > start:
+        span = (end - start).days
+        elapsed = (today - start).days
+        if span > 0:
+            expected = max(0.0, min(100.0, elapsed / span * 100))
+            behind = (expected - progress) > 10       # 落後預期一成以上＝有風險
+    near_due = bool(end) and 0 <= (end - today).days <= 14
+    return "yellow" if (behind or near_due) else "green"
+
+
+def recompute_project_rollup(project_id: int) -> dict[str, Any] | None:
+    """把某專案底下所有 WBS 彙總回專案主檔（完成%、起訖日、總燈號）。
+    專案層這三個欄位改為唯讀衍生——人只維護 WBS，專案數字自動長出來，
+    避免「WBS 說落後、專案卻寫如期」這種自己打自己的畫面。沒有 WBS 就不動專案原值。"""
+    with connect() as conn:
+        items = conn.execute(
+            "SELECT sub_total, sub_done, progress, rag, start_date, end_date FROM project_items "
+            "WHERE project_id = ? AND status != 'disabled'", (project_id,)).fetchall()
+        if not items:
+            return None
+        total = sum(float(i["sub_total"] or 0) for i in items)
+        done = sum(float(i["sub_done"] or 0) for i in items)
+        # 有拆子項就按子項比例；完全沒拆（總數都是 0）就退回各 WBS 進度的平均
+        if total > 0:
+            progress = round(max(0.0, min(100.0, done / total * 100)), 1)
+        else:
+            progress = round(sum(float(i["progress"] or 0) for i in items) / len(items), 1)
+        starts = [d for d in (_pdate(i["start_date"]) for i in items) if d]
+        ends = [d for d in (_pdate(i["end_date"]) for i in items) if d]
+        rags = [str(i["rag"] or "").strip() for i in items]
+        rags = [r for r in rags if r in WBS_RAG_ORDER]
+        worst = next((r for r in WBS_RAG_ORDER if r in rags), "") if rags else ""
+        fields = {
+            "progress": progress,
+            "start_date": min(starts).isoformat() if starts else "",
+            "end_date": max(ends).isoformat() if ends else "",
+        }
+        if worst:
+            fields["rag_status"] = WBS_RAG_LABEL[worst]
+        before = get_row(conn, "projects", project_id)
+        assignments = ", ".join(f"{k} = ?" for k in fields)
+        conn.execute(f"UPDATE projects SET {assignments} WHERE id = ?", [*fields.values(), project_id])
+        after = get_row(conn, "projects", project_id)
+        if any(str(before.get(k)) != str(after.get(k)) for k in fields):
+            write_audit_log(conn, "projects", project_id, "update", before, after)
+        return after
 
 
 def next_project_item_seq(project_id: int) -> int:

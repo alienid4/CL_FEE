@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.58.0 · 2026-07-30 · §4 狀態機：進行中/暫停/結案/取消/重開";
+const BUILD_TAG = "v0.59.0 · 2026-07-30 · WBS 自動彙總（進度/起訖日/燈號都由工作項算）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2416,6 +2416,7 @@ async function loadProjectItems(projectId) {
 
 // 工作項表格：開始日/結束日拆兩欄才能各自排序；預設依「結束日離今天的遠近」排，越急迫的越前面
 // （跟處理優先矩陣「橫軸=急迫度」同一個邏輯，不是單純日期由小到大)。
+// 助理文件的 WBS 欄位：人只填 子項目總數／完成數，進度%與燈號由系統算（都不給手改）。
 const PF_ITEM_COLUMNS = [
   { label: "標號", key: "seq", cls: "num w-seq" },
   { label: "工作主項目", key: "item_name", cls: "w-name" },
@@ -2423,12 +2424,16 @@ const PF_ITEM_COLUMNS = [
   { label: "開始日", key: "start_date", cls: "num w-date" },
   { label: "結束日", key: "end_date", cls: "num w-date" },
   { label: "執行進度", key: "exec_status", cls: "w-status" },
-  { label: "完成度", key: "progress", cls: "num w-prog" },
-  { label: "燈號", key: "rag", cls: "w-rag" },  // 獨立燈號欄（B1）：依 ragOf 自動判定，好掃
-  { label: "風險", key: "risk_note", cls: "w-note" },
+  { label: "子項總數", key: "sub_total", cls: "num w-seq" },
+  { label: "已完成", key: "sub_done", cls: "num w-seq" },
+  { label: "完成度", key: "progress", cls: "num w-prog" },   // ＝已完成÷總數，系統算
+  { label: "燈號", key: "rag", cls: "w-rag" },               // 系統依進度與起訖日判定
+  { label: "關鍵風險點", key: "risk_note", cls: "w-note" },   // 紅/黃燈時必填
   { label: "決策", key: "decision_needed", cls: "w-note" },
   { label: "支援", key: "support_needed", cls: "w-note" },
 ];
+// 系統算出來的欄位不給手改（改了也會被下一次彙總蓋掉，開放編輯只會誤導）
+const PF_ITEM_READONLY = new Set(["seq", "progress", "rag"]);
 let pfItemSort = null;  // {col, dir}；null＝用預設的「離今天近的先」排序
 // 目前這個專案在畫面上的工作項快照，key=id。inline 編輯就地改一格時要用它重建那一格顯示，
 // 不必整表重載（重載會重排、閃動、還會把焦點搶走）。
@@ -2443,10 +2448,14 @@ function pfCellHtml(field, it) {
     case "start_date": return escapeHtml(valueOrDash(it.start_date));
     case "end_date": return escapeHtml(valueOrDash(it.end_date));
     case "exec_status": return escapeHtml(valueOrDash(it.exec_status));  // 純文字；燈號移到獨立的「燈號」欄（B1）
-    case "progress": return `${Number(it.progress || 0)}%`;
-    case "rag": {  // 獨立燈號欄：圓點＋文字標籤，配色統一走 ragOf()（B1）
+    case "sub_total": case "sub_done": return String(Number(it[field] || 0));
+    case "progress": {  // ＝已完成÷總數（後端算），標示出來讓人知道不是手填的
+      const n = Number(it.progress || 0);
+      return `<span title="＝已完成 ${Number(it.sub_done || 0)} ÷ 子項總數 ${Number(it.sub_total || 0)}，系統自動計算">${n}%</span>`;
+    }
+    case "rag": {  // 獨立燈號欄：圓點＋文字標籤
       const tone = pfItemRag(it);
-      return `<span class="pf-dot ${tone}" title="依開始/結束日與完成度自動判定"></span> ${escapeHtml(RAG_LABEL[tone] || tone)}`;
+      return `<span class="pf-dot ${tone}" title="依進度與起訖日自動判定（可在後端人工指定覆蓋）"></span> ${escapeHtml(RAG_LABEL[tone] || tone)}`;
     }
     default: return escapeHtml(valueOrDash(it[field]));  // 風險/決策/支援等純文字欄，各自獨立一欄
   }
@@ -2501,7 +2510,7 @@ function renderItemsSection(projectId, items) {
   const rows = sorted.length
     ? sorted.map((it) => {
         const cells = PF_ITEM_COLUMNS.map((c) => {
-          const canEditCell = editable && c.key !== "seq" && c.key !== "rag";  // 標號自動排、燈號自動判定，都不給手改
+          const canEditCell = editable && !PF_ITEM_READONLY.has(c.key);  // 標號/完成度/燈號都是系統算的
           const cls = [c.cls, canEditCell ? "editable" : ""].filter(Boolean).join(" ");
           const attrs = `${cls ? ` class="${cls}"` : ""}${canEditCell ? ` data-field="${c.key}" title="點一下即可修改"` : ""}`;
           return `<td${attrs}>${pfCellHtml(c.key, it)}</td>`;
@@ -2524,11 +2533,14 @@ function renderItemsSection(projectId, items) {
     <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>`;
 }
 
-// 工作項燈號＝依「開始日/結束日/完成度/今天」自動判定，不讓人手選。
-// 判斷邏輯與配色統一收在上方的 ragOf()，工作項、專案清單、線性圖共用一套，
-// 以免三個畫面各自演化出不同結果。
+// 助理定義的五色燈號代碼（後端 WBS_RAG_ORDER）→ 本站既有的色調 class。
+const WBS_RAG_TO_TONE = { gray: "done", white: "todo", green: "live", yellow: "soon", red: "over" };
+
+// 工作項燈號：**以後端算好並存起來的 rag 為準**（同一套算法也用在專案彙總、匯入），
+// 前端只做代碼轉色調。舊資料 rag 為空時才退回前端 ragOf() 自己判——
+// 否則同一個判斷寫兩份，兩邊遲早會演化出不同結果（畫面說如期、彙總說落後）。
 function pfItemRag(it) {
-  return ragOf(it);
+  return WBS_RAG_TO_TONE[it.rag] || ragOf(it);
 }
 
 // 負責人：跟其他表單一樣接人員主檔，但用 datalist（可選也可打）而非鎖死的 select——
@@ -2631,8 +2643,8 @@ function pfEditorHtml(field, it) {
       return `<input class="cell-input" type="date" data-k="start_date" value="${dateVal("start_date")}" />`;
     case "end_date":
       return `<input class="cell-input" type="date" data-k="end_date" value="${dateVal("end_date")}" />`;
-    case "progress":
-      return `<input class="cell-input" type="number" min="0" max="100" step="1" data-k="progress" value="${Number(it.progress || 0)}" />`;
+    case "sub_total": case "sub_done":  // 人只填這兩個數字，完成度由系統算
+      return `<input class="cell-input" type="number" min="0" step="1" data-k="${field}" value="${Number(it[field] || 0)}" />`;
     case "exec_status":  // 只改執行進度文字；燈號改自動判定，不再手選
       return `<input class="cell-input" data-k="exec_status" value="${v("exec_status")}" placeholder="如：進行中/已完成" />`;
     default:  // 風險/決策/支援等純文字欄，各自一格單一輸入
@@ -2662,19 +2674,32 @@ async function pfCommitEdit(cell = pfEditingCell) {
   const patch = {};
   td.querySelectorAll("[data-k]").forEach((el) => {
     const k = el.getAttribute("data-k");
-    patch[k] = k === "progress" ? (el.value === "" ? 0 : Number(el.value)) : el.value;
+    patch[k] = ["progress", "sub_total", "sub_done"].includes(k)
+      ? (el.value === "" ? 0 : Number(el.value)) : el.value;
   });
   const changed = Object.keys(patch).some((k) => String(patch[k] ?? "") !== String(it[k] ?? ""));
   if (!changed) { td.classList.remove("editing"); td.innerHTML = pfCellHtml(field, it); return; }
   td.classList.add("saving");
   try {
-    await api(`/api/project-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
-    Object.assign(it, patch);
+    const saved = (await api(`/api/project-items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) })).data || {};
+    // 用後端回傳的整列覆蓋快取：改了子項目數之後，完成度與燈號是後端重算的，
+    // 只把使用者輸入的欄位塞回去會讓那兩格停在舊值（畫面說 20%、資料庫是 70%）。
+    Object.assign(it, patch, saved);
     pfItemCache.set(String(id), it);
     td.classList.remove("editing", "saving");
     td.innerHTML = pfCellHtml(field, it);
+    // 同一列的衍生欄（完成度／燈號）跟著重畫——欄位順序就是 PF_ITEM_COLUMNS 的順序
+    const tr = td.closest("tr[data-item-id]");
+    if (tr) {
+      PF_ITEM_COLUMNS.forEach((c, i) => {
+        if (PF_ITEM_READONLY.has(c.key) && tr.children[i]) tr.children[i].innerHTML = pfCellHtml(c.key, it);
+      });
+    }
     td.classList.add("saved");
     setTimeout(() => td.classList.remove("saved"), 900);
+    if (["sub_total", "sub_done", "start_date", "end_date", "rag"].includes(field)) {
+      loadPortfolio();   // 專案完成%/起訖日/總燈號由 WBS 彙總而來，要跟著刷新
+    }
   } catch (error) {
     td.classList.remove("editing", "saving");
     td.innerHTML = pfCellHtml(field, it);  // 存失敗就還原成原值，不吃掉使用者的資料
