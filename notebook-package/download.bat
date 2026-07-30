@@ -1,6 +1,24 @@
 @echo off
 setlocal enabledelayedexpansion
-cd /d "%~dp0"
+
+REM  pushd, not "cd /d": this folder is sometimes on a network share, and cmd
+REM  refuses a UNC path as the current directory ("CMD does not support UNC paths
+REM  as current directories"). It then silently leaves us in C:\Windows\system32,
+REM  where every relative path in this script points at the wrong place - that is
+REM  how "-r requirements-runtime.txt" ended up being looked for in system32.
+REM  pushd maps the share to a temporary drive letter instead, so relative paths
+REM  keep working. popd at the end releases it.
+pushd "%~dp0" 2>nul
+if errorlevel 1 (
+    echo.
+    echo   FAILED: could not enter this folder:
+    echo   %~dp0
+    echo   If it is on a network drive, map it to a drive letter first
+    echo   ^(Explorer -^> right click -^> Map network drive^) and run it from there.
+    echo.
+    pause
+    exit /b 1
+)
 
 REM ============================================================================
 REM  ASCII ONLY ON PURPOSE. Do not put Chinese text in this file.
@@ -43,6 +61,7 @@ if errorlevel 1 (
     echo   Check the network connection, then run this again.
     echo.
     pause
+    popd
     exit /b 1
 )
 
@@ -55,6 +74,7 @@ if not exist "%SRC%\app\main.py" (
     echo   The download may have been cut short. Run this again.
     echo.
     pause
+    popd
     exit /b 1
 )
 
@@ -67,6 +87,7 @@ if errorlevel 8 (
     echo   Open service.bat, choose 2 to stop it, then run this again.
     echo.
     pause
+    popd
     exit /b 1
 )
 robocopy "%SRC%\tests" "%~dp0tests" /MIR /NFL /NDL /NJH /NJS >nul
@@ -142,7 +163,17 @@ REM  Runtime deps only, matching service.ps1. A deployed machine only has to run
 REM  the system, not test it; playwright in particular downloads browser binaries
 REM  on top of a large wheel, which is an extra failure point on a locked-down
 REM  corporate network for something this machine never uses.
-%PY% -m pip install -q --disable-pip-version-check --no-warn-script-location -r requirements-runtime.txt >nul 2>&1
+REM  Absolute path on purpose. A relative "-r requirements-runtime.txt" is read
+REM  from whatever the current directory happens to be, and that is not always
+REM  this folder (see the pushd note at the top - a UNC path leaves cmd sitting
+REM  in C:\Windows\system32). pip then reports "No such file or directory" for a
+REM  file that is sitting right next to this script.
+if not exist "%~dp0requirements-runtime.txt" (
+    echo         requirements-runtime.txt is missing next to this script - skipped.
+    echo         Run this updater once more: it copies that file in.
+    goto :deps_done
+)
+%PY% -m pip install -q --disable-pip-version-check --no-warn-script-location -r "%~dp0requirements-runtime.txt" >nul 2>&1
 if errorlevel 1 (
     echo         Dependency install failed - skipped ^(code was still updated^).
     echo         If the system does not start, open service.bat and choose 6.
@@ -187,4 +218,5 @@ if defined STAGED (
 )
 
 pause
+popd
 endlocal

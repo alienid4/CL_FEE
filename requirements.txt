@@ -7,9 +7,12 @@
 -r requirements-runtime.txt
 
 # ── 以下只有跑測試才需要，部署端不裝 ──────────────────────────────────
-pytest>=8.0.0
-httpx>=0.27.0
-playwright>=1.45.0
+# 版本同樣用 == 鎖死（2026-07-30 使用者指示）：測試工具漂版會讓「同一份程式碼
+# 在我這裡綠、在 CI 紅」，而且 pytest 大版本更新常改變 assert 行為與 fixture 語意。
+# 升版流程跟執行時套件一樣：改這裡 → 跑完整測試 → 進 patch。
+pytest==9.1.1
+httpx==0.28.1
+playwright==1.61.0
 # 平行跑測試。commit 前的完整測試從 4 分半降到 1 分 45 秒（8 核實測），
 # 檢查範圍不變。checks.py 在沒裝它時會自動退回序列執行。
-pytest-xdist>=3.5.0
+pytest-xdist==3.8.0
