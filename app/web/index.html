@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-57-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-57-1" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -525,6 +525,7 @@
               <form id="admin-user-form" class="resource-form">
                 <input name="username" placeholder="帳號（英數）" required autocomplete="off" />
                 <select name="role_code" id="admin-user-role"></select>
+                <select name="group_name" id="admin-user-group" title="組長管哪一組（其他角色留空）"><option value="">管轄組別（組長才需要）</option></select>
                 <input name="display_name" placeholder="顯示名稱" />
                 <input name="email" placeholder="email（催辦通知用）" />
                 <input name="password" type="password" placeholder="初始密碼" autocomplete="new-password" required />
@@ -533,7 +534,7 @@
               </form>
               <div class="table-shell">
                 <table>
-                  <thead><tr><th>帳號</th><th>角色</th><th>名稱</th><th>email</th><th>狀態</th><th>操作</th></tr></thead>
+                  <thead><tr><th>帳號</th><th>角色</th><th>管轄組別</th><th>名稱</th><th>email</th><th>狀態</th><th>操作</th></tr></thead>
                   <tbody id="admin-users-body"></tbody>
                 </table>
               </div>
@@ -1128,6 +1129,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-57-0"></script>
+    <script src="/static/app.js?v=v0-57-1"></script>
   </body>
 </html>

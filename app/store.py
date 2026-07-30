@@ -522,6 +522,9 @@ def initialize_database() -> None:
         # 人員歸屬組別（主機組/資料庫組/網路組…）：案件的「負責人」要能依組別過濾。
         # 組別本身是可維護的選項（不同單位組織不一樣），不寫死在程式裡。
         ensure_column(conn, "personnel_master", "group_name", "TEXT NOT NULL DEFAULT ''")
+        # 帳號的管轄組別：組長要能由管理員指派管哪一組（內建 ap05 寫在程式裡，
+        # 後台自建的組長帳號靠這個欄位）。非組長角色留空即可。
+        ensure_column(conn, "users", "group_name", "TEXT NOT NULL DEFAULT ''")
         # 系統編號：案件領「所屬年度＋四位流水號」，各階段共用此尾碼做跨階段勾稽
         ensure_column(conn, "cases", "fiscal_year", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "seq", "INTEGER NOT NULL DEFAULT 0")
@@ -3778,22 +3781,26 @@ def get_db_user(username: str) -> dict[str, Any] | None:
 
 def list_db_users() -> list[dict[str, Any]]:
     with connect() as conn:
-        rows = conn.execute("SELECT username, role_code, display_name, email, disabled FROM users ORDER BY username").fetchall()
+        rows = conn.execute(
+            "SELECT username, role_code, display_name, email, disabled, group_name "
+            "FROM users ORDER BY username").fetchall()
     return rows
 
 
-def create_db_user(username: str, role_code: str, display_name: str, email: str, password_hash: str) -> None:
+def create_db_user(username: str, role_code: str, display_name: str, email: str, password_hash: str,
+                   group_name: str = "") -> None:
     with connect() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
             raise ValueError(f"帳號 {username} 已存在。")
         conn.execute(
-            "INSERT INTO users(username, role_code, display_name, email, password_hash) VALUES(?,?,?,?,?)",
-            (username, role_code, display_name, email, password_hash),
+            "INSERT INTO users(username, role_code, display_name, email, password_hash, group_name) "
+            "VALUES(?,?,?,?,?,?)",
+            (username, role_code, display_name, email, password_hash, (group_name or "").strip()),
         )
 
 
 def update_db_user(username: str, fields: dict[str, Any]) -> None:
-    allowed = {"role_code", "display_name", "email", "disabled", "password_hash"}
+    allowed = {"role_code", "display_name", "email", "disabled", "password_hash", "group_name"}
     sets = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not sets:
         return

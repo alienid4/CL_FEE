@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.57.0 · 2026-07-30 · 角色層級：組長（看本組）＋部長（看全部）";
+const BUILD_TAG = "v0.57.1 · 2026-07-30 · 後台可指派組長管轄組別";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3439,6 +3439,14 @@ async function loadAdminUsers() {
     roleSel.innerHTML = (d.roles || []).map((r) => `<option value="${escapeHtml(r.code)}">${escapeHtml(r.name)}</option>`).join("");
     roleSel.dataset.filled = "1";
   }
+  // 管轄組別下拉（組長才需要）：選項跟人員主檔同一份可維護清單
+  const groupSel = document.querySelector("#admin-user-group");
+  if (groupSel) {
+    const cur = groupSel.value;
+    groupSel.innerHTML = `<option value="">管轄組別（組長才需要）</option>`
+      + (d.groups || []).map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+    if (cur) groupSel.value = cur;
+  }
   body.innerHTML = (d.users || [])
     .map((u) => {
       const state = u.builtin
@@ -3446,12 +3454,19 @@ async function loadAdminUsers() {
         : u.disabled
         ? '<span class="badge danger">已停用</span>'
         : '<span class="badge ok">啟用</span>';
+      // 組長沒指派組別＝只看得到自己的案（保守預設），標出來提醒管理員去補
+      const isLeader = u.role_code === "group_leader";
+      const group = u.group_name
+        ? escapeHtml(u.group_name)
+        : isLeader ? '<span class="badge warn">未指派</span>' : '<span class="muted">—</span>';
+      const groupBtn = (!u.builtin && isLeader)
+        ? ` <button type="button" class="secondary" data-uaction="group" data-username="${escapeHtml(u.username)}">改組別</button>` : "";
       const actions = u.builtin
         ? '<span class="muted">—</span>'
         : `<button type="button" class="secondary" data-uaction="${u.disabled ? "enable" : "disable"}" data-username="${escapeHtml(u.username)}">${u.disabled ? "啟用" : "停用"}</button>
-           <button type="button" class="secondary" data-uaction="reset" data-username="${escapeHtml(u.username)}">改密碼</button>
+           <button type="button" class="secondary" data-uaction="reset" data-username="${escapeHtml(u.username)}">改密碼</button>${groupBtn}
            <button type="button" class="danger" data-uaction="delete" data-username="${escapeHtml(u.username)}">刪除</button>`;
-      return `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.role_name)}</td><td>${escapeHtml(valueOrDash(u.display_name))}</td><td>${escapeHtml(valueOrDash(u.email))}</td><td>${state}</td><td>${actions}</td></tr>`;
+      return `<tr><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.role_name)}</td><td>${group}</td><td>${escapeHtml(valueOrDash(u.display_name))}</td><td>${escapeHtml(valueOrDash(u.email))}</td><td>${state}</td><td>${actions}</td></tr>`;
     })
     .join("");
 }
@@ -5197,6 +5212,13 @@ document.querySelector("#admin-users-body")?.addEventListener("click", async (ev
       const pw = window.prompt(`為 ${username} 設定新密碼：`);
       if (!pw) return;
       await api(`/api/admin/users/${username}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
+    } else if (act === "group") {
+      // 指派組長管哪一組：留空＝未指派（該帳號會退化成只看自己的案，不會看到全公司）
+      const groups = ((await api("/api/admin/users")).data || {}).groups || [];
+      const g = window.prompt(
+        `${username} 管哪一組？\n可填：${groups.join("／") || "（尚未設定組別選項）"}\n留空＝未指派（只看得到自己的案）`, "");
+      if (g === null) return;
+      await api(`/api/admin/users/${username}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ group_name: g.trim() }) });
     } else if (act === "delete") {
       if (!window.confirm(`確定刪除帳號 ${username}？`)) return;
       await api(`/api/admin/users/${username}`, { method: "DELETE" });

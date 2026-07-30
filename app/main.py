@@ -723,6 +723,7 @@ class UserCreateIn(BaseModel):
     display_name: str = ""
     email: str = ""
     password: str = Field(min_length=1)
+    group_name: str = ""      # 組長要指派管哪一組；其他角色留空
 
 
 class UserPatch(BaseModel):
@@ -731,6 +732,7 @@ class UserPatch(BaseModel):
     email: str | None = None
     disabled: bool | None = None
     password: str | None = None
+    group_name: str | None = None
 
 
 SETTINGS_PUBLIC_KEYS = [
@@ -768,7 +770,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.57.0 · 2026-07-30 · 角色層級補上組長與部長：組長看本組全部（他自己也可能是承辦）、部長看全部；核准權組長/部長/助理都有，仍不能核自己建的案"
+BACKEND_BUILD = "v0.57.1 · 2026-07-30 · 後台可指派組長的管轄組別（帳號加 group_name，改組別即換可見範圍）；未指派的組長只看自己的案，不會看到全公司"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -998,6 +1000,8 @@ def get_account(username: str) -> dict[str, Any] | None:
         "allowed_actions": list(tmpl["allowed_actions"]),
         "disabled": bool(row["disabled"]),
         "email": row["email"],
+        # 組長管轄的組別（由管理員在後台指派）；非組長角色留空，不影響可見範圍
+        "group_name": row["group_name"] if "group_name" in row.keys() else "",
         "builtin": False,
     }
 
@@ -1324,18 +1328,21 @@ def create_app() -> FastAPI:
     def admin_list_users() -> dict[str, Any]:
         builtin = [
             {"username": u, "role_code": a["role_code"], "role_name": a["role_name"],
-             "display_name": a["display_name"], "email": "", "disabled": False, "builtin": True}
+             "display_name": a["display_name"], "email": "", "disabled": False,
+             "group_name": a.get("group_name", ""), "builtin": True}
             for u, a in LOCAL_AUTH_USERS.items()
         ]
         db = [
             {"username": r["username"], "role_code": r["role_code"],
              "role_name": ROLE_TEMPLATES.get(r["role_code"], {}).get("role_name", r["role_code"]),
              "display_name": r["display_name"], "email": r["email"],
-             "disabled": bool(r["disabled"]), "builtin": False}
+             "disabled": bool(r["disabled"]),
+             "group_name": r["group_name"] if "group_name" in r.keys() else "", "builtin": False}
             for r in store_list_db_users()
         ]
         roles = [{"code": k, "name": v["role_name"]} for k, v in ROLE_TEMPLATES.items()]
-        return ok({"users": builtin + db, "roles": roles})
+        # 組別選項給後台指派組長用（跟人員主檔同一份可維護清單）
+        return ok({"users": builtin + db, "roles": roles, "groups": _option_list("opt_person_groups")})
 
     @app.post("/api/admin/users", status_code=201)
     def admin_create_user(payload: UserCreateIn) -> dict[str, Any]:
@@ -1345,7 +1352,8 @@ def create_app() -> FastAPI:
         if payload.role_code not in ROLE_TEMPLATES:
             raise HTTPException(status_code=422, detail="角色不存在。")
         try:
-            store_create_db_user(username, payload.role_code, payload.display_name, payload.email, _hash_password(payload.password))
+            store_create_db_user(username, payload.role_code, payload.display_name, payload.email,
+                                 _hash_password(payload.password), payload.group_name)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         return ok({"username": username})
