@@ -768,7 +768,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.56.1 · 2026-07-29 · 預算移回左側第 2 個；「請購」字樣全站改「費用」（清單欄位、追溯鏈、搜尋結果、CSV 匯出、併案說明都跟著改）"
+BACKEND_BUILD = "v0.57.0 · 2026-07-30 · 角色層級補上組長與部長：組長看本組全部（他自己也可能是承辦）、部長看全部；核准權組長/部長/助理都有，仍不能核自己建的案"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -776,6 +776,10 @@ def pilot_passwordless() -> bool:
     return os.getenv("PILOT_PASSWORDLESS", "0") == "1"
 
 AUTH_COOKIE_NAME = "ai_fee_user"
+# 誰能做審核決定（核准／退回補件／併案／駁回）：組長、部長、助理都可以（使用者拍板 2026-07-30
+# ——助理維持現在就能核）。唯一鐵則是「不能核准自己建立的案件」，所以組長自己送的案
+# 由部長或助理來核，不必另外設規則。承辦不在此列。
+REVIEWER_ROLES = ("manager_assistant", "group_leader", "department_head")
 # 搜尋結果的型別 → 要有哪個模組權限才看得到（對齊前端 SEARCH_NAV 的導向目標）
 SEARCH_TYPE_MODULE = {
     "case": "cases-module", "contract": "contracts-module", "payment": "payments-module",
@@ -857,6 +861,35 @@ LOCAL_AUTH_USERS: dict[str, dict[str, Any]] = {
             "name-admin",
         ],
         "allowed_actions": ["read", "edit", "import_preview", "preflight"],
+    },
+    # 組長（使用者說明 2026-07-30）：組織是 部長 → 組長 → 承辦，助理在中間協助。
+    # 組長也是主管，但「很多簽呈其實是組長自己來做」，所以他同時可能是承辦——
+    # 因此可見範圍是「本組全部」（含自己送的），不是「只看自己的」，也不是看全公司。
+    "ap05": {
+        "username": "ap05",
+        "role_code": "group_leader",
+        "role_name": "組長",
+        "display_name": "組長",
+        "group_name": "網路組",          # 組長管哪一組；可見範圍＝這一組的案件
+        "default_module": "cases-module",
+        "allowed_modules": [
+            "budget", "projects", "portfolio", "signoff", "cases-module", "data-review",
+            "contracts-module", "purchases", "payments-module", "data-admin",
+        ],
+        "allowed_actions": ["read", "edit"],
+    },
+    # 部長：也是主管，但看全部（不限組別）
+    "ap06": {
+        "username": "ap06",
+        "role_code": "department_head",
+        "role_name": "部長",
+        "display_name": "部長",
+        "default_module": "cases-module",
+        "allowed_modules": [
+            "budget", "projects", "portfolio", "signoff", "cases-module", "data-review",
+            "contracts-module", "purchases", "payments-module", "io-center", "data-admin",
+        ],
+        "allowed_actions": ["read", "edit"],
     },
     # 系統管理員：只進「系統管理」後台（設定/稽核/狀態）。未來改為指定 AD 帳號當 admin。
     "admin": {
@@ -1002,13 +1035,31 @@ async def lifespan(app: FastAPI):
 
 
 async def bind_actor(request: Request) -> None:
-    """把已驗證的登入者綁到本請求（async 依賴，確保 contextvar 傳到同步端點）。"""
+    """把已驗證的登入者綁到本請求（async 依賴，確保 contextvar 傳到同步端點）。
+
+    可見範圍三種：承辦＝只看自己負責的；組長＝看本組全部（他自己送的案也在裡面）；
+    其餘（部長／助理／CIO／admin）＝看全部。
+    """
     username = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, ""))
     set_current_actor(username or "anonymous")
     acct = get_account(username or "") or {}
-    is_handler = acct.get("role_code") == "handler"
-    set_owner_scope(username if is_handler else None)
-    set_owner_display_name(acct.get("display_name") if is_handler else None)
+    role = acct.get("role_code")
+    if role == "handler":
+        set_owner_scope(username, "owner")
+        set_owner_display_name(acct.get("display_name"))
+    elif role == "group_leader":
+        group = str(acct.get("group_name") or "").strip()
+        if group:
+            set_owner_scope(group, "group")
+            set_owner_display_name(None)
+        else:
+            # 組長沒設組別（例如後台自建帳號還沒填）→ 退化成「只看自己的」，
+            # 不能退回「看全部」：那會讓一個沒設定完的帳號看到全公司的案件。
+            set_owner_scope(username, "owner")
+            set_owner_display_name(acct.get("display_name"))
+    else:
+        set_owner_scope(None)
+        set_owner_display_name(None)
 
 
 def create_app() -> FastAPI:
@@ -1540,8 +1591,8 @@ def create_app() -> FastAPI:
     @app.post("/api/cases/{case_id}/approve")
     def approve_case_endpoint(case_id: int, request: Request) -> dict[str, Any]:
         approver = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
-        if (get_account(approver) or {}).get("role_code") != "manager_assistant":
-            raise HTTPException(status_code=403, detail="只有助理/主管能複核核准案件。")
+        if (get_account(approver) or {}).get("role_code") not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="只有組長／部長／助理能複核核准案件。")
         try:
             return ok(approve_case(case_id, approver))
         except LookupError as exc:
@@ -1568,8 +1619,8 @@ def create_app() -> FastAPI:
     @app.post("/api/cases/{case_id}/return")
     def return_case_endpoint(case_id: int, payload: ReviewDecisionIn, request: Request) -> dict[str, Any]:
         actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
-        if (get_account(actor) or {}).get("role_code") != "manager_assistant":
-            raise HTTPException(status_code=403, detail="只有助理/主管能退回補件。")
+        if (get_account(actor) or {}).get("role_code") not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="只有組長／部長／助理能退回補件。")
         try:
             return ok(store.return_case(case_id, actor, payload.reason))
         except LookupError as exc:
@@ -1582,8 +1633,8 @@ def create_app() -> FastAPI:
     @app.post("/api/cases/{case_id}/reject")
     def reject_case_endpoint(case_id: int, payload: ReviewDecisionIn, request: Request) -> dict[str, Any]:
         actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
-        if (get_account(actor) or {}).get("role_code") != "manager_assistant":
-            raise HTTPException(status_code=403, detail="只有助理/主管能駁回案件申請。")
+        if (get_account(actor) or {}).get("role_code") not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="只有組長／部長／助理能駁回案件申請。")
         try:
             return ok(store.reject_case(case_id, actor, payload.reason))
         except LookupError as exc:
@@ -1596,8 +1647,8 @@ def create_app() -> FastAPI:
     @app.post("/api/cases/{case_id}/merge")
     def merge_case_endpoint(case_id: int, payload: MergeCaseIn, request: Request) -> dict[str, Any]:
         actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
-        if (get_account(actor) or {}).get("role_code") != "manager_assistant":
-            raise HTTPException(status_code=403, detail="只有助理/主管能把申請併入既有案件。")
+        if (get_account(actor) or {}).get("role_code") not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="只有組長／部長／助理能把申請併入既有案件。")
         try:
             return ok(store.merge_case_into(case_id, payload.target_case_id, actor, payload.reason))
         except LookupError as exc:

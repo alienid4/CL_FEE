@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-56-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-57-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -51,16 +51,16 @@
         <nav class="module-list">
           <a class="module-card" href="#cio-overview" data-roles="cio"><span>◆</span><strong>決策總覽</strong><small>大方向</small></a>
           <a class="module-card" href="#admin-console" data-roles="admin"><span>⚙</span><strong>系統管理</strong><small>設定/稽核</small></a>
-          <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
-          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
-          <a class="module-card" href="#projects" data-roles="cio manager_assistant handler"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
-          <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
-          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler"><span>▦</span><strong>費用</strong><small id="nav-count-purchases">費用 …</small></a>
-          <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
+          <a class="module-card active" href="#cases-module" data-roles="cio manager_assistant handler group_leader department_head"><span>▦</span><strong>案件管理</strong><small id="nav-count-cases">案件 …</small></a>
+          <a class="module-card" href="#budget" data-roles="cio manager_assistant handler group_leader department_head"><span>▦</span><strong>預算</strong><small id="nav-count-budgets">預算 …</small></a>
+          <a class="module-card" href="#projects" data-roles="cio manager_assistant handler group_leader department_head"><span>▦</span><strong>專案</strong><small id="nav-count-projects">專案 …</small></a>
+          <a class="module-card" href="#contracts-module" data-roles="cio manager_assistant handler group_leader department_head"><span>▦</span><strong>合約</strong><small id="nav-count-contracts">合約 …</small></a>
+          <a class="module-card" href="#purchases" data-roles="cio manager_assistant handler group_leader department_head"><span>▦</span><strong>費用</strong><small id="nav-count-purchases">費用 …</small></a>
+          <a class="module-card" href="#payments-module" data-roles="cio manager_assistant handler group_leader department_head"><span>▦</span><strong>付款</strong><small id="nav-count-payments">付款 …</small></a>
           <!-- 簽呈：依助理回饋移出左側選單（2026-07-29）。資料與 Case 360 追溯鏈的簽呈段都保留，
                「這筆付款是哪張簽呈核准的」仍查得到；面板本身仍在，靠追溯鏈的「編輯」進得去。 -->
           <div class="nav-group-label">資料管理（後台）</div>
-          <a class="module-card" href="#data-admin" data-roles="manager_assistant handler"><span>⛭</span><strong>資料管理</strong><small id="nav-count-dataadmin">匯入・單位・檢核</small></a>
+          <a class="module-card" href="#data-admin" data-roles="manager_assistant handler group_leader department_head"><span>⛭</span><strong>資料管理</strong><small id="nav-count-dataadmin">匯入・單位・檢核</small></a>
         </nav>
       </aside>
 
@@ -150,7 +150,7 @@
               <div class="tabs" aria-label="案件管理頁籤">
                 <button class="tab active" type="button" data-case-tab="list">案件清單</button>
                 <button class="tab" type="button" data-case-tab="todo">待辦事項</button>
-                <button class="tab" type="button" data-case-tab="dashboard" data-roles="cio manager_assistant">主管儀表板</button>
+                <button class="tab" type="button" data-case-tab="dashboard" data-roles="cio manager_assistant group_leader department_head">主管儀表板</button>
                 <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
                 <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
                 <button class="tab" type="button" data-case-tab="portfolio">進度總表</button>
@@ -822,7 +822,7 @@
           </section>
         </section>
 
-        <section class="panel import-workbench module-extra" data-module-parent="data-review" data-roles="cio manager_assistant" hidden>
+        <section class="panel import-workbench module-extra" data-module-parent="data-review" data-roles="cio manager_assistant department_head" hidden>
           <div class="section-heading compact">
             <h2>匯入 / 確認架構追溯</h2>
           </div>
@@ -1128,6 +1128,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-56-1"></script>
+    <script src="/static/app.js?v=v0-57-0"></script>
   </body>
 </html>

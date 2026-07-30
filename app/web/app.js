@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.56.1 · 2026-07-29 · 預算移回第2個＋「請購」字樣全站改「費用」";
+const BUILD_TAG = "v0.57.0 · 2026-07-30 · 角色層級：組長（看本組）＋部長（看全部）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -137,6 +137,12 @@ const statusLabels = {
   error: "錯誤",
 };
 let currentUser = null;
+// 誰能做審核決定（核准/退件/併案/駁回）：組長、部長、助理（使用者拍板 2026-07-30）。
+// 唯一鐵則仍是「不能核准自己建立的案件」，所以組長自己送的案由部長或助理核。
+const REVIEWER_ROLES = ["manager_assistant", "group_leader", "department_head"];
+function isReviewer(user) {
+  return !!user && REVIEWER_ROLES.includes(user.role_code);
+}
 const tableLabels = {
   cases: "案件",
   contracts: "合約",
@@ -861,7 +867,7 @@ function suggestPeriodCount(box, ct) {
 
 function renderSchedulePanel(cid, ct, res) {
   const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
-  const canSettle = currentUser && ["manager_assistant", "admin"].includes(currentUser.role_code);
+  const canSettle = isReviewer(currentUser) || (currentUser && currentUser.role_code === "admin");
   const scheds = res.schedules || [];
   const sum = res.summary || { planned: 0, paid: 0, unpaid_planned: 0 };
   const locked = !!res.locked;
@@ -1239,7 +1245,7 @@ function navigateToPanel(panelId) {
 }
 
 function rolesForCard(card) {
-  return (card.dataset.roles || "cio manager_assistant handler").split(/\s+/).filter(Boolean);
+  return (card.dataset.roles || "cio manager_assistant handler group_leader department_head").split(/\s+/).filter(Boolean);
 }
 
 function applyRoleVisibility(user) {
@@ -2807,7 +2813,7 @@ function caseWorkflowButtons(item) {
   }
   if (item.status === "pending_review") {
     const isSubmitter = currentUser && (item.created_by || "") === currentUser.username;
-    const isManager = currentUser && currentUser.role_code === "manager_assistant";
+    const isManager = isReviewer(currentUser);
     if (isManager && !isSubmitter) {
       btns.push(`<button type="button" class="btn-sm" data-action="approve">核准</button>`);
     }
@@ -3352,7 +3358,7 @@ async function loadPendingApprovals() {
   const el = document.querySelector("#pending-approvals-list");
   const wrap = document.querySelector("#pending-approvals");
   if (!el || !wrap) return;
-  const canApprove = currentUser && currentUser.role_code === "manager_assistant";
+  const canApprove = isReviewer(currentUser);
   wrap.hidden = !canApprove;
   if (!canApprove) return;
   const items = (await api("/api/reports/pending-approvals")).data || [];
@@ -3374,7 +3380,7 @@ async function loadOrphanPayments() {
   const el = document.querySelector("#orphan-payments-list");
   const wrap = document.querySelector("#orphan-payments");
   if (!el || !wrap) return;
-  if (!currentUser || currentUser.role_code !== "manager_assistant") { wrap.hidden = true; return; }
+  if (!isReviewer(currentUser)) { wrap.hidden = true; return; }   // 未歸戶付款＝主管層要處理的
   const items = (await api("/api/reports/orphan-payments")).data || [];
   const countEl = document.querySelector("#orphan-payments-count");
   wrap.hidden = items.length === 0;

@@ -23,11 +23,20 @@ def set_current_actor(actor: str) -> None:
 
 _owner_scope: ContextVar[str | None] = ContextVar("owner_scope", default=None)
 _owner_display_name: ContextVar[str | None] = ContextVar("owner_display_name", default=None)
+# 限縮方式：owner＝比對案件負責帳號（承辦）；group＝比對案件所屬組別（組長看本組）
+_scope_kind: ContextVar[str] = ContextVar("scope_kind", default="owner")
 
 
-def set_owner_scope(scope: str | None) -> None:
-    """設定資料列可視範圍：非 None(承辦帳號)時，只看 owner 屬此帳號的案件及其關聯資料。"""
+def set_owner_scope(scope: str | None, kind: str = "owner") -> None:
+    """設定資料列可視範圍。scope 為 None＝看全部（部長/CIO/助理）。
+
+    kind='owner'（承辦）：scope 是帳號，只看 owner 屬此帳號的案件及其關聯資料。
+    kind='group'（組長）：scope 是組別名稱，看本組所有承辦的案件——組長要管整組，
+      但看不到別組（使用者拍板 2026-07-30）。組長自己也可能是承辦（很多簽呈他自己做），
+      所以不是「只看自己的」，而是「看本組的」，自己送的案自然也在裡面。
+    """
     _owner_scope.set(scope)
+    _scope_kind.set(kind)
 
 
 def set_owner_display_name(name: str | None) -> None:
@@ -44,9 +53,11 @@ def _scope_where(table: str, scope: str, alias: str = "") -> tuple[str, list[Any
     SQLite「ambiguous column name」500 錯；大多數呼叫端（如 list_rows）沒有 JOIN、
     表名本身就是唯一來源，維持不傳（欄名不加前綴）即可。"""
     prefix = f"{alias}." if alias else ""
-    owned = "SELECT id FROM cases WHERE owner = ?"
+    # 承辦比帳號、組長比組別（兩者都只認「案件」這一層，其他表都靠 case_id 掛過來）
+    case_col = "group_name" if _scope_kind.get() == "group" else "owner"
+    owned = f"SELECT id FROM cases WHERE {case_col} = ?"
     if table == "cases":
-        return f"{prefix}owner = ?", [scope]
+        return f"{prefix}{case_col} = ?", [scope]
     if table in ("contracts", "signoffs", "purchases"):
         # 這些靠 case_id 掛在案件上 → 依案件歸屬隔離（承辦只看自己案件下的）。
         # 預算(budgets) 不在此列：是全公司共享資料，不管誰負責、大家都看得到。
@@ -60,7 +71,10 @@ def _scope_where(table: str, scope: str, alias: str = "") -> tuple[str, list[Any
             [scope, scope],
         )
     if table == "projects":
-        # 專案依負責人隔離（使用者拍板）：一人負責只有那人看得到；「/」列多個共同負責人時，
+        # 組長：專案跟著案件的組別走（本組的案子底下的專案都看得到），不看專案負責人。
+        if _scope_kind.get() == "group":
+            return f"{prefix}case_id IN ({owned})", [scope]
+        # 承辦：專案依負責人隔離（使用者拍板）：一人負責只有那人看得到；「/」列多個共同負責人時，
         # 名字有列在裡面的都看得到，沒列的看不到。用字串邊界比對（"/"+owner+"/" LIKE
         # "%/name/%"）避免子字串誤判（如「王小明」誤配到「王小明志」）。
         # 沒有顯示名稱（如內建示範帳號 ap01~04 的顯示名稱是角色而非真人名）就一律看不到，
@@ -698,8 +712,13 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
     scope = _owner_scope.get()
     if table == "cases":
         payload = {**payload, "created_by": _current_actor.get()}  # 記錄建立者，供雙人複核擋自己核自己
-        if scope is not None:
+        if scope is not None and _scope_kind.get() == "owner":
             payload = {**payload, "owner": scope}  # 承辦建案自動歸自己
+        elif scope is not None and _scope_kind.get() == "group":
+            # 組長建案（他自己當承辦時）：組別自動帶自己的組，否則他建完會看不到這件案子。
+            # 負責人不強制改成自己——組長常代組員開案，負責人由他自己在表單指定。
+            if not str(payload.get("group_name") or "").strip():
+                payload = {**payload, "group_name": scope}
         # 所屬年度預設＝作業年度；流水號在交易內配發（同年遞增）
         payload = {**payload, "fiscal_year": str(payload.get("fiscal_year") or "").strip() or get_working_year()}
     allowed = allowed_fields()

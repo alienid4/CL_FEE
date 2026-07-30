@@ -13,6 +13,8 @@
         "AP02_PASSWORD": "T3st!Pass",
         "AP03_PASSWORD": "T3st!Pass",
         "AP04_PASSWORD": "T3st!Pass",
+        "AP05_PASSWORD": "T3st!Pass",
+        "AP06_PASSWORD": "T3st!Pass",
         "ADMIN_PASSWORD": "T3st!Pass"
       }
     },
@@ -28,6 +30,8 @@
         "AP02_PASSWORD": "T3st!Pass",
         "AP03_PASSWORD": "T3st!Pass",
         "AP04_PASSWORD": "T3st!Pass",
+        "AP05_PASSWORD": "T3st!Pass",
+        "AP06_PASSWORD": "T3st!Pass",
         "ADMIN_PASSWORD": "T3st!Pass"
       }
     }
