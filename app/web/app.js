@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.57.1 · 2026-07-30 · 後台可指派組長管轄組別";
+const BUILD_TAG = "v0.58.0 · 2026-07-30 · §4 狀態機：進行中/暫停/結案/取消/重開";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -1823,10 +1823,10 @@ function sourceTag(item) {
 // 不要像以前那樣用 flex/grid 卡片擠在一起（曾經 6 個欄位只設定 5 個 grid-template-columns，
 // 案號徽章跟案件編號會疊在一起）。
 function renderCaseRow(item) {
-  const statusClass = item.status === "approved" ? "ok"
-    : item.status === "pending_review" || item.status === "returned" ? "warn"
-    : item.status === "rejected" ? "danger"
-    : item.status === "disabled" || item.status === "merged" ? "neutral" : "";
+  const statusClass = item.status === "approved" || item.status === "in_progress" ? "ok"
+    : item.status === "pending_review" || item.status === "returned" || item.status === "paused" ? "warn"
+    : item.status === "rejected" || item.status === "cancelled" ? "danger"
+    : ["disabled", "merged", "closed"].includes(item.status) ? "neutral" : "";
   // 核准前顯示暫時號（灰底），核准後才是正式案號——一眼看得出這件還沒過
   const num = caseNumber(item)
     ? `<span class="badge" title="案號（年度＋流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item))}</span>`
@@ -1839,6 +1839,11 @@ function renderCaseRow(item) {
   if (mergedInto) noteBits.push(`併入 ${mergedInto.case_code}`);
   // 只在還停在該狀態時顯示；補件後重新送出就不再掛著舊退件原因（歷史仍在稽核軌跡查得到）
   if (item.review_note && ["returned", "rejected", "merged"].includes(item.status)) noteBits.push(item.review_note);
+  // 暫停/取消原因，以及重開紀錄（需求書 §4 要求記錄重開人與時間）
+  if (item.status_note && ["paused", "cancelled"].includes(item.status)) noteBits.push(item.status_note);
+  if (item.reopened_by && item.status === "in_progress") {
+    noteBits.push(`${item.reopened_at ? item.reopened_at.slice(0, 10) + " " : ""}由 ${item.reopened_by} 重開：${item.reopen_reason || ""}`);
+  }
   const note = noteBits.length
     ? `<div class="review-note" title="${escapeHtml(noteBits.join("｜"))}">${escapeHtml(noteBits.join("｜"))}</div>` : "";
   return `<tr data-case-id="${item.id}">
@@ -2748,7 +2753,20 @@ async function loadDocuments() {
 }
 
 const STATUS_LABELS = { draft: "草稿", pending_review: "待複核", reviewing: "審核中", approved: "已核准", disabled: "已停用",
-                        returned: "退回補件", rejected: "已駁回", merged: "已併入他案" };
+                        returned: "退回補件", rejected: "已駁回", merged: "已併入他案",
+                        // 需求書 §4 核准之後的生命週期
+                        in_progress: "進行中", paused: "暫停", closed: "已結案", cancelled: "已取消" };
+
+// 核准之後可以按的狀態動作：label／要不要填原因／是不是主管限定。
+// 對照後端 CASE_FLOW，只在「現在的狀態走得過去」時才顯示按鈕。
+const CASE_STATUS_ACTIONS = {
+  approved: [{ act: "start", label: "開始執行" }],
+  in_progress: [{ act: "pause", label: "暫停", ask: "暫停原因（等廠商／等預算…）：" },
+                { act: "close", label: "結案" }],
+  paused: [{ act: "resume", label: "復工" }],
+  closed: [{ act: "reopen", label: "重新開啟", ask: "重開原因（會記錄重開人與時間）：", manager: true }],
+};
+const CASE_CANCEL_FROM = ["approved", "in_progress", "paused"];   // 這些狀態都還能撤案
 
 // 併案時會一起搬過去的資料表 → 中文（tableLabels 只涵蓋四個模組，這裡六個都要有名字）
 const MERGE_TABLE_LABEL = { budgets: "預算", projects: "專案", signoffs: "簽呈",
@@ -2830,6 +2848,14 @@ function caseWorkflowButtons(item) {
     if (isSubmitter || isManager) {
       btns.push(`<button type="button" class="secondary btn-sm" data-action="cancel-review">取消複核</button>`);
     }
+  }
+  // 核准之後的生命週期：開始執行／暫停／復工／結案／重開，外加隨時可撤案
+  for (const a of CASE_STATUS_ACTIONS[item.status] || []) {
+    if (a.manager && !isReviewer(currentUser)) continue;
+    btns.push(`<button type="button" class="secondary btn-sm" data-status-act="${a.act}">${a.label}</button>`);
+  }
+  if (CASE_CANCEL_FROM.includes(item.status) && isReviewer(currentUser)) {
+    btns.push(`<button type="button" class="secondary btn-sm danger" data-status-act="cancel" title="撤案（限主管）">取消案件</button>`);
   }
   return btns.join(" ");
 }
@@ -4861,6 +4887,31 @@ document.addEventListener("change", async (event) => {
     } catch (error) { window.alert(`設定分攤類別失敗：${error.message}`); }
     return;
   }
+});
+
+// 狀態動作（開始執行/暫停/復工/結案/取消/重開）：需要原因的先問，取消輸入就中止
+cases.addEventListener("click", async (event) => {
+  const btn = event.target.closest("button[data-status-act]");
+  if (!btn) return;
+  const id = btn.closest("[data-case-id]").dataset.caseId;
+  const act = btn.dataset.statusAct;
+  const meta = Object.values(CASE_STATUS_ACTIONS).flat().find((a) => a.act === act)
+    || { label: "取消案件", ask: "取消原因（會留在案件紀錄）：" };
+  let reason = "";
+  if (meta.ask) {
+    const input = window.prompt(`${meta.label}：${meta.ask}`, "");
+    if (input === null) return;
+    if (!input.trim()) { window.alert(`請填${meta.label}原因。`); return; }
+    reason = input.trim();
+  } else if (act === "close" && !window.confirm("確定結案？結案後仍可由主管重新開啟（會留重開紀錄）。")) {
+    return;
+  }
+  try {
+    await api(`/api/cases/${id}/status/${act}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }) });
+  } catch (error) { window.alert(error.message); }
+  await refresh();
 });
 
 cases.addEventListener("click", async (event) => {

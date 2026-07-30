@@ -430,8 +430,11 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     "cases": {
         # 需求書 §4 的審核結果：核准新案(approved)／退回補件(returned)／併入既有案(merged)／
         # 拒絕建立(rejected)。被拒絕與被併走的都留著（不是停用、也不是刪除），申請紀錄查得到。
+        # 需求書 §4 完整狀態機：暫存→待審核→(退回補件)→已核准→進行中→(暫停)→已結案／已取消。
+        # merged/rejected 是審核的兩個終點，disabled 是舊的「停用」（保留給既有資料）。
         "status": {"draft", "pending_review", "reviewing", "approved", "disabled",
-                   "returned", "rejected", "merged"},
+                   "returned", "rejected", "merged",
+                   "in_progress", "paused", "closed", "cancelled"},
         # 第一個重要判斷：占不占用年度預算。空＝舊資料還沒分流過。
         "budget_type": {"", "in_budget", "out_budget"},
         "expense_kind": {"", "expense", "capex"},   # 費用 / 資本支出
@@ -542,6 +545,12 @@ def initialize_database() -> None:
         ensure_column(conn, "cases", "temp_seq", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "cases", "review_note", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "merged_into_case_id", "INTEGER")
+        # 需求書 §4：已結案案件可重新開啟，但「必須記錄重新開啟人、時間與原因」。
+        # 這裡存最後一次重開；完整歷史在 audit_logs（同一件案可能重開多次）。
+        ensure_column(conn, "cases", "reopened_by", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "reopened_at", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "reopen_reason", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "cases", "status_note", "TEXT NOT NULL DEFAULT ''")   # 暫停/取消原因
         # Excel 來源勾稽：記匯入來源檔＋原始列號，清單顯示 📎 讓人回 Excel 核對
         ensure_column(conn, "cases", "source_file", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "source_row", "INTEGER NOT NULL DEFAULT 0")
@@ -1050,7 +1059,8 @@ def allowed_fields() -> dict[str, set[str]]:
     return {
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row",
                   "temp_seq", "review_note", "merged_into_case_id",
-                  "group_name", "budget_type", "expense_kind", "budget_item", "source", "description"},
+                  "group_name", "budget_type", "expense_kind", "budget_item", "source", "description",
+                  "reopened_by", "reopened_at", "reopen_reason", "status_note"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
                       "payment_method", "installments",
                       "start_date", "contract_type", "parent_contract_id", "relation_type",
@@ -1260,6 +1270,68 @@ def reject_case(case_id: int, actor: str, reason: str) -> dict[str, Any]:
         conn.execute("UPDATE cases SET status = 'rejected', review_note = ? WHERE id = ?", (reason, case_id))
         after = get_row(conn, "cases", case_id)
         write_audit_log(conn, "cases", case_id, "reject", before, after, actor=actor)
+        return after
+
+
+# ── 需求書 §4 核准之後的生命週期：已核准 → 進行中 → (暫停) → 已結案；隨時可取消。
+# 已結案可重新開啟，但必須記錄重開人/時間/原因（需求書明列）。
+# 以「動作」為主軸列出合法來源與目標，不要只列目標——start 與 resume 的目標都是「進行中」，
+# 只看目標的話，剛核准的案會被允許「復工」（測試抓到過這個洞）。
+CASE_ACTIONS: dict[str, dict[str, Any]] = {
+    "start":  {"from": ("approved",), "to": "in_progress", "label": "開始執行"},
+    "pause":  {"from": ("in_progress",), "to": "paused", "label": "暫停", "need_reason": True},
+    "resume": {"from": ("paused",), "to": "in_progress", "label": "復工"},
+    "close":  {"from": ("in_progress",), "to": "closed", "label": "結案"},
+    # 取消：核准後、還沒結案前隨時可撤
+    "cancel": {"from": ("approved", "in_progress", "paused"), "to": "cancelled",
+               "label": "取消案件", "need_reason": True},
+    # 重開：需求書 §4 明列必須記錄重開人、時間與原因
+    "reopen": {"from": ("closed",), "to": "in_progress", "label": "重新開啟", "need_reason": True},
+}
+CASE_STATUS_LABEL = {
+    "draft": "暫存", "pending_review": "待審核", "reviewing": "審核中", "returned": "退回補件",
+    "approved": "已核准", "in_progress": "進行中", "paused": "暫停", "closed": "已結案",
+    "cancelled": "已取消", "rejected": "已駁回", "merged": "已併入他案", "disabled": "已停用",
+}
+
+
+def change_case_status(case_id: int, action: str, actor: str, reason: str = "") -> dict[str, Any]:
+    """推進案件狀態（核准之後的生命週期）。只允許 CASE_ACTIONS 列出的動作與來源狀態。
+
+    暫停與取消要寫原因（否則事後沒人知道為什麼停在那裡）；
+    重開（已結案 → 進行中）依需求書 §4 必填原因，並記下重開人與時間。
+    """
+    spec = CASE_ACTIONS.get(action)
+    if spec is None:
+        raise ValueError(f"不支援的狀態動作：{action}")
+    target = spec["to"]
+    reason = str(reason or "").strip()
+    scope = _owner_scope.get()
+    with connect() as conn:
+        before = get_row(conn, "cases", case_id)
+        if scope is not None and not _row_in_scope(conn, "cases", case_id, scope):
+            raise LookupError(f"cases row {case_id} not found")  # 不在可視範圍，視同不存在
+        current = before["status"]
+        if current not in spec["from"]:
+            raise RuntimeError(
+                f"案件目前是「{CASE_STATUS_LABEL.get(current, current)}」，不能{spec['label']}。")
+        if spec.get("need_reason") and not reason:
+            raise ValueError(
+                "重新開啟已結案的案件必須填原因（需求書 §4）。" if action == "reopen"
+                else f"請填{spec['label']}原因。")
+        reopening = action == "reopen"
+
+        sets = {"status": target}
+        if reopening:
+            sets.update({"reopened_by": actor, "reopened_at": "", "reopen_reason": reason})
+        if target in ("paused", "cancelled"):
+            sets["status_note"] = reason
+        assignments = ", ".join(f"{k} = ?" for k in sets)
+        extra = ", reopened_at = datetime('now')" if reopening else ""
+        conn.execute(f"UPDATE cases SET {assignments}{extra} WHERE id = ?", [*sets.values(), case_id])
+        after = get_row(conn, "cases", case_id)
+        action = "reopen" if reopening else f"status_{target}"
+        write_audit_log(conn, "cases", case_id, action, before, after, actor=actor)
         return after
 
 
@@ -3577,10 +3649,15 @@ def pending_approvals() -> list[dict[str, Any]]:
         ).fetchall()
 
 
-# 雙人複核規則 (b)：核准前不算數 —— CIO 畫面的金額只計「已核准」案件下的付款。
+# 雙人複核規則 (b)：核准前不算數 —— CIO 畫面的金額只計「已核准（含之後）」案件下的付款。
+# 需求書 §4 的狀態機在核准之後還會往 進行中／暫停／已結案 走，這些都是「核准過的錢」，
+# 一律要算進去；只有 已取消 例外（案子撤了，錢不該再算）。少列任何一個，案件一開始執行
+# CIO 的數字就會憑空掉一塊。
+LIVE_CASE_STATUSES = ("approved", "in_progress", "paused", "closed")
+_LIVE_CASE_LIST = ", ".join(f"'{s}'" for s in LIVE_CASE_STATUSES)
 _APPROVED_PAYMENT_CLAUSE = (
     "contract_id IN (SELECT id FROM contracts WHERE case_id IN "
-    "(SELECT id FROM cases WHERE status = 'approved'))"
+    f"(SELECT id FROM cases WHERE status IN ({_LIVE_CASE_LIST})))"
 )
 
 
@@ -3629,7 +3706,7 @@ def cio_overview() -> dict[str, Any]:
             "(SELECT COALESCE(SUM(b.amount),0) FROM budgets b WHERE b.case_id = c.id AND b.status <> 'disabled') AS case_budget_total, "
             "(SELECT COALESCE(SUM(pp.payment_amount),0) FROM payments pp JOIN contracts kk ON kk.id = pp.contract_id WHERE kk.case_id = c.id) AS case_payment_total "
             "FROM payments p JOIN contracts k ON k.id = p.contract_id "
-            "JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ? AND c.status = 'approved'"
+            f"JOIN cases c ON c.id = k.case_id WHERE p.payment_month = ? AND c.status IN ({_LIVE_CASE_LIST})"
         )
         detail_params: list[Any] = [next_month]
         if scope is not None:
@@ -3659,7 +3736,7 @@ def cio_overview() -> dict[str, Any]:
             return conn.execute(
                 "SELECT COALESCE(SUM(ps.planned_amount),0) AS s FROM payment_schedules ps "
                 "JOIN contracts k ON k.id = ps.contract_id JOIN cases c ON c.id = k.case_id "
-                f"WHERE ps.status <> 'paid' AND c.status='approved'{sched_scope} AND {cond}",
+                f"WHERE ps.status <> 'paid' AND c.status IN ({_LIVE_CASE_LIST}){sched_scope} AND {cond}",
                 params,
             ).fetchone()["s"]
 
@@ -3680,7 +3757,7 @@ def cio_overview() -> dict[str, Any]:
             "SELECT substr(ps.due_date,1,4) AS yr, COALESCE(SUM(ps.planned_amount),0) AS s "
             "FROM payment_schedules ps JOIN contracts k ON k.id=ps.contract_id "
             "JOIN cases c ON c.id=k.case_id "
-            f"WHERE ps.status <> 'paid' AND c.status='approved'{sched_scope} AND ps.due_date <> '' "
+            f"WHERE ps.status <> 'paid' AND c.status IN ({_LIVE_CASE_LIST}){sched_scope} AND ps.due_date <> '' "
             "GROUP BY yr ORDER BY yr",
             ([scope] if scope is not None else []),
         ).fetchall()

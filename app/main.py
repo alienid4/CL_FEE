@@ -770,7 +770,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.57.1 · 2026-07-30 · 後台可指派組長的管轄組別（帳號加 group_name，改組別即換可見範圍）；未指派的組長只看自己的案，不會看到全公司"
+BACKEND_BUILD = "v0.58.0 · 2026-07-30 · §4 完整狀態機：已核准→進行中→(暫停)→已結案／已取消，結案可重開且記錄重開人·時間·原因；核准後各狀態的付款仍算進 CIO 金額（只有已取消不算）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1620,6 +1620,28 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # ── 需求書 §4 核准之後的生命週期：進行中／暫停／結案／取消／重開 ──
+    # 誰能推進：執行類（開始/暫停/復工/結案）承辦對自己的案就能做（他在執行）；
+    # 決策類（取消／重開已結案）限組長/部長/助理——撤案與翻案是主管的事。
+    # （需求書只規定了狀態與「重開要記錄什麼」，沒寫誰能按，這條分工是本系統的設計。）
+    @app.post("/api/cases/{case_id}/status/{action}")
+    def change_case_status_endpoint(case_id: int, action: str, payload: ReviewDecisionIn,
+                                    request: Request) -> dict[str, Any]:
+        if action not in store.CASE_ACTIONS:
+            raise HTTPException(status_code=404, detail=f"沒有這個狀態動作：{action}")
+        actor = _verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or ""
+        role = (get_account(actor) or {}).get("role_code")
+        if action in ("cancel", "reopen") and role not in REVIEWER_ROLES:
+            raise HTTPException(status_code=403, detail="取消案件與重新開啟已結案，限組長／部長／助理。")
+        try:
+            return ok(store.change_case_status(case_id, action, actor, payload.reason))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
