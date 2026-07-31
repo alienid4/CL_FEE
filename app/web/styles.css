@@ -1846,6 +1846,10 @@ tr.person-off td { opacity: .55; }
 /* 合約模型：續約/增購/整併來源標籤、保固維護到期（過期標紅） */
 .relation-tag { display:inline-block; margin-left:4px; padding:1px 6px; border-radius:999px; font-size:.72rem;
   background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
+/* 合約細項在公司合約系統裡（拍板 A4）：清單上帶編號跳出去查的外部連結 */
+.ext-link { display:inline-block; margin-left:6px; font-size:.72rem; white-space:nowrap;
+  color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent); }
+.ext-link:hover { color:var(--ink-1); border-bottom-color:var(--ink-1); }
 .warranty-part { display:inline-block; margin-right:6px; font-size:.8rem; white-space:nowrap; color:var(--ink-2); }
 .warranty-part.overdue { color:var(--danger); font-weight:600; }
 

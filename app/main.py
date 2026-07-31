@@ -722,6 +722,7 @@ class SettingsPatch(BaseModel):
     opt_project_rag: str | None = None
     opt_contract_type: str | None = None
     opt_person_groups: str | None = None
+    contract_system_url: str | None = None
 
 
 class UserCreateIn(BaseModel):
@@ -745,7 +746,7 @@ class UserPatch(BaseModel):
 SETTINGS_PUBLIC_KEYS = [
     "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
     "opt_budget_categories", "opt_project_necessity", "opt_project_level", "opt_project_rag",
-    "opt_contract_type", "opt_person_groups",
+    "opt_contract_type", "opt_person_groups", "contract_system_url",
 ]
 
 # 主檔選項預設（後台未設定時採用）
@@ -777,7 +778,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.60.2 · 2026-07-30 · 補號不再補到被駁回／已併入他案的案件（那會讓號碼永久跳號）；補號前先按狀態列出會補哪些、跳過哪些"
+BACKEND_BUILD = "v0.61.0 · 2026-07-31 · 匯入的舊案子直接算已成立並配正式號（不再落草稿＋TMP- 暫時號）；合約改成填編號＋一鍵跳公司合約系統查細項"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1183,6 +1184,9 @@ def create_app() -> FastAPI:
             "project_rag": _option_list("opt_project_rag"),
             "contract_type": _option_list("opt_contract_type"),
             "person_groups": _option_list("opt_person_groups"),
+            # 合約細項不進本系統（使用者拍板 A4：合約都是 PDF，細項在公司合約系統裡），
+            # 這裡只存合約編號＋一個「查細項」連結樣板，讓人一鍵跳過去查，不用再輸一次。
+            "contract_system_url": store_get_settings(["contract_system_url"])["contract_system_url"],
         })
 
     @app.get("/api/dashboard")

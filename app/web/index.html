@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-60-2" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-61-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -498,6 +498,7 @@
                 </select>
                 <input name="opt_budget_categories" placeholder="預算類別選項（逗號分隔）" />
                 <input name="opt_project_necessity" placeholder="專案必要性選項（逗號分隔）" />
+                <input name="contract_system_url" placeholder="公司合約系統網址；用 {code} 代表合約編號，例 https://contract.company.com/query?no={code}" title="合約細項不存在本系統：填了這個網址後，合約清單每一筆會出現「🔗 合約系統」，點了直接帶合約編號過去查。留空就不顯示連結。" />
                 <button type="submit">儲存設定</button>
                 <span class="muted" id="admin-settings-status" role="status" aria-live="polite"></span>
               </form>
@@ -670,6 +671,7 @@
               <div class="io-subtab-panel" data-io-panel="contract" hidden>
                 <div class="io-card">
                   <h4>合約</h4>
+                  <div class="io-row"><span class="io-label">匯入</span><span class="muted io-hint">合約不做匯入：合約本身是 PDF，細項在公司合約系統裡。這裡只填合約編號，清單上點「🔗 合約系統」就能帶編號過去查（連結網址在系統設定裡填）。</span></div>
                   <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/contracts.csv">下載 CSV</button></div>
                 </div>
               </div>
@@ -1126,6 +1128,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-60-2"></script>
+    <script src="/static/app.js?v=v0-61-0"></script>
   </body>
 </html>

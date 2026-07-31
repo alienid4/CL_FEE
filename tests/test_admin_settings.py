@@ -90,6 +90,17 @@ def test_options_defaults_and_admin_override(tmp_path):
         assert o2["budget_categories"] == ["甲", "乙", "丙"]
 
 
+def test_contract_system_url_setting(tmp_path):
+    """使用者拍板 A4：合約細項在公司合約系統裡，這裡只存編號＋一個帶編號跳過去的連結。
+    網址由後台設定（各單位不同，不寫死），一般使用者要能讀到才畫得出連結。"""
+    with _client(tmp_path) as client:  # admin
+        assert client.get("/api/options").json()["data"]["contract_system_url"] == ""  # 未設定＝不顯示連結
+        client.patch("/api/admin/settings", json={"contract_system_url": "https://contract.co/q?no={code}"})
+        assert client.get("/api/admin/settings").json()["data"]["contract_system_url"] == "https://contract.co/q?no={code}"
+    with _client(tmp_path, login="ap02") as user:
+        assert user.get("/api/options").json()["data"]["contract_system_url"] == "https://contract.co/q?no={code}"
+
+
 def test_options_readable_by_manager(tmp_path):
     with _client(tmp_path, login="ap02") as client:
         assert client.get("/api/options").status_code == 200  # 任何登入者可讀選項

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.60.2 · 2026-07-30 · 補號跳過駁回/併案，並先列出會補哪些";
+const BUILD_TAG = "v0.61.0 · 2026-07-31 · 匯入直接算已成立；合約一鍵跳公司合約系統";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -203,7 +203,7 @@ const resourceConfig = {
     canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
-      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>${relationTag(i)}` },
+      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>${relationTag(i)}${contractSystemLink(i.contract_code)}` },
       { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name) },
       { label: "類型", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.contract_type))}</span>` },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
@@ -392,6 +392,24 @@ function systemCodeCell(prefix, caseId) {
 function systemCodeCellPayment(payment) {
   const k = (resourceCaches.contract || []).find((x) => String(x.id) === String(payment.contract_id));
   return systemCodeCell(SYS_PREFIX.payment, k ? k.case_id : null);
+}
+
+// 合約細項不在本系統（使用者拍板 A4）：公司的合約都是 PDF，細項本來就在合約系統裡查，
+// 這裡只留合約編號，清單上給一個「查合約系統」的連結直接跳過去，不做匯入也不重存一份。
+// 樣板由後台設定：含 {code} 就把合約編號代進去，只填首頁網址就純粹開首頁。
+let contractSystemUrl = "";
+function contractSystemHref(code) {
+  const base = String(contractSystemUrl || "").trim();
+  if (!base) return "";
+  const c = String(code || "").trim();
+  if (!base.includes("{code}")) return base;
+  return c ? base.replace("{code}", encodeURIComponent(c)) : "";
+}
+function contractSystemLink(code) {
+  const href = contractSystemHref(code);
+  if (!href) return "";
+  return ` <a class="ext-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"`
+    + ` title="到公司合約系統查這份合約的細項">🔗 合約系統</a>`;
 }
 
 // 合約與舊約的關係：續約/增購/整併都指向同一個「來源合約」欄位，清單上直接標出來源編號，
@@ -2184,7 +2202,7 @@ async function loadCaseTrace(caseId) {
           <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
           <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
           <div><h4>費用</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯費用")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
+          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)}${contractSystemLink(k.contract_code)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
             + traceContractMoney(k), "無關聯合約")}</ul></div>
           <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
@@ -3562,7 +3580,7 @@ async function loadAdminConsole() {
   if (!form) return;
   if (!currentUser || currentUser.role_code !== "admin") return;
   const s = (await api("/api/admin/settings")).data || {};
-  for (const k of ["smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled"]) {
+  for (const k of ["smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled", "contract_system_url"]) {
     if (form.elements[k]) form.elements[k].value = s[k] ?? "";
   }
   if (form.elements.smtp_password) form.elements.smtp_password.placeholder = s.smtp_password_set ? "已設定（留空＝不變更）" : "SMTP 密碼（留空＝不變更）";
@@ -3649,6 +3667,7 @@ async function loadOptions() {
     fill("#opt-project-necessity", o.project_necessity);
     fill("#opt-project-level", o.project_level);
     fill("#opt-project-rag", o.project_rag);
+    contractSystemUrl = o.contract_system_url || "";  // 合約系統連結樣板（後台可維護，空＝不顯示連結）
     personnelGroupOptions = o.person_groups || [];   // 人員組別選項（後台可維護）
     populatePersonnelGroupSelects();
     // 合約類型是 select（不是 datalist）：保留「未分類」預設項，其餘由後台選項維護
@@ -3683,11 +3702,14 @@ async function loadManagerCharts() {
 }
 
 async function refresh() {
+  // 選項要先到再畫清單：合約清單的「🔗 合約系統」連結是用後台設定的網址組出來的，
+  // 跟其他載入平行跑的話，清單常常先畫完、連結就整批不見（改設定後也要重進才會出現）。
+  await loadOptions();
   await Promise.all([
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadVendorAmt(), loadExpiring(), loadCioOverview(), loadReminders(),
-    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(), loadOptions(),
+    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
     loadSignoffOptions(), loadPurchaseOptions(), loadParentContractOptions(),
   ]);

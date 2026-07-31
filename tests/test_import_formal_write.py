@@ -55,6 +55,31 @@ def test_formal_write_creates_and_records_provenance(tmp_path):
         assert after["import_batch_id"] == bid and "import_row_number" in after
 
 
+def test_imported_cases_are_established_not_draft(tmp_path):
+    """使用者拍板 A2：匯入的是已經在跑的舊案子，直接算已成立並配正式號，
+    不落草稿、不發 TMP- 暫時號（否則每次匯入都要人再按一次補號）。"""
+    with _client(tmp_path) as client:
+        bid = _stage(client, [
+            {"case_code": "EST-1", "title": "既有案一", "owner": "Ops", "amount": "1000"},
+            {"case_code": "EST-2", "title": "既有案二", "owner": "Fin", "amount": "2000"},
+        ])
+        confirmed = [
+            {"row_number": 1, "target_table": "cases", "target_field": "amount"},
+            {"row_number": 2, "target_table": "cases", "target_field": "amount"},
+        ]
+        assert _write(client, bid, confirmed).json()["data"]["created_count"] == 2
+        by_code = {c["case_code"]: c for c in client.get("/api/cases").json()["data"]}
+        for code in ("EST-1", "EST-2"):
+            c = by_code[code]
+            assert c["status"] == "approved"          # 已成立，不是 draft
+            assert int(c["seq"]) > 0                  # 配到當年度正式流水號
+            assert int(c["temp_seq"]) == 0            # 不佔暫時號
+            assert "（匯入）" in c["approved_by"]      # 稽核看得出不是有人真的複核過
+        assert by_code["EST-1"]["seq"] != by_code["EST-2"]["seq"]  # 同年度不撞號
+        # 匯入完不該還有缺號的案件等人補
+        assert client.get("/api/dev-console/backfill/status").json()["data"]["cases_missing"] == 0
+
+
 def test_formal_write_is_idempotent(tmp_path):
     with _client(tmp_path) as client:
         bid = _stage(client, [{"case_code": "IMP-DUP", "title": "重跑", "amount": "500"}])

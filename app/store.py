@@ -23,6 +23,22 @@ def set_current_actor(actor: str) -> None:
 
 _owner_scope: ContextVar[str | None] = ContextVar("owner_scope", default=None)
 _owner_display_name: ContextVar[str | None] = ContextVar("owner_display_name", default=None)
+
+# 匯入模式（使用者拍板 2026-07-31／待你決定 A2）：匯入進來的是「已經在跑的舊案子」，
+# 不是新申請——不該落成「草稿＋TMP- 暫時號」再要人一筆筆補號，直接算已成立（approved）
+# 並在當年度配正式流水號。只在匯入路徑打開，一般 UI 新建案件不受影響（仍走申請→複核）。
+_import_mode: ContextVar[bool] = ContextVar("import_mode", default=False)
+
+
+@contextmanager
+def import_mode() -> Iterator[None]:
+    """匯入期間建立的案件直接視為已成立。用 contextmanager 確保離開就還原，
+    不會讓後續一般操作誤沾到匯入語意。"""
+    token = _import_mode.set(True)
+    try:
+        yield
+    finally:
+        _import_mode.reset(token)
 # 限縮方式：owner＝比對案件負責帳號（承辦）；group＝比對案件所屬組別（組長看本組）
 _scope_kind: ContextVar[str] = ContextVar("scope_kind", default="owner")
 
@@ -696,14 +712,16 @@ def _match_owner_username(conn: sqlite3.Connection, owner_display_name: str | No
 
 def _ensure_case_for(
     conn: sqlite3.Connection, name: str | None, code_hint: str | None, fiscal_year: str | None,
-    owner_display_name: str | None = None,
+    owner_display_name: str | None = None, established: bool = False,
 ) -> int | None:
     """使用者的心智模型裡沒有「先建一個叫案件的空殼」這一步——「案子」就是那筆預算/專案本身。
     建預算/專案沒給 case_id 時，用這個名稱找或建一個同名案件、自動掛上，讓使用者感覺不到「案件」這層存在。
     標題完全相同才視為同一案（不做模糊比對，避免系統瞎猜合併不相干的東西——命名不一致要靠既有「＋歸戶」人工改掛）。
     沒有名稱就回 None，呼叫端維持 case_id 為空，不強迫。
     owner_display_name（僅專案有）：若能唯一比對到一個登入帳號，新案件直接掛該帳號為負責人
-    （若觸發者本身是承辦，_insert_row 既有規則「承辦建案自動歸自己」會再覆蓋一次，維持原本行為）。"""
+    （若觸發者本身是承辦，_insert_row 既有規則「承辦建案自動歸自己」會再覆蓋一次，維持原本行為）。
+    established：匯入／回填舊資料時傳 True，配出來的案件直接算已成立（使用者拍板 A2）；
+    一般在系統裡新建預算/專案時維持 False，那條路配出來的案件仍是申請中（走複核）。"""
     name = str(name or "").strip()
     if not name:
         return None
@@ -719,8 +737,32 @@ def _ensure_case_for(
     matched = _match_owner_username(conn, owner_display_name)
     if matched:
         payload["owner"] = matched
-    new_case = _insert_row(conn, "cases", payload)
+    if established:
+        with import_mode():
+            new_case = _insert_row(conn, "cases", payload)
+    else:
+        new_case = _insert_row(conn, "cases", payload)
     return new_case["id"]
+
+
+def _established_case_fields(conn: sqlite3.Connection, fiscal_year: Any) -> dict[str, Any]:
+    """匯入既有案件時要補的欄位：當年度正式流水號＋已成立狀態。
+
+    approved_by 特意標「（匯入）」而不是只寫操作者帳號——這件案子沒有真的經過雙人複核，
+    是匯入時認定它本來就在跑；不標的話事後看不出差別，會誤以為有人複核過（稽核要看得出依據）。
+    """
+    fy = str(fiscal_year or "").strip() or get_working_year()
+    seq = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM cases WHERE fiscal_year = ?", (fy,)
+    ).fetchone()["n"]
+    return {
+        "fiscal_year": fy,
+        "seq": seq,
+        "temp_seq": 0,          # 不發暫時號：它不是申請中的案子
+        "status": "approved",
+        "approved_by": f"{_current_actor.get()}（匯入）",
+        "approved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
 
 
 def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -751,7 +793,13 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         cid = _ensure_case_for(conn, name, code_hint, fields.get("fiscal_year"), owner_hint)
         if cid:
             fields["case_id"] = cid
-    if table == "cases":
+    if table == "cases" and _import_mode.get():
+        # 匯入的是已經在跑的舊案子，不是新申請（使用者拍板 A2）：直接配正式流水號、狀態算已成立，
+        # 不落草稿也不發 TMP- 暫時號，省掉匯入完還要人工補號那一步。
+        fields = {**fields, **_established_case_fields(conn, fields.get("fiscal_year", ""))}
+        if not str(fields.get("case_code") or "").strip():
+            fields["case_code"] = f"{fields.get('fiscal_year', '')}{fields['seq']:04d}"
+    elif table == "cases":
         # 需求書 §4＋使用者拍板(A案)：申請階段只配「暫時號」，核准才配正式流水號。
         # 這樣被駁回／被併走的申請不會吃掉正式號，年度編號不跳號。正式號在 approve_case 配。
         tmp = conn.execute(
@@ -1562,6 +1610,9 @@ def confirm_import_batch_cases_write(
             # Excel 來源勾稽：把來源檔名＋原始列號寫在案件上，供清單 📎 指回 Excel
             fields["source_file"] = str(batch.get("source_name") or "").strip()
             fields["source_row"] = int(item.get("row_number") or 0)
+            # 使用者拍板 A2：匯入的是已經在跑的案子，直接算已成立並配當年度正式號
+            # （不落草稿／不發 TMP-，省掉匯入完還要按一次補號）。
+            fields.update(_established_case_fields(conn, record.get("fiscal_year")))
             columns = ", ".join(fields)
             placeholders = ", ".join("?" for _ in fields)
             cursor = conn.execute(
@@ -1788,7 +1839,7 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 if not fields.get("case_id"):
                     cid = _ensure_case_for(
                         conn, fields.get("project_name"), fields.get("project_code"), fields.get("fiscal_year"),
-                        fields.get("owner"),
+                        fields.get("owner"), established=True,
                     )
                     if cid:
                         fields["case_id"] = cid
@@ -2123,7 +2174,8 @@ def commit_budgets_import(records: list[dict[str, Any]], source_file: str = "") 
                 updated.append(code)
             else:
                 if not fields.get("case_id"):
-                    cid = _ensure_case_for(conn, fields.get("budget_code"), fields.get("budget_code"), fields.get("fiscal_year"))
+                    cid = _ensure_case_for(conn, fields.get("budget_code"), fields.get("budget_code"),
+                                           fields.get("fiscal_year"), established=True)
                     if cid:
                         fields["case_id"] = cid
                 columns = ", ".join(fields)
@@ -4558,7 +4610,7 @@ def backfill_case_links() -> int:
             "WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)"
         ).fetchall()
         for r in budget_rows:
-            cid = _ensure_case_for(conn, r["name"], r["code"], None)
+            cid = _ensure_case_for(conn, r["name"], r["code"], None, established=True)
             if cid:
                 conn.execute("UPDATE budgets SET case_id = ? WHERE id = ?", (cid, r["id"]))
                 filled += 1
@@ -4568,7 +4620,7 @@ def backfill_case_links() -> int:
             "WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)"
         ).fetchall()
         for r in project_rows:
-            cid = _ensure_case_for(conn, r["name"], r["code"], None, r["owner"])
+            cid = _ensure_case_for(conn, r["name"], r["code"], None, r["owner"], established=True)
             if cid:
                 conn.execute("UPDATE projects SET case_id = ? WHERE id = ?", (cid, r["id"]))
                 filled += 1
