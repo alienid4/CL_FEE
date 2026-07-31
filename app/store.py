@@ -4467,12 +4467,26 @@ def case_progress_overview() -> dict[str, Any]:
 
 # ── Step 3：舊資料補號（系統編號要件 fiscal_year+seq、核銷編號 settle_no）──
 # 冪等：只補「缺號」的列，已有號的不動；由管理員手動觸發（先 preview 後正式）。
-def backfill_status() -> dict[str, int]:
-    """回報還有多少舊資料缺號。"""
+# 補號時要跳過的狀態：這些案件本來就不該佔用正式號。
+# rejected（駁回）與 merged（併入他案）尤其不能補——它們佔住一個號就是永久跳號，
+# 那個號永遠不會有有效案件對應，正好違反「沒過的申請不吃正式號」（需求書 §4 ＋ A 案）。
+NO_NUMBER_STATUSES = ("disabled", "rejected", "merged")
+_NO_NUMBER_LIST = ", ".join(f"'{s}'" for s in NO_NUMBER_STATUSES)
+
+
+def backfill_status() -> dict[str, Any]:
+    """回報還有多少舊資料缺號，並按狀態分組——按下補號之前要看得到會動到哪些案件
+    （匯入來的草稿要補，但如果裡面混著真的還在等審核的新申請，那是不同的事）。"""
     with connect() as conn:
         cases_missing = conn.execute(
-            "SELECT COUNT(*) n FROM cases WHERE status <> 'disabled' "
+            f"SELECT COUNT(*) n FROM cases WHERE status NOT IN ({_NO_NUMBER_LIST}) "
             "AND (COALESCE(fiscal_year,'')='' OR COALESCE(seq,0)=0)").fetchone()["n"]
+        by_status = {r["status"]: r["n"] for r in conn.execute(
+            f"SELECT status, COUNT(*) n FROM cases WHERE status NOT IN ({_NO_NUMBER_LIST}) "
+            "AND (COALESCE(fiscal_year,'')='' OR COALESCE(seq,0)=0) GROUP BY status")}
+        skipped = {r["status"]: r["n"] for r in conn.execute(
+            f"SELECT status, COUNT(*) n FROM cases WHERE status IN ({_NO_NUMBER_LIST}) "
+            "AND COALESCE(seq,0)=0 GROUP BY status")}
         settle_missing = conn.execute(
             "SELECT COUNT(*) n FROM payments WHERE status <> 'disabled' "
             "AND COALESCE(settle_no,'')=''").fetchone()["n"]
@@ -4480,16 +4494,23 @@ def backfill_status() -> dict[str, int]:
             "SELECT (SELECT COUNT(*) FROM budgets WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)) + "
             "(SELECT COUNT(*) FROM projects WHERE status <> 'disabled' AND (case_id IS NULL OR case_id = 0)) n"
         ).fetchone()["n"]
-    return {"cases_missing": cases_missing, "settle_missing": settle_missing, "case_link_missing": case_link_missing}
+    return {"cases_missing": cases_missing, "cases_by_status": by_status, "skipped_by_status": skipped,
+            "settle_missing": settle_missing, "case_link_missing": case_link_missing}
 
 
 def backfill_case_numbers() -> int:
-    """回填舊案件的系統編號要件：缺 fiscal_year 用 created_at 年度、缺 seq 於該年度續號。"""
+    """回填舊案件的系統編號要件：缺 fiscal_year 用 created_at 年度、缺 seq 於該年度續號。
+
+    跳過 NO_NUMBER_STATUSES：被駁回／已併入他案的不能補號，它們佔住一個正式號就是
+    永久跳號（那個號永遠沒有有效案件對應）。這支是 v0.46 時代寫的，當時所有案件在建立
+    當下就配號、沒有「暫時號」概念，所以原本只排除 disabled——2026-07-30 實測發現它會
+    把剛被駁回的案件也配上正式號，才補上這道過濾。
+    """
     filled = 0
     with connect() as conn:
         rows = conn.execute(
-            "SELECT id, fiscal_year, seq, created_at FROM cases "
-            "WHERE status <> 'disabled' AND (COALESCE(fiscal_year,'')='' OR COALESCE(seq,0)=0) "
+            f"SELECT id, fiscal_year, seq, created_at FROM cases "
+            f"WHERE status NOT IN ({_NO_NUMBER_LIST}) AND (COALESCE(fiscal_year,'')='' OR COALESCE(seq,0)=0) "
             "ORDER BY created_at, id").fetchall()
         for r in rows:
             fy = str(r["fiscal_year"] or "").strip()

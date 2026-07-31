@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.60.1 · 2026-07-30 · 匯入入口統一收在資料管理";
+const BUILD_TAG = "v0.60.2 · 2026-07-30 · 補號跳過駁回/併案，並先列出會補哪些";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5202,9 +5202,20 @@ async function loadBackfillStatus() {
     const res = await api("/api/dev-console/backfill/status");
     const d = res.data || {};
     const total = (Number(d.cases_missing) || 0) + (Number(d.settle_missing) || 0) + (Number(d.case_link_missing) || 0);
-    backfillStatusEl.textContent = total
-      ? `待補：案件系統編號 ${d.cases_missing} 筆、付款核銷編號 ${d.settle_missing} 筆、預算/專案未掛案件 ${d.case_link_missing} 筆`
-      : "全部已有編號、已掛案件，無需補號。";
+    if (!total) {
+      backfillStatusEl.textContent = "全部已有編號、已掛案件，無需補號。";
+      return;
+    }
+    // 按下去之前要看得到會動到哪些狀態：匯入來的草稿要補，但如果裡面混著真的還在等審核
+    // 的新申請，補號等於讓它提前佔號——所以把分組攤開，讓人自己判斷再決定按不按。
+    const byStatus = Object.entries(d.cases_by_status || {})
+      .map(([s, n]) => `${STATUS_LABELS[s] || s} ${n}`).join("、");
+    const skipped = Object.entries(d.skipped_by_status || {})
+      .map(([s, n]) => `${STATUS_LABELS[s] || s} ${n}`).join("、");
+    backfillStatusEl.innerHTML =
+      `待補：案件系統編號 <b>${d.cases_missing}</b> 筆、付款核銷編號 ${d.settle_missing} 筆、預算/專案未掛案件 ${d.case_link_missing} 筆`
+      + (byStatus ? `<br/><span class="muted">會補的案件狀態：${escapeHtml(byStatus)}</span>` : "")
+      + (skipped ? `<br/><span class="muted">跳過不補（不該佔正式號）：${escapeHtml(skipped)}</span>` : "");
   } catch (error) {
     backfillStatusEl.textContent = `狀態載入失敗：${error.message}`;
   }
