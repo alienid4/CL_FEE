@@ -1,6 +1,6 @@
 ---
 name: weekly-report
-description: CL_FEE 週進度報告產生器。當使用者說「產週報」、「寫這禮拜的進度報告」、「進度報告要更新」、「要寄報告給主管」、「開發進度報告」、「報告更新到最新版」時觸發。產出兩樣東西：更新後的 docs\開發進度報告.html（七個頁籤＋流程圖橘框標本次新完成），以及可直接貼進 Outlook 的信件主旨與內文。信一律由使用者自己寄，不代寄。
+description: CL_FEE 週進度報告產生器。當使用者說「產週報」、「寫這禮拜的進度報告」、「進度報告要更新」、「要寄報告給主管」、「開發進度報告」、「報告更新到最新版」時觸發。產出三樣東西：更新後的 docs\開發進度報告.html（七個頁籤＋流程圖橘框標本次新完成）、docs\開發進度報告_對照表.xlsx（進度對照＋WBS 全項目，主管可自己篩選排序），以及可直接貼進 Outlook 的信件主旨與內文。信一律由使用者自己寄，不代寄。
 ---
 
 # CL_FEE 週進度報告
@@ -35,10 +35,27 @@ py scripts\weekly_report_tools.py mark docs\開發進度報告.html <flow-diff �
 
 # 4 產出前檢查（四個 OK 才算過）
 py scripts\weekly_report_tools.py verify docs\開發進度報告.html
+
+# 5 產第二個附件：Excel（HTML 給人看，Excel 給人用——主管要自己篩選、排序、貼進他的報表）
+py scripts\weekly_report_tools.py xlsx <上次> docs\開發進度報告.html docs\開發進度報告_對照表.xlsx
 ```
 
-5. 用 `AI\週報告_TEMPLATE.md` 第四節的模板寫信，主旨＋內文直接輸出在對話裡。
-6. 用 SendUserFile 把報告 HTML 送給使用者預覽（`display: render`）。
+6. **Excel 一定要重算過再交**：openpyxl 寫的公式沒有快取值，不重算的話別人開起來
+   差額欄可能是空的。這台機器的 LibreOffice recalc 腳本在 Windows 跑不起來
+   （`socket.AF_UNIX` 不存在），改用 Excel COM：
+
+```powershell
+$x = New-Object -ComObject Excel.Application; $x.Visible = $false; $x.DisplayAlerts = $false
+$wb = $x.Workbooks.Open("C:\AiProject\CL_FEE\docs\開發進度報告_對照表.xlsx")
+$x.CalculateFullRebuild(); $wb.Save(); $wb.Close($true); $x.Quit()
+```
+
+   重算後確認沒有 `#` 開頭的錯誤格，並抽查一格差額對不對（例：整體 54%→85%，差額要是 31%）。
+   另外 Excel 的「WBS 全項目」列數與各狀態數要跟 HTML 摘要頁的四態統計對得起來——
+   對不上表示有一邊沒更新到。
+
+7. 用 `AI\週報告_TEMPLATE.md` 第四節的模板寫信，主旨＋內文直接輸出在對話裡。
+8. 用 SendUserFile 把 HTML（`display: render`）與 Excel（`display: attach`）送給使用者預覽。
 
 ## 附件必備的七個頁籤
 
