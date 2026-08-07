@@ -71,6 +71,9 @@ PPT/_舊版草稿/
 # 產生它們的工具（scripts/weekly_report_tools.py、.claude/skills/weekly-report）不含業務資訊，正常進版控。
 信件_*.md
 週報告_TEMPLATE.md
+# 業主給的需求文件與逐項對照（含廠商、機房位置、核決規則等公司內部資訊）
+*需求對照表.md
+docs/0803/
 
 # 外部 skill 壓縮包：跟程式無關，且可能含公司內部素材
 *.skill
