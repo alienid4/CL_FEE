@@ -52,6 +52,17 @@ def test_preview_then_commit_real_projects(tmp_path):
         import re
         assert not any(re.match(r"^0?\.\d+$", r.get("rag_status") or "") for r in rows)
 
+        # 編號規則（主管 2026-08-03）：系統配的專案代號只能是英數。
+        # 原本用「工作表名-流水」，工作表名是中文，同時踩到中文與連字號兩條。
+        from app.store import is_system_code_valid
+        assert all(is_system_code_valid(r["project_code"]) for r in rows), \
+            [r["project_code"] for r in rows if not is_system_code_valid(r["project_code"])]
+        assert len({r["project_code"] for r in rows}) == len(rows)   # 仍然一案一號，沒撞號
+        # 自動配出來的案件也跟著合規（案件是用專案代號當提示配號的）
+        cases = client.get("/api/cases").json()["data"]
+        assert all(is_system_code_valid(c["case_code"]) for c in cases), \
+            [c["case_code"] for c in cases if not is_system_code_valid(c["case_code"])]
+
         # 再匯一次：同名專案改『更新』而非新增（不會長出重複、既有資料被刷新）
         res2 = client.post("/api/projects/import-xlsx?commit=true", content=data).json()["data"]
         assert res2["created_count"] == 0 and res2["updated_count"] == prev["count"]

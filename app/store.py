@@ -1700,7 +1700,7 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     out: list[dict[str, Any]] = []
     try:
-        for sheet in wb.sheetnames:
+        for sheet_idx, sheet in enumerate(wb.sheetnames, start=1):
             ws = wb[sheet]
             rows = list(ws.iter_rows(values_only=True))
             header_idx = None
@@ -1789,7 +1789,9 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
                         out.append(cur)
                     seq += 1
                     cur = {
-                        "project_code": f"{sheet}-{seq}",
+                        # 編號一律純英數（主管交代：不用連字號、底線、中文）。原本是「工作表名-流水」，
+                        # 工作表名是中文，產出來的代號同時踩到中文與連字號兩條，改成 PRJ＋年＋表序＋流水。
+                        "project_code": f"PRJ{get_working_year()}{sheet_idx:02d}{seq:03d}",
                         "project_name": nm,
                         "source": sheet,
                         "necessity": txt(r, nec_i),
