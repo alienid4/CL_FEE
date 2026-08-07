@@ -74,6 +74,39 @@ def test_配過正式號就不再換號(tmp_path):
         assert first == again == 1
 
 
+def test_系統配的號一律純英數(tmp_path):
+    """主管 2026-08-03 交代：系統自己配的編號不得含連字號、底線與中文。
+    最容易破功的是建預算/專案時系統自動配的那個案件——名稱是中文，
+    以前會被直接拿去當案件編號。"""
+    from app.store import is_system_code_valid
+
+    with _client(tmp_path) as client:
+        client.post("/api/working-year?year=2026")
+        # 1) 沒填編號的新案 → 暫時號
+        a = client.post("/api/cases", json={"title": "沒填編號"}).json()["data"]
+        assert is_system_code_valid(a["case_code"]), a["case_code"]
+        assert a["case_code"] == "TMP20260001"
+        # 2) 核准後的正式流水號同樣純英數
+        assert _approve(client, a["id"])["seq"] == 1
+
+        # 3) 建預算（中文編號）時系統自動配的案件，編號不能變成中文
+        client.post("/api/budgets", json={"budget_code": "資訊安全設備採購", "fiscal_year": "2026", "amount": 100})
+        auto = next(c for c in client.get("/api/cases").json()["data"] if c["title"] == "資訊安全設備採購")
+        assert is_system_code_valid(auto["case_code"]), auto["case_code"]
+
+        # 4) 建專案（英數代碼）時，合規的代碼仍可沿用
+        client.post("/api/projects", json={"project_code": "PRJ20260099", "project_name": "機房搬遷"})
+        proj_case = next(c for c in client.get("/api/cases").json()["data"] if c["title"] == "機房搬遷")
+        assert proj_case["case_code"] == "PRJ20260099"
+
+
+def test_匯入帶進來的原始編號不受影響(tmp_path):
+    """編號規則管的是「系統自己配的號」；Excel 帶進來的舊編號是別人的號，原樣保留才追溯得回去。"""
+    with _client(tmp_path) as client:
+        c = client.post("/api/cases", json={"case_code": "MIS-2024-001", "title": "舊系統來的"}).json()["data"]
+        assert c["case_code"] == "MIS-2024-001"
+
+
 def test_working_year_default_and_set(tmp_path):
     with _client(tmp_path) as client:
         client.post("/api/working-year?year=2027")

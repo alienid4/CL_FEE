@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 import json
 import math
 from pathlib import Path
+import re
 import sqlite3
 from typing import Any, Iterator
 
@@ -689,6 +690,18 @@ def get_working_year() -> str:
 # 核銷編號：12 碼無連字號＝功能碼(4)＋西元年(4)＋流水號(4)，例 Sett20260012（主管指定格式）
 SETTLE_PREFIX = "Sett"
 
+# 主管交代（2026-08-03）：系統自動產生的編號一律不得含連字號、底線與中文，
+# 只能是英數。理由是這些號碼要能貼進其他系統、當檔名、當搜尋關鍵字，
+# 分隔符號與全形字在那些地方常出事。
+# 範圍限「系統自己配的號」；來源帶進來的編號（公司合約系統編號、發票號碼、
+# Excel 匯入原本就有的案件編號）照原樣保留，那是別人的號、不是我們配的。
+_CODE_OK = re.compile(r"^[A-Za-z0-9]+$")
+
+
+def is_system_code_valid(code: Any) -> bool:
+    """系統自動產生的編號是否合規（純英數，無 - _ 與中文）。"""
+    return bool(_CODE_OK.match(str(code or "")))
+
 
 def _match_owner_username(conn: sqlite3.Connection, owner_display_name: str | None) -> str | None:
     """把專案的「負責人」欄位（可能是「令狐沖/黃蓉」這種"/"分隔共同負責人）比對到登入帳號的顯示名稱，
@@ -728,11 +741,15 @@ def _ensure_case_for(
     existing = conn.execute("SELECT id FROM cases WHERE title = ?", (name,)).fetchone()
     if existing:
         return existing["id"]
-    code = str(code_hint or name).strip() or name
-    base, n = code, 1
-    while conn.execute("SELECT 1 FROM cases WHERE case_code = ?", (code,)).fetchone() is not None:
+    # 案件編號只收「合規的英數代碼」當提示（如專案代碼 PRJ20260001）。
+    # 預算/專案匯入常把中文名稱當代碼傳進來，那種一律不用——留空讓 _insert_row 自己配號，
+    # 否則案件編號會變成一串中文，違反主管交代的編號規則（見 is_system_code_valid）。
+    hint = str(code_hint or "").strip()
+    code = hint if is_system_code_valid(hint) else ""
+    n = 1
+    while code and conn.execute("SELECT 1 FROM cases WHERE case_code = ?", (code,)).fetchone() is not None:
         n += 1
-        code = f"{base}-{n}"
+        code = f"{hint}A{n:02d}"   # 撞號往後掛 A02、A03（不用連字號）
     payload: dict[str, Any] = {"case_code": code, "title": name, "fiscal_year": fiscal_year or ""}
     matched = _match_owner_username(conn, owner_display_name)
     if matched:
@@ -808,8 +825,9 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         fields = {**fields, "temp_seq": tmp, "seq": 0}
         # 案件編號改由系統產生（助理回饋：承辦不必填）。沒給就用暫時號當編號，
         # 核准後系統編號（Cont/Case+年+流水）另外算，這裡不改它，避免外部已引用的號碼變動。
+        # 主管 2026-08-03 交代編號不得含連字號，所以是 TMP20260001 而不是 TMP-2026-0001。
         if not str(fields.get("case_code") or "").strip():
-            fields["case_code"] = f"TMP-{fields.get('fiscal_year', '')}{tmp:04d}"
+            fields["case_code"] = f"TMP{fields.get('fiscal_year', '')}{tmp:04d}"
     if table == "projects" and not str(fields.get("project_code") or "").strip():
         # 需求書 §6「專案不另設代號」＋助理回饋的新案申請沒有代號欄；系統自己配一個唯一碼，
         # 讓內部關聯與匯出仍有穩定識別（用 id 當流水，必唯一）。
@@ -3295,6 +3313,139 @@ def dashboard_summary() -> dict[str, Any]:
         }
 
 
+def manager_focus() -> dict[str, Any]:
+    """主管每天真正要看的三件事（助理 2026-08-03 回饋：儀表板不要放各模組的統計報表）：
+    本月新成立的案子、已經出事的（合約逾期＋專案延遲）、下個月要付多少錢。
+    每一項都同時回數字與明細，點卡片就能往下看，不用再切到別的模組去找。
+    依 owner 範圍過濾：承辦看自己的、組長看本組、部長看全部。
+    """
+    scope = _owner_scope.get()
+    today = date.today()
+    this_month = today.strftime("%Y-%m")
+    next_month = f"{today.year + 1}-01" if today.month == 12 else f"{today.year}-{today.month + 1:02d}"
+    iso_today = today.isoformat()
+
+    def _tail(table: str) -> tuple[str, list[Any]]:
+        if scope is None:
+            return "", []
+        where, params = _scope_where(table, scope)
+        return (f" AND {where}" if where else ""), params
+
+    with connect() as conn:
+        # 一、本月新成立：核准當下才算成立，所以看 approved_at；沒有 approved_at 的舊資料退回看建立時間
+        ct, cp = _tail("cases")
+        new_cases = conn.execute(
+            "SELECT id, case_code, title, owner, amount, fiscal_year, seq, "
+            "COALESCE(NULLIF(approved_at,''), created_at) AS established_at FROM cases "
+            "WHERE status NOT IN ('draft','pending_review','returned','rejected','merged','disabled') "
+            f"AND substr(COALESCE(NULLIF(approved_at,''), created_at), 1, 7) = ?{ct} "
+            "ORDER BY established_at DESC", [this_month, *cp]).fetchall()
+
+        # 二、已經出事的：合約過了到期日還在生效、專案過了結束日還沒完成
+        kt, kp = _tail("contracts")
+        overdue_contracts = conn.execute(
+            "SELECT id, contract_code, contract_name, vendor_name, end_date, amount, case_id "
+            "FROM contracts WHERE status <> 'disabled' AND COALESCE(end_date,'') <> '' "
+            f"AND end_date < ?{kt} ORDER BY end_date", [iso_today, *kp]).fetchall()
+        jt, jp = _tail("projects")
+        delayed_projects = conn.execute(
+            "SELECT id, project_code, project_name, owner, end_date, progress, rag_status, case_id "
+            "FROM projects WHERE status <> 'disabled' AND COALESCE(end_date,'') <> '' "
+            f"AND end_date < ? AND COALESCE(progress,0) < 100{jt} ORDER BY end_date", [iso_today, *jp]).fetchall()
+
+        # 三、下個月要付的錢：只算已核准案件的付款（未複核的錢不讓主管當真，比照決策總覽）
+        pt, pp = _tail("payments")
+        due_rows = conn.execute(
+            "SELECT p.id, p.payment_month, p.payment_amount, p.item, p.vendor, p.status, "
+            "k.contract_code, k.contract_name FROM payments p "
+            "LEFT JOIN contracts k ON k.id = p.contract_id "
+            f"WHERE p.payment_month = ? AND {_APPROVED_PAYMENT_CLAUSE}{pt} "
+            "ORDER BY p.payment_amount DESC", [next_month, *pp]).fetchall()
+
+    to_dict = lambda rows: [dict(r) for r in rows]
+    return {
+        "this_month": this_month,
+        "next_month": next_month,
+        "new_cases": {"count": len(new_cases), "items": to_dict(new_cases)},
+        "at_risk": {
+            "count": len(overdue_contracts) + len(delayed_projects),
+            "overdue_contracts": to_dict(overdue_contracts),
+            "delayed_projects": to_dict(delayed_projects),
+        },
+        "next_month_payment": {
+            "total": round(sum(float(r["payment_amount"] or 0) for r in due_rows), 2),
+            "items": to_dict(due_rows),
+        },
+    }
+
+
+def todo_cards() -> dict[str, Any]:
+    """待辦事項的四個區塊（助理 2026-08-03 回饋：依角色顯示自己該關注的，不要每個角色看到同一份）。
+
+    範圍靠既有的 owner scope 自動收斂：承辦只看自己負責的案件、組長看本組、部長看全部。
+    這裡一律把四塊都算出來，「哪幾塊要顯示」由前端依角色決定（承辦沒有審核權，就不給他看待審核）。
+    期限採助理指定的口徑：合約三個月內、WBS 兩週內、核銷看當月。
+    """
+    scope = _owner_scope.get()
+    today = date.today()
+    this_month = today.strftime("%Y-%m")
+    in_3m = (today + timedelta(days=90)).isoformat()
+    in_2w = (today + timedelta(days=14)).isoformat()
+    iso_today = today.isoformat()
+
+    def _tail(table: str, alias: str = "") -> tuple[str, list[Any]]:
+        if scope is None:
+            return "", []
+        where, params = _scope_where(table, scope, alias)
+        return (f" AND {where}" if where else ""), params
+
+    with connect() as conn:
+        ct, cp = _tail("cases")
+        pending = conn.execute(
+            "SELECT id, case_code, title, owner, amount, created_by, fiscal_year, temp_seq "
+            f"FROM cases WHERE status = 'pending_review'{ct} ORDER BY created_at", cp).fetchall()
+        new_approved = conn.execute(
+            "SELECT id, case_code, title, owner, amount, fiscal_year, seq, "
+            "COALESCE(NULLIF(approved_at,''), created_at) AS established_at FROM cases "
+            "WHERE status NOT IN ('draft','pending_review','returned','rejected','merged','disabled') "
+            f"AND substr(COALESCE(NULLIF(approved_at,''), created_at), 1, 7) = ?{ct} "
+            "ORDER BY established_at DESC", [this_month, *cp]).fetchall()
+
+        kt, kp = _tail("contracts")
+        contracts = conn.execute(
+            "SELECT id, contract_code, contract_name, vendor_name, end_date, amount, case_id "
+            "FROM contracts WHERE status <> 'disabled' AND COALESCE(end_date,'') <> '' "
+            f"AND end_date <= ?{kt} ORDER BY end_date", [in_3m, *kp]).fetchall()
+
+        # WBS 工作項沒有自己的 case_id，經 projects 掛回案件，所以 scope 條件套在 projects 上
+        jt, jp = _tail("projects", "p")
+        wbs = conn.execute(
+            "SELECT i.id, i.item_name, i.owner, i.end_date, i.progress, i.rag, i.sub_total, i.sub_done, "
+            "p.id AS project_id, p.project_name, p.case_id FROM project_items i "
+            "JOIN projects p ON p.id = i.project_id "
+            "WHERE i.status <> 'disabled' AND p.status <> 'disabled' AND COALESCE(i.end_date,'') <> '' "
+            f"AND i.end_date <= ? AND COALESCE(i.progress,0) < 100{jt} ORDER BY i.end_date", [in_2w, *jp]).fetchall()
+
+        pt, pp = _tail("payments")
+        settle = conn.execute(
+            "SELECT p.id, p.payment_month, p.payment_amount, p.item, p.vendor, p.status, p.settle_no, "
+            "k.contract_code FROM payments p LEFT JOIN contracts k ON k.id = p.contract_id "
+            f"WHERE p.payment_month = ? AND p.status <> 'closed'{pt} "
+            "ORDER BY p.payment_amount DESC", [this_month, *pp]).fetchall()
+
+    d = lambda rows: [dict(r) for r in rows]
+    overdue = [r for r in wbs if str(r["end_date"]) < iso_today]
+    return {
+        "this_month": this_month,
+        "pending_review": {"count": len(pending), "items": d(pending)},
+        "new_approved": {"count": len(new_approved), "items": d(new_approved)},
+        "contracts_expiring": {"count": len(contracts), "items": d(contracts), "window": "三個月內"},
+        "wbs_due": {"count": len(wbs), "overdue": len(overdue), "items": d(wbs), "window": "兩週內"},
+        "settlements": {"count": len(settle), "items": d(settle),
+                        "total": round(sum(float(r["payment_amount"] or 0) for r in settle), 2)},
+    }
+
+
 def monthly_spending_summary() -> list[dict[str, Any]]:
     """依月份彙總付款：每月總額、已付(closed)、待付(其餘)、筆數。依 owner 範圍過濾。"""
     scope = _owner_scope.get()
@@ -4548,6 +4699,60 @@ def backfill_status() -> dict[str, Any]:
         ).fetchone()["n"]
     return {"cases_missing": cases_missing, "cases_by_status": by_status, "skipped_by_status": skipped,
             "settle_missing": settle_missing, "case_link_missing": case_link_missing}
+
+
+def case_code_cleanup_plan() -> dict[str, Any]:
+    """列出「系統配的案件編號」有哪些不合新規則（主管 2026-08-03：不得含 - _ 中文），
+    以及會被改成什麼。先看再按，不要讓人按下去才知道動到誰。
+
+    只動系統自己配的號：`source_file` 有值的是 Excel 帶進來的真編號（別人的號），
+    改掉就對不回原始檔，一律跳過並列在 kept 裡。
+    """
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, case_code, source_file, fiscal_year, seq, temp_seq FROM cases ORDER BY id"
+        ).fetchall()
+        taken = {str(r["case_code"] or "") for r in rows}
+        changes: list[dict[str, Any]] = []
+        kept: list[dict[str, Any]] = []
+        for r in rows:
+            code = str(r["case_code"] or "")
+            if is_system_code_valid(code):
+                continue
+            if str(r["source_file"] or "").strip():
+                kept.append({"id": r["id"], "case_code": code, "reason": "Excel 匯入帶進來的原始編號"})
+                continue
+            fy = str(r["fiscal_year"] or "").strip() or get_working_year()
+            if code.upper().startswith("TMP-"):
+                new = "TMP" + code[4:].replace("-", "")      # 只是把連字號拿掉，號碼本身不變
+            elif int(r["seq"] or 0) > 0:
+                new = f"{fy}{int(r['seq']):04d}"             # 已配正式號 → 用正式號當編號
+            else:
+                new = f"TMP{fy}{int(r['temp_seq'] or 0):04d}"
+            base, n = new, 1
+            while new in taken:                              # 撞號往後掛 A02、A03（不用連字號）
+                n += 1
+                new = f"{base}A{n:02d}"
+            taken.discard(code)
+            taken.add(new)
+            changes.append({"id": r["id"], "from": code, "to": new})
+    return {"changes": changes, "kept": kept,
+            "change_count": len(changes), "kept_count": len(kept)}
+
+
+def backfill_case_codes() -> dict[str, Any]:
+    """依 case_code_cleanup_plan 實際換號，逐筆寫稽核（換號是對外可見的事，要留紀錄）。
+    冪等：已經合規的不會再動，重跑不會一直換號。"""
+    plan = case_code_cleanup_plan()
+    actor = _current_actor.get()
+    with connect() as conn:
+        for item in plan["changes"]:
+            before = get_row(conn, "cases", item["id"])
+            conn.execute("UPDATE cases SET case_code = ? WHERE id = ?", (item["to"], item["id"]))
+            after = get_row(conn, "cases", item["id"])
+            write_audit_log(conn, "cases", item["id"], "recode", before,
+                            {**after, "recode_by": actor, "recode_reason": "編號規則：只能英數"})
+    return {"changed": plan["change_count"], "kept": plan["kept_count"], "details": plan["changes"]}
 
 
 def backfill_case_numbers() -> int:

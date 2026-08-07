@@ -27,7 +27,9 @@ from app.store import (
     approve_case,
     cancel_case_review,
     backfill_all_numbers,
+    backfill_case_codes,
     backfill_status,
+    case_code_cleanup_plan,
     backup_database,
     reset_database,
     budget_annual_comparison,
@@ -100,6 +102,8 @@ from app.store import (
     list_projects,
     cio_changes_since_last_view,
     create_case_wizard,
+    manager_focus,
+    todo_cards,
     monthly_spending_summary,
     unit_budget_vs_actual,
     vendor_amount_summary,
@@ -778,7 +782,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.61.0 · 2026-07-31 · 匯入的舊案子直接算已成立並配正式號（不再落草稿＋TMP- 暫時號）；合約改成填編號＋一鍵跳公司合約系統查細項"
+BACKEND_BUILD = "v0.62.0 · 2026-08-03 · 系統配的編號一律純英數（主管指示，含既有資料一鍵換號）；案件管理頁籤依助理回饋收斂，主管儀表板改成三張重點卡"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1197,6 +1201,17 @@ def create_app() -> FastAPI:
     def monthly_spending() -> dict[str, Any]:
         return ok(monthly_spending_summary())
 
+    @app.get("/api/reports/manager-focus")
+    def manager_focus_report() -> dict[str, Any]:
+        # 主管儀表板三張卡：本月新成立、已出事的（合約逾期＋專案延遲）、下月應付
+        return ok(manager_focus())
+
+    @app.get("/api/reports/todo-cards")
+    def todo_cards_report() -> dict[str, Any]:
+        # 待辦事項四張卡：待審核／合約到期／WBS 到期／費用核銷。
+        # 資料範圍由 owner scope 收斂（承辦自己、組長本組、部長全部），顯示哪幾張由前端依角色決定。
+        return ok(todo_cards())
+
     @app.get("/api/todo")
     def todo_cases() -> dict[str, Any]:
         return ok(cases_needing_attention())
@@ -1442,6 +1457,16 @@ def create_app() -> FastAPI:
     @app.post("/api/dev-console/backfill/run")
     def backfill_numbers_run() -> dict[str, Any]:
         return ok(backfill_all_numbers())
+
+    # 編號規則清理（主管 2026-08-03：系統配的號只能英數）。先看 plan 再按 run，
+    # 換號是對外可見的事，不能按下去才知道動到哪幾件。
+    @app.get("/api/dev-console/case-codes/plan")
+    def case_codes_plan() -> dict[str, Any]:
+        return ok(case_code_cleanup_plan())
+
+    @app.post("/api/dev-console/case-codes/fix")
+    def case_codes_fix() -> dict[str, Any]:
+        return ok(backfill_case_codes())
 
     @app.get("/api/audit-logs")
     def audit_logs(

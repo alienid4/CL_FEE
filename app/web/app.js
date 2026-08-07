@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.61.0 · 2026-07-31 · 匯入直接算已成立；合約一鍵跳公司合約系統";
+const BUILD_TAG = "v0.62.0 · 2026-08-03 · 編號一律純英數；案件頁籤收斂、主管儀表板三張卡";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -40,7 +40,6 @@ const signoffsList = document.querySelector("#signoffs");
 const purchasesList = document.querySelector("#purchases-list");
 const form = document.querySelector("#case-form");
 const todoList = document.querySelector("#todo-list");
-const cioCasesBody = document.querySelector("#cio-cases-body");
 const cioMetrics = document.querySelector("#cio-metrics");
 const cioUpcomingBody = document.querySelector("#cio-upcoming-body");
 const cioDrill = document.querySelector("#cio-drill");
@@ -375,10 +374,11 @@ const SYS_PREFIX = { case: "Case", budget: "Budg", project: "Proj", signoff: "Si
 function caseNumber(c) {
   return (c && c.fiscal_year && c.seq) ? `${c.fiscal_year}${String(c.seq).padStart(4, "0")}` : "";
 }
-// 使用者拍板 A 案：核准前只有暫時號（TMP-年+四位），核准當下才配正式號。
+// 使用者拍板 A 案：核准前只有暫時號（TMP+年+四位），核准當下才配正式號。
 // 這樣被駁回／被併走的申請不會吃掉正式號，年度編號不跳號。
+// 主管 2026-08-03 交代：系統配的號一律純英數，不用連字號／底線／中文，所以是 TMP20260001。
 function caseTempNumber(c) {
-  return (c && c.fiscal_year && c.temp_seq) ? `TMP-${c.fiscal_year}${String(c.temp_seq).padStart(4, "0")}` : "";
+  return (c && c.fiscal_year && c.temp_seq) ? `TMP${c.fiscal_year}${String(c.temp_seq).padStart(4, "0")}` : "";
 }
 function systemCodeCell(prefix, caseId) {
   const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
@@ -487,8 +487,10 @@ function activateCaseTab(tabName) {
     panel.hidden = !isActive;
     panel.classList.toggle("active", isActive);
   }
-  if (tabName === "progress" || tabName === "matrix") loadCaseProgress();
-  if (tabName === "portfolio") loadPortfolio();  // 進度總表併入案件管理分頁
+  // 線性進度圖併進案件清單、優先矩陣併進主管儀表板（助理 2026-08-03 回饋），兩邊都吃同一份資料
+  if (tabName === "list" || tabName === "dashboard") loadCaseProgress();
+  if (tabName === "dashboard") loadManagerFocus();
+  if (tabName === "todo") loadTodoCards();
 }
 
 // 新案申請：常用動作，從頁籤列移到案件管理右上角常駐（助理回饋 2026-07-29）
@@ -1233,6 +1235,8 @@ function showModulePanel(targetId) {
     extra.hidden = extra.dataset.moduleParent !== targetId || !roleAllowed;
   }
   lastPanelId = targetId;
+  // 進度總表隨助理 2026-08-03 回饋搬到「專案」模組底下，切過去才載入（它要打好幾支 API）
+  if (targetId === "projects") loadPortfolio();
   window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 }
 
@@ -1817,12 +1821,16 @@ function emptyList(label) {
 async function loadDashboard() {
   const payload = await api("/api/dashboard");
   const data = payload.data;
-  metrics.innerHTML = [
-    metric("案件", data.counts.cases),
-    metric("合約", data.counts.contracts),
-    metric("付款", data.counts.payments),
-    metric("文件", data.counts.documents),
-  ].join("");
+  // 四格計數（案件/合約/付款/文件）已隨主管儀表板改版移除：那是「有多少資料」不是「要處理什麼」。
+  // 各模組的筆數改在左側選單各自顯示。
+  if (metrics) {
+    metrics.innerHTML = [
+      metric("案件", data.counts.cases),
+      metric("合約", data.counts.contracts),
+      metric("付款", data.counts.payments),
+      metric("文件", data.counts.documents),
+    ].join("");
+  }
   setText("#nav-count-cases", `案件 ${data.counts.cases}`);
   setText("#nav-count-contracts", `合約 ${data.counts.contracts}`);
   setText("#nav-count-payments", `付款 ${data.counts.payments}`);
@@ -1898,7 +1906,6 @@ async function loadCases() {
       </table></div>`
     : `<p class="muted">目前沒有案件資料。</p>`;
   syncPickAll();
-  renderCioTable();
 }
 
 // ── 批次處理：第一次上線有幾十筆匯入資料要一起送審，一筆一筆按不現實 ──
@@ -2331,7 +2338,7 @@ document.addEventListener("click", (event) => {
   const th = event.target.closest("th.sortable");
   if (!th) return;
   const type = th.getAttribute("data-sort-type");
-  if (!type) return;  // CIO 案件表也用 sortable 樣式但走另一套（data-cio-col），這裡略過
+  if (!type) return;  // 沒標型別的表頭不歸這裡管
   const col = Number(th.getAttribute("data-col-index"));
   const st = resourceSort[type];
   resourceSort[type] = (st && st.col === col) ? { col, dir: st.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" };
@@ -2872,7 +2879,7 @@ document.querySelector("#pf-view")?.addEventListener("focusout", () => {
 // 全文搜尋比對到專案「工作項」子項時，導去進度總表點開那個專案（子項細節在這裡才看得到，
 // 不是專案模組的基本編輯表單）——找到所屬組別/子分頁後設定 portfolioState 再重繪。
 async function openProjectItem(projectId) {
-  activateCaseTab("portfolio");
+  navigateToPanel("projects");        // 進度總表已搬到「專案」模組（助理 2026-08-03 回饋）
   if (!portfolioGroups.length) await loadPortfolio();
   for (let g = 0; g < portfolioGroups.length; g++) {
     const idx = portfolioGroups[g].projects.findIndex((p) => String(p.id) === String(projectId));
@@ -3045,61 +3052,6 @@ async function loadTodo() {
         .join("")
     : `<li><small class="muted">目前沒有待辦：沒有卡在審核的案件，也沒有 30 天內要處理的到期或付款。</small></li>`;
 }
-
-let cioSort = { field: null, dir: "asc" };
-function renderCioTable() {
-  if (!cioCasesBody) return;
-  let rows = [...caseCache];
-  if (cioSort.field) {
-    const f = cioSort.field;
-    rows.sort((a, b) => {
-      let r;
-      if (f === "amount") {
-        r = (Number(a.amount) || 0) - (Number(b.amount) || 0);
-      } else {
-        const pick = (x) => (f === "status" ? (STATUS_LABELS[x.status] || x.status || "") : String(x[f] || ""));
-        const va = pick(a), vb = pick(b);
-        r = (!va || !vb) ? (va ? 1 : 0) - (vb ? 1 : 0) : va.localeCompare(vb, "zh-Hant");
-      }
-      return cioSort.dir === "desc" ? -r : r;
-    });
-  }
-  cioCasesBody.innerHTML = rows.length
-    ? rows
-        .map(
-          (c, i) => `
-            <tr data-case-id="${c.id}">
-              <td>${i + 1}</td>
-              <td>${escapeHtml(c.case_code)}${sourceTag(c)}</td>
-              <td>${escapeHtml(c.title)}</td>
-              <td><span class="badge ${c.status === "reviewing" || c.status === "pending_review" ? "warn" : c.status === "disabled" ? "neutral" : "ok"}">${STATUS_LABELS[c.status] || escapeHtml(c.status)}</span></td>
-              <td>${Number(c.amount || 0).toLocaleString()}</td>
-              <td>${escapeHtml(c.owner || "未指派")}</td>
-              <td>${escapeHtml(c.note || "—")}</td>
-              <td>${escapeHtml(c.next_step || "—")}</td>
-              <td><button type="button" class="secondary" data-cio-edit>編輯</button></td>
-            </tr>`
-        )
-        .join("")
-    : `<tr><td colspan="9" class="muted">目前沒有案件資料。</td></tr>`;
-  // 更新表頭排序箭頭（表頭是靜態 HTML，只更箭頭）
-  document.querySelectorAll("#cio-cases-table th[data-cio-col]").forEach((th) => {
-    const f = th.getAttribute("data-cio-col");
-    const base = th.getAttribute("data-label") || th.textContent.replace(/[▲▼\s]+$/, "");
-    th.setAttribute("data-label", base);
-    th.innerHTML = base + (cioSort.field === f ? (cioSort.dir === "asc" ? " ▲" : " ▼") : "");
-  });
-}
-// CIO 案件表點欄名排序（由快取重繪，不重打 API）
-document.addEventListener("click", (event) => {
-  const th = event.target.closest("#cio-cases-table th[data-cio-col]");
-  if (!th) return;
-  const field = th.getAttribute("data-cio-col");
-  cioSort = cioSort.field === field
-    ? { field, dir: cioSort.dir === "asc" ? "desc" : "asc" }
-    : { field, dir: "asc" };
-  renderCioTable();
-});
 
 async function loadMonthly() {
   if (!monthlyBody) return;
@@ -3682,24 +3634,234 @@ async function loadOptions() {
   }
 }
 
-async function loadManagerCharts() {
-  const el = document.querySelector("#manager-charts");
+// 主管儀表板三張卡（助理 2026-08-03 回饋：主管要的是「今天要處理什麼」，
+// 不是各模組的統計報表——月度支出、單位別預算那些已移回各自模組）。
+// 點卡片在下方展開明細，不用切到別的模組去找。
+let managerFocusData = null;
+let managerFocusOpen = null;
+
+async function loadManagerFocus() {
+  const el = document.querySelector("#manager-focus");
   if (!el) return;
-  const [ms, cs] = await Promise.all([api("/api/reports/monthly-spending"), api("/api/cases")]);
-  const months = (ms.data || []).slice(0, 6).reverse();  // 舊到新
-  const bars = months.map((m) => ({ label: m.month, value: m.total || 0, color: CHART_COLORS[0] }));
-  // 案件狀態分布
-  const counts = {};
-  for (const c of cs.data || []) counts[c.status] = (counts[c.status] || 0) + 1;
-  const order = ["draft", "pending_review", "reviewing", "approved", "disabled"];
-  const segs = order
-    .filter((s) => counts[s])
-    .map((s, i) => ({ label: labelStatus(s), value: counts[s], color: CHART_COLORS[i % CHART_COLORS.length], text: `${counts[s]} 件` }));
-  const totalCases = (cs.data || []).length;
-  el.innerHTML =
-    chartCard("月度支出趨勢", bars.length ? barsSVG(bars) : `<p class="muted">尚無付款資料</p>`) +
-    chartCard("案件狀態分布", segs.length ? donutSVG(segs, { center: `${totalCases} 件` }) + chartLegend(segs) : `<p class="muted">尚無案件</p>`);
+  try {
+    managerFocusData = (await api("/api/reports/manager-focus")).data || null;
+  } catch (error) {
+    el.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
+    return;
+  }
+  const d = managerFocusData;
+  const card = (key, num, label, hint, tone) => `
+    <button type="button" class="focus-card${tone ? " " + tone : ""}${managerFocusOpen === key ? " open" : ""}"
+            data-focus="${key}" aria-expanded="${managerFocusOpen === key}">
+      <span class="focus-num">${num}</span>
+      <span class="focus-label">${label}</span>
+      <span class="focus-hint">${hint}</span>
+    </button>`;
+  el.innerHTML = [
+    card("new", d.new_cases.count, "本月新成立案件", `${d.this_month}　點看明細`, ""),
+    card("risk", d.at_risk.count, "已逾期合約／已延遲專案",
+         `合約 ${d.at_risk.overdue_contracts.length}　專案 ${d.at_risk.delayed_projects.length}`,
+         d.at_risk.count ? "danger" : ""),
+    card("pay", `${money(d.next_month_payment.total)}`, "下個月應付款",
+         `${d.next_month}　${d.next_month_payment.items.length} 筆`, ""),
+  ].join("");
+  renderManagerFocusDetail();
 }
+
+function renderManagerFocusDetail() {
+  const box = document.querySelector("#manager-focus-detail");
+  if (!box) return;
+  const d = managerFocusData;
+  if (!d || !managerFocusOpen) { box.hidden = true; box.innerHTML = ""; return; }
+  const rows = (items, cols, empty) => items.length
+    ? `<div class="table-shell"><table><thead><tr>${cols.map((c) => `<th${c.num ? ' class="num"' : ""}>${c.label}</th>`).join("")}</tr></thead>`
+      + `<tbody>${items.map((it) => `<tr${it.case_id ? ` data-case-id="${it.case_id}"` : ""}>`
+          + cols.map((c) => `<td${c.num ? ' class="num"' : ""}>${c.cell(it)}</td>`).join("") + `</tr>`).join("")}</tbody></table></div>`
+    : `<p class="muted">${empty}</p>`;
+  let title = "", body = "";
+  if (managerFocusOpen === "new") {
+    title = `本月新成立案件（${d.this_month}）`;
+    body = rows(d.new_cases.items, [
+      { label: "案號", cell: (i) => `<strong>${escapeHtml(caseNumber(i) || i.case_code)}</strong>` },
+      { label: "案件名稱", cell: (i) => escapeHtml(i.title) },
+      { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
+      { label: "金額", num: true, cell: (i) => money(i.amount) },
+      { label: "成立時間", cell: (i) => escapeHtml(String(i.established_at || "").slice(0, 16)) },
+    ], "本月還沒有新成立的案件。");
+  } else if (managerFocusOpen === "risk") {
+    title = "已逾期合約／已延遲專案";
+    body = `<h4>合約已過到期日</h4>` + rows(d.at_risk.overdue_contracts, [
+      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>` },
+      { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name || "") },
+      { label: "廠商", cell: (i) => escapeHtml(valueOrDash(i.vendor_name)) },
+      { label: "到期日", cell: (i) => `<span class="overdue">${escapeHtml(i.end_date)}</span>` },
+      { label: "金額", num: true, cell: (i) => money(i.amount) },
+    ], "沒有逾期合約。")
+    + `<h4>專案過了結束日還沒完成</h4>` + rows(d.at_risk.delayed_projects, [
+      { label: "專案", cell: (i) => `<strong>${escapeHtml(i.project_name || i.project_code)}</strong>` },
+      { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
+      { label: "結束日", cell: (i) => `<span class="overdue">${escapeHtml(i.end_date)}</span>` },
+      { label: "完成度", num: true, cell: (i) => `${Number(i.progress || 0)}%` },
+    ], "沒有延遲的專案。");
+  } else {
+    title = `下個月應付款（${d.next_month}）`;
+    body = rows(d.next_month_payment.items, [
+      { label: "合約", cell: (i) => escapeHtml(i.contract_code || "—") },
+      { label: "項目", cell: (i) => escapeHtml(valueOrDash(i.item)) },
+      { label: "廠商", cell: (i) => escapeHtml(valueOrDash(i.vendor)) },
+      { label: "金額", num: true, cell: (i) => money(i.payment_amount) },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ], "下個月沒有要付的款。");
+  }
+  box.hidden = false;
+  box.innerHTML = `<div class="section-heading compact"><h2>${escapeHtml(title)}</h2>`
+    + `<button type="button" class="secondary btn-sm" data-focus-close>收起</button></div>${body}`;
+}
+
+// 待辦事項四張卡（助理 2026-08-03 回饋）：資料範圍後端已依角色收斂，
+// 這裡只決定「這個角色要看哪幾張」——承辦沒有審核權就不給他看待審核。
+let todoCardsData = null;
+let todoCardsOpen = null;
+
+function todoCardSet() {
+  const role = (currentUser && currentUser.role_code) || "";
+  const first = role === "group_leader" || role === "manager_assistant"
+    ? "pending"                                   // 組長/助理：組內待審核
+    : (role === "department_head" || role === "cio" ? "approved" : null);  // 部長/副總：本月新核准
+  return [first, "contract", "wbs", "settle"].filter(Boolean);
+}
+
+async function loadTodoCards() {
+  const el = document.querySelector("#todo-cards");
+  if (!el) return;
+  try {
+    todoCardsData = (await api("/api/reports/todo-cards")).data || null;
+  } catch (error) {
+    el.innerHTML = `<p class="muted">載入失敗：${escapeHtml(error.message)}</p>`;
+    return;
+  }
+  const d = todoCardsData;
+  const meta = {
+    pending: { num: d.pending_review.count, label: "待我審核的新案申請", hint: "組內送上來、等你核准的案件",
+               tone: d.pending_review.count ? "danger" : "" },
+    approved: { num: d.new_approved.count, label: "本月新核准案件", hint: `${d.this_month}　點看明細`, tone: "" },
+    contract: { num: d.contracts_expiring.count, label: "合約到期提醒", hint: `${d.contracts_expiring.window}到期`,
+                tone: d.contracts_expiring.count ? "danger" : "" },
+    wbs: { num: d.wbs_due.count, label: "WBS 到期提醒",
+           hint: d.wbs_due.overdue ? `${d.wbs_due.window}到期，其中 ${d.wbs_due.overdue} 項已逾期` : `${d.wbs_due.window}到期未完成`,
+           tone: d.wbs_due.overdue ? "danger" : "" },
+    settle: { num: d.settlements.count, label: "費用核銷提醒", hint: `${d.this_month}　共 ${money(d.settlements.total)} 元`, tone: "" },
+  };
+  el.innerHTML = todoCardSet().map((k) => {
+    const m = meta[k];
+    return `<button type="button" class="focus-card${m.tone ? " " + m.tone : ""}${todoCardsOpen === k ? " open" : ""}"
+      data-todo-card="${k}" aria-expanded="${todoCardsOpen === k}">
+      <span class="focus-num">${m.num}</span><span class="focus-label">${m.label}</span>
+      <span class="focus-hint">${m.hint}</span></button>`;
+  }).join("");
+  renderTodoCardDetail();
+}
+
+function renderTodoCardDetail() {
+  const box = document.querySelector("#todo-cards-detail");
+  if (!box) return;
+  const d = todoCardsData;
+  if (!d || !todoCardsOpen) { box.hidden = true; box.innerHTML = ""; return; }
+  const today = new Date().toISOString().slice(0, 10);
+  const table = (items, cols, empty) => items.length
+    ? `<div class="table-shell"><table><thead><tr>${cols.map((c) => `<th${c.num ? ' class="num"' : ""}>${c.label}</th>`).join("")}</tr></thead>`
+      + `<tbody>${items.map((it) => `<tr${it.case_id ? ` data-case-id="${it.case_id}"` : (it.id && cols.linkCase ? ` data-case-id="${it.id}"` : "")}>`
+          + cols.map((c) => `<td${c.num ? ' class="num"' : ""}>${c.cell(it)}</td>`).join("") + "</tr>").join("")}</tbody></table></div>`
+    : `<p class="muted">${empty}</p>`;
+  const dateCell = (v) => `<span class="${String(v) < today ? "overdue" : ""}">${escapeHtml(String(v || ""))}</span>`;
+  let title = "", body = "";
+  if (todoCardsOpen === "pending") {
+    title = "待我審核的新案申請";
+    const cols = [
+      { label: "暫時號", cell: (i) => `<strong>${escapeHtml(caseTempNumber(i) || i.case_code)}</strong>` },
+      { label: "案件名稱", cell: (i) => escapeHtml(i.title) },
+      { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
+      { label: "金額", num: true, cell: (i) => money(i.amount) },
+      { label: "提出人", cell: (i) => escapeHtml(valueOrDash(i.created_by)) },
+    ];
+    cols.linkCase = true;
+    body = table(d.pending_review.items, cols, "目前沒有等你審核的案件。");
+  } else if (todoCardsOpen === "approved") {
+    title = `本月新核准案件（${d.this_month}）`;
+    const cols = [
+      { label: "案號", cell: (i) => `<strong>${escapeHtml(caseNumber(i) || i.case_code)}</strong>` },
+      { label: "案件名稱", cell: (i) => escapeHtml(i.title) },
+      { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
+      { label: "金額", num: true, cell: (i) => money(i.amount) },
+      { label: "核准時間", cell: (i) => escapeHtml(String(i.established_at || "").slice(0, 16)) },
+    ];
+    cols.linkCase = true;
+    body = table(d.new_approved.items, cols, "本月還沒有新核准的案件。");
+  } else if (todoCardsOpen === "contract") {
+    title = `合約到期提醒（${d.contracts_expiring.window}）`;
+    body = table(d.contracts_expiring.items, [
+      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>${contractSystemLink(i.contract_code)}` },
+      { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name || "") },
+      { label: "廠商", cell: (i) => escapeHtml(valueOrDash(i.vendor_name)) },
+      { label: "到期日", cell: (i) => dateCell(i.end_date) },
+      { label: "金額", num: true, cell: (i) => money(i.amount) },
+    ], "三個月內沒有到期的合約。");
+  } else if (todoCardsOpen === "wbs") {
+    title = `WBS 到期提醒（${d.wbs_due.window}）`;
+    body = table(d.wbs_due.items, [
+      { label: "工作項目", cell: (i) => `<strong>${escapeHtml(i.item_name || "")}</strong>` },
+      { label: "所屬專案", cell: (i) => escapeHtml(valueOrDash(i.project_name)) },
+      { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
+      { label: "結束日", cell: (i) => dateCell(i.end_date) },
+      { label: "完成度", num: true, cell: (i) => `${Number(i.progress || 0)}%` },
+    ], "兩週內沒有要完成的工作項。");
+  } else {
+    title = `費用核銷提醒（${d.this_month}）`;
+    body = table(d.settlements.items, [
+      { label: "核銷編號", cell: (i) => escapeHtml(valueOrDash(i.settle_no)) },
+      { label: "合約", cell: (i) => escapeHtml(i.contract_code || "—") },
+      { label: "項目", cell: (i) => escapeHtml(valueOrDash(i.item)) },
+      { label: "廠商", cell: (i) => escapeHtml(valueOrDash(i.vendor)) },
+      { label: "金額", num: true, cell: (i) => money(i.payment_amount) },
+      { label: "狀態", cell: (i) => statusChip(i.status) },
+    ], "本月沒有要辦理的核銷。");
+  }
+  box.hidden = false;
+  box.innerHTML = `<div class="section-heading compact"><h2>${escapeHtml(title)}</h2>`
+    + `<button type="button" class="secondary btn-sm" data-todo-close>收起</button></div>${body}`;
+}
+
+document.querySelector("#todo-cards")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-todo-card]");
+  if (!btn) return;
+  const key = btn.getAttribute("data-todo-card");
+  todoCardsOpen = todoCardsOpen === key ? null : key;
+  loadTodoCards();
+});
+
+document.querySelector("#todo-cards-detail")?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-todo-close]")) { todoCardsOpen = null; loadTodoCards(); return; }
+  const tr = event.target.closest("tr[data-case-id]");
+  if (tr) openCaseFromOverview(tr.getAttribute("data-case-id"));
+});
+
+document.querySelector("#manager-focus")?.addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-focus]");
+  if (!btn) return;
+  const key = btn.getAttribute("data-focus");
+  managerFocusOpen = managerFocusOpen === key ? null : key;   // 再點一次收起
+  loadManagerFocus();
+});
+
+document.querySelector("#manager-focus-detail")?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-focus-close]")) {
+    managerFocusOpen = null;
+    loadManagerFocus();
+    return;
+  }
+  const tr = event.target.closest("tr[data-case-id]");
+  if (tr) openCaseFromOverview(tr.getAttribute("data-case-id"));
+});
 
 async function refresh() {
   // 選項要先到再畫清單：合約清單的「🔗 合約系統」連結是用後台設定的網址組出來的，
@@ -3709,7 +3871,7 @@ async function refresh() {
     loadDashboard(), loadCases(), loadContracts(), loadPayments(), loadDocuments(),
     loadResource("budget"), loadResource("project"), loadResource("signoff"), loadResource("purchase"),
     loadMappingCatalog(), loadTodo(), loadMonthly(), loadUnitBva(), loadVendorAmt(), loadExpiring(), loadCioOverview(), loadReminders(),
-    loadManagerCharts(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
+    loadManagerFocus(), loadTodoCards(), loadCaseProgress(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
     loadSignoffOptions(), loadPurchaseOptions(), loadParentContractOptions(),
   ]);
@@ -3913,16 +4075,6 @@ if (todoList) {
     const li = event.target.closest("li[data-case-id]");
     if (!li || !li.dataset.caseId) return;
     startEdit(li.dataset.caseId);
-    form.scrollIntoView({ block: "center" });
-  });
-}
-
-if (cioCasesBody) {
-  cioCasesBody.addEventListener("click", (event) => {
-    if (!event.target.closest("[data-cio-edit]")) return;
-    const tr = event.target.closest("tr[data-case-id]");
-    if (!tr) return;
-    startEdit(tr.dataset.caseId);
     form.scrollIntoView({ block: "center" });
   });
 }

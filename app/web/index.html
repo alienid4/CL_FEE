@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-61-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-62-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -148,12 +148,11 @@
             <div>
               <p class="breadcrumb">案件管理 / 案件總覽</p>
               <div class="tabs" aria-label="案件管理頁籤">
+                <!-- 助理 2026-08-03 回饋：頁籤太多且功能重疊。線性進度圖併入案件清單、
+                     處理優先矩陣併入主管儀表板、進度總表搬到左側「專案」模組。 -->
                 <button class="tab active" type="button" data-case-tab="list">案件清單</button>
                 <button class="tab" type="button" data-case-tab="todo">待辦事項</button>
                 <button class="tab" type="button" data-case-tab="dashboard" data-roles="cio manager_assistant group_leader department_head">主管儀表板</button>
-                <button class="tab" type="button" data-case-tab="progress">線性進度圖</button>
-                <button class="tab" type="button" data-case-tab="matrix">處理優先矩陣</button>
-                <button class="tab" type="button" data-case-tab="portfolio">進度總表</button>
               </div>
             </div>
             <!-- 新案申請是最常用的動作，從頁籤列最右邊移到這裡常駐（原本這區三個標籤沒有用途，移除） -->
@@ -162,33 +161,37 @@
             </div>
           </div>
 
+          <!-- 助理 2026-08-03 回饋：
+               (1) 同一份案件列表在這頁出現兩次（上面「本月需要 CIO 看一眼」其實列的是全部案件），
+                   移除上面那份，案件列表只留一處。
+               (2) 線性進度圖原本是獨立頁籤，但它呈現的是單一 Case 的整體進度、屬於案件摘要，
+                   改成併在案件清單同一頁，不用切頁籤就看得到。 -->
           <section class="case-tab-panel active" data-case-panel="list">
             <section class="watch-list">
-            <div class="section-heading compact">
-              <h2>本月需要 CIO 看一眼<span class="help" data-tip="點欄名可排序（再點一次反向）。匯入／匯出請到左側「資料管理 › 匯入／匯出」。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-            </div>
-            <div class="table-shell">
-              <table id="cio-cases-table">
-                <thead>
-                  <tr>
-                    <th>項次</th>
-                    <th class="sortable" data-cio-col="case_code" title="點欄名可排序">案件編號</th>
-                    <th class="sortable" data-cio-col="title" title="點欄名可排序">案件名稱</th>
-                    <th class="sortable" data-cio-col="status" title="點欄名可排序">狀態</th>
-                    <th class="sortable" data-cio-col="amount" title="點欄名可排序">金額</th>
-                    <th class="sortable" data-cio-col="owner" title="點欄名可排序">負責人</th>
-                    <th class="sortable" data-cio-col="note" title="點欄名可排序">備註</th>
-                    <th class="sortable" data-cio-col="next_step" title="點欄名可排序">下一步</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="cio-cases-body"></tbody>
-              </table>
-            </div>
+              <div class="section-heading compact">
+                <h2>案件進度<span class="help" data-tip="每案只顯示用得到的階段。燈號：🟢完成 ⚪還沒輪到 🟠東西到了/快逾期待處理 🔴已逾期。系統依案件關聯資料自動判定，唯讀。點任一案可開它的追溯鏈。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                <div class="toolbar">
+                  <span class="muted" id="progress-source">資料來源：案件關聯（預算/專案/簽呈/核准/合約/費用/付款/發票），系統自動推導</span>
+                </div>
+              </div>
+              <div class="case-legend" aria-label="燈號說明">
+                <span class="case-legend-item"><span class="case-dot done"></span>已完成</span>
+                <span class="case-legend-item"><span class="case-dot todo"></span>未開始</span>
+                <span class="case-legend-item"><span class="case-dot live"></span>執行中</span>
+                <span class="case-legend-item"><span class="case-dot soon"></span>快到期</span>
+                <span class="case-legend-item"><span class="case-dot over"></span>已過期</span>
+                <span class="case-legend-item"><span class="case-dot na"></span>不適用</span>
+              </div>
+              <div class="case-progress-list" id="case-progress-list"></div>
             </section>
           </section>
 
           <section class="case-tab-panel" data-case-panel="todo" hidden>
+            <!-- 助理 2026-08-03 回饋：待辦要依角色只顯示自己該關注的，用 3～4 張卡呈現。
+                 承辦＝合約到期／WBS 到期／費用核銷；組長多一張「待我審核」；
+                 部長、副總的第一張改成「本月新核准案件」。 -->
+            <section class="focus-cards" id="todo-cards" aria-label="待辦重點"></section>
+            <section class="watch-list" id="todo-cards-detail" hidden></section>
             <section class="watch-list" id="pending-approvals" aria-label="待我複核" hidden>
               <div class="section-heading compact">
                 <h2>待我複核 <span id="pending-approvals-count" class="badge warn" hidden></span><span class="help" data-tip="這裡列「已送出複核、且不是你建立」的案件（雙人複核）；按「核准」即正式進入系統。" role="button" tabindex="0" aria-label="說明">?</span></h2>
@@ -227,9 +230,32 @@
               <button class="subtab" type="button" data-dash-tab="tools" data-roles="manager_assistant">系統工具</button>
             </div>
 
+            <!-- 助理 2026-08-03 回饋：主管儀表板要放「每天需要處理的事」，不是各模組的統計報表。
+                 三張卡＝本月新成立／已出事的／下月要付多少，點卡片在下方看明細；
+                 下方常駐處理優先矩陣。月度支出趨勢與案件狀態分布已移到各自模組。 -->
             <section class="dash-subtab-panel active" data-dash-panel="overview">
-              <section class="metrics" id="metrics" aria-label="live system metrics"></section>
-              <section id="manager-charts" class="chart-row" aria-label="儀表板圖表"></section>
+              <section class="focus-cards" id="manager-focus" aria-label="主管重點"></section>
+              <section class="watch-list" id="manager-focus-detail" hidden></section>
+              <section class="watch-list">
+                <div class="section-heading compact">
+                  <h2>處理優先順序<span class="help" data-tip="只放「需要盯」的案子：預設濾掉已完成與還沒開始。橫軸＝時間急迫度，左邊還很久、右邊已逾期（金額不代表優先，所以不當作一個軸）。系統自動落點，唯讀；點任一案可直接開它的追溯鏈。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+                  <div class="matrix-filters" id="matrix-filters" role="group" aria-label="依狀態分類選要看的"></div>
+                </div>
+                <div class="case-matrix timeline-only" id="case-matrix" aria-label="處理優先順序時間軸">
+                  <span class="matrix-axis x-far">← 還很久</span>
+                  <span class="matrix-axis x-soon">已逾期 →</span>
+                  <span class="matrix-band today" aria-hidden="true"></span>
+                  <span class="matrix-label near-line">今天／期限</span>
+                </div>
+                <div class="table-shell">
+                  <table>
+                    <thead>
+                      <tr><th>項次</th><th>案件</th><th>金額</th><th>待確認天數</th><th>為什麼排這裡</th><th>目前卡點</th></tr>
+                    </thead>
+                    <tbody id="case-matrix-body"></tbody>
+                  </table>
+                </div>
+              </section>
             </section>
 
             <section class="dash-subtab-panel" data-dash-panel="monthly" hidden>
@@ -336,59 +362,7 @@
             </section>
           </section>
 
-          <section class="case-tab-panel" data-case-panel="progress" hidden>
-            <section class="watch-list">
-              <div class="section-heading compact">
-                <h2>線性進度圖<span class="help" data-tip="每案只顯示用得到的階段。燈號：🟢完成 ⚪還沒輪到 🟠東西到了/快逾期待處理 🔴已逾期。系統依案件關聯資料自動判定，唯讀。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-                <div class="toolbar">
-                  <span class="muted" id="progress-source">資料來源：案件關聯（預算/專案/簽呈/核准/合約/費用/付款/發票），系統自動推導</span>
-                </div>
-              </div>
-              <div class="case-legend" aria-label="燈號說明">
-                <span class="case-legend-item"><span class="case-dot done"></span>已完成</span>
-                <span class="case-legend-item"><span class="case-dot todo"></span>未開始</span>
-                <span class="case-legend-item"><span class="case-dot live"></span>執行中</span>
-                <span class="case-legend-item"><span class="case-dot soon"></span>快到期</span>
-                <span class="case-legend-item"><span class="case-dot over"></span>已過期</span>
-                <span class="case-legend-item"><span class="case-dot na"></span>不適用</span>
-              </div>
-              <div class="case-progress-list" id="case-progress-list"></div>
-            </section>
-          </section>
 
-          <section class="case-tab-panel" data-case-panel="matrix" hidden>
-            <section class="watch-list">
-              <div class="section-heading compact">
-                <h2>處理優先順序<span class="help" data-tip="只放「需要盯」的案子：預設濾掉已完成與還沒開始。橫軸＝時間急迫度，左邊還很久、右邊已逾期（金額不代表優先，所以不當作一個軸）。系統自動落點，唯讀；點任一案可直接開它的追溯鏈。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-                <div class="matrix-filters" id="matrix-filters" role="group" aria-label="依狀態分類選要看的"></div>
-              </div>
-              <div class="case-matrix timeline-only" id="case-matrix" aria-label="處理優先順序時間軸">
-                <span class="matrix-axis x-far">← 還很久</span>
-                <span class="matrix-axis x-soon">已逾期 →</span>
-                <span class="matrix-band today" aria-hidden="true"></span>
-                <span class="matrix-label near-line">今天／期限</span>
-              </div>
-              <div class="table-shell">
-                <table>
-                  <thead>
-                    <tr><th>項次</th><th>案件</th><th>金額</th><th>待確認天數</th><th>為什麼排這裡</th><th>目前卡點</th></tr>
-                  </thead>
-                  <tbody id="case-matrix-body"></tbody>
-                </table>
-              </div>
-            </section>
-          </section>
-
-          <section class="case-tab-panel" data-case-panel="portfolio" hidden>
-            <section class="watch-list">
-              <div class="section-heading compact">
-                <h2>進度總表<span class="help" data-tip="依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。總覽依落後幅度排序：落後排前、超前/完成沉底。" role="button" tabindex="0" aria-label="說明">?</span></h2>
-              </div>
-              <div id="pf-groups" class="pf-groups"></div>
-              <div id="pf-subs" class="pf-subs"></div>
-              <div id="pf-view"></div>
-            </section>
-          </section>
 
           <section class="case-tab-panel" data-case-panel="wizard" hidden>
             <section class="watch-list">
@@ -594,6 +568,16 @@
               </div>
               <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="project-form">＋ 新增</button>
             </div>
+            <!-- 助理 2026-08-03 回饋：進度總表管的是專案與 WBS 的執行進度，
+                 放在「案件管理」下跟線性進度圖功能重疊；搬來專案模組，跟它管的東西同一層。 -->
+            <section class="watch-list">
+              <div class="section-heading compact">
+                <h2>進度總表<span class="help" data-tip="依組別分頁；每組先看「本組總覽」，再點單一專案看起訖日、落後與燈號。總覽依落後幅度排序：落後排前、超前/完成沉底。" role="button" tabindex="0" aria-label="說明">?</span></h2>
+              </div>
+              <div id="pf-groups" class="pf-groups"></div>
+              <div id="pf-subs" class="pf-subs"></div>
+              <div id="pf-view"></div>
+            </section>
           </section>
 
           <section class="dashboard-panel module-panel" id="io-center" hidden>
@@ -1128,6 +1112,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-61-0"></script>
+    <script src="/static/app.js?v=v0-62-0"></script>
   </body>
 </html>

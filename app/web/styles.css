@@ -1154,6 +1154,31 @@ main { padding: 0 !important; }
 .metric span { color: var(--ink-3); font-size: .76rem; letter-spacing: .02em; }
 .metric strong { font-size: 1.32rem; font-weight: 700; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 
+/* 主管儀表板三張重點卡（助理 2026-08-03 回饋）：數字要大到一眼看到，整張卡可點開明細 */
+.focus-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.focus-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 5px;
+  text-align: left; cursor: pointer; min-height: 96px;
+  color: var(--ink); font-weight: 400;
+}
+.focus-card:hover { border-color: var(--accent); }
+.focus-card.open { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.focus-card .focus-num {
+  font-size: 1.9rem; font-weight: 780; line-height: 1.05;
+  color: var(--accent-2); font-variant-numeric: tabular-nums;
+}
+.focus-card .focus-label { font-size: .9rem; font-weight: 650; color: var(--ink); }
+.focus-card .focus-hint { font-size: .76rem; color: var(--ink-3); }
+.focus-card.danger .focus-num { color: var(--danger); }
+.focus-card.danger { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+#manager-focus-detail h4 { margin: 14px 0 6px; font-size: .9rem; color: var(--ink-2); }
+#manager-focus-detail .overdue { color: var(--danger); font-weight: 650; }
+#manager-focus-detail tr[data-case-id] { cursor: pointer; }
+
 /* 按鈕 */
 button {
   background: var(--accent);

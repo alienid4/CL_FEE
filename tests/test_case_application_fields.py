@@ -24,9 +24,12 @@ def test_案件編號留空由系統產生(tmp_path):
         r = client.post("/api/cases", json={"title": "沒填編號的案"})
         assert r.status_code == 201, r.text
         c = r.json()["data"]
-        assert c["case_code"].startswith("TMP-")          # 系統配的暫時號
+        assert c["case_code"].startswith("TMP")           # 系統配的暫時號
         assert c["case_code"].endswith(f"{c['temp_seq']:04d}")
         assert c["seq"] == 0                              # 正式號要等核准
+        # 主管 2026-08-03 交代：系統配的號只能是英數，不得含 - _ 與中文
+        from app.store import is_system_code_valid
+        assert is_system_code_valid(c["case_code"]), c["case_code"]
 
 
 def test_自己填的案件編號仍然沿用(tmp_path):

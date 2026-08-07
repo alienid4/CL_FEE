@@ -113,11 +113,18 @@ def test_health_openapi_and_web(tmp_path):
         assert "重新整理" not in home.text
         assert "主管儀表板" in home.text
         assert 'data-case-tab="list"' in home.text
-        # 線性進度圖／處理優先矩陣已由系統自動推導實作（v0.9.38），為真面板
-        assert 'data-case-panel="progress"' in home.text
-        assert 'data-case-panel="matrix"' in home.text
-        assert "處理優先矩陣" in home.text
-        assert "線性進度圖" in home.text
+        # 助理 2026-08-03 回饋：頁籤收斂成三個（案件清單／待辦事項／主管儀表板）。
+        # 線性進度圖與優先矩陣沒有消失，是併進去了——併進去就不該再有自己的頁籤，
+        # 否則又變成同一份資料出現兩次。
+        assert 'data-case-tab="progress"' not in home.text
+        assert 'data-case-tab="matrix"' not in home.text
+        assert 'data-case-tab="portfolio"' not in home.text
+        assert 'id="case-progress-list"' in home.text          # 線性進度圖 → 案件清單頁
+        assert 'id="case-matrix"' in home.text                 # 優先矩陣 → 主管儀表板
+        assert 'id="manager-focus"' in home.text               # 主管儀表板三張重點卡
+        assert 'id="todo-cards"' in home.text                  # 待辦四張卡
+        assert 'id="cio-cases-table"' not in home.text         # 重複的案件列表已移除
+        assert 'id="manager-charts"' not in home.text          # 月度支出趨勢/狀態分布已移回各模組
         # 這些是模擬檔的舊 tab 命名，未採用
         assert 'data-case-panel="flow"' not in home.text
         assert 'data-case-panel="linear"' not in home.text
