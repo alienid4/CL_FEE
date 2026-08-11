@@ -4,26 +4,30 @@ setlocal
 REM ============================================================================
 REM  ASCII ONLY ON PURPOSE (Big5 escape-byte problem - see download.bat).
 REM
-REM  This file was renamed to download.bat, because "upload / download" is an
-REM  obvious pair while "upload / update" differs by two letters and points the
-REM  opposite way. Machines that already have a copy of the old name keep
-REM  working through this shim instead of silently doing nothing.
+REM  This file is now called downloadpatch.bat and lives in the project root
+REM  (it was update.bat, then download.bat). "upload / downloadpatch" is an
+REM  obvious pair and says which way it goes. Machines that still have this old
+REM  name keep working through this shim instead of silently doing nothing.
 REM ============================================================================
 
 echo.
-echo   NOTE: update.bat has been renamed to download.bat
-echo         ^(upload = send to GitHub, download = get from GitHub^)
-echo.
-echo   Running download.bat for you now...
+echo   NOTE: update.bat is now called downloadpatch.bat
+echo         ^(upload = send to GitHub, downloadpatch = get the patch from GitHub^)
 echo.
 
-if not exist "%~dp0download.bat" (
-    echo   ERROR: download.bat not found next to this file.
-    echo   Copy the whole notebook-package folder again.
-    echo.
-    pause
-    exit /b 1
+for %%P in ("%~dp0downloadpatch.bat" "%~dp0..\downloadpatch.bat" "%~dp0download.bat") do (
+    if exist %%P (
+        echo   Running %%~nxP for you now...
+        echo.
+        call %%P
+        endlocal
+        exit /b 0
+    )
 )
 
-call "%~dp0download.bat"
+echo   ERROR: downloadpatch.bat not found.
+echo   Run the updater once more, or download the package again.
+echo.
+pause
 endlocal
+exit /b 1

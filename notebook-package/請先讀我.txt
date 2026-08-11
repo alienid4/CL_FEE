@@ -81,8 +81,8 @@
 
 一、公司網路連不到 GitHub，所以「自動更新」在你那邊不能用
 
-  這個包裡沒有放 download.bat 和 update.bat。
-  那兩支是去 GitHub 抓最新程式的，你們公司網路擋住了 GitHub，
+  這個包裡沒有放 downloadpatch.bat（也沒有它的兩個舊名 download.bat、update.bat）。
+  那是去 GitHub 抓最新程式的，你們公司網路擋住了 GitHub，
   點了只會失敗。放進來只會讓你白試一場。
 
   以後要更新，還是我用 mail 寄新的包給你，做法跟這次一樣。

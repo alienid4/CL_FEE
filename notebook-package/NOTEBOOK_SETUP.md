@@ -27,13 +27,17 @@
 
 ## 以後怎麼更新
 
-**直接點 `download.bat`**，會從 GitHub 抓最新的程式碼與控制台腳本。
+**直接點專案根目錄的 `downloadpatch.bat`**（跟 `app` 資料夾同一層），
+會從 GitHub 抓最新的程式碼與控制台腳本。
 
-（這段以前寫的是「沒有 git remote，更新走重新打包 patch zip」——那是 `download.bat`
-出現之前的作法，已經過期。現在 repo 有 GitHub 遠端 `alienid4/CL_FEE`，不用再手動打包。）
+（改名沿革：`update.bat` → `download.bat` → 現在 `downloadpatch.bat`，跟 `upload.bat`
+擺在根目錄成一組。兩個舊名都留成轉接檔，點了會自動轉呼叫新的。
+更早以前寫的「沒有 git remote，更新走重新打包 patch zip」也已經過期——
+現在 repo 有 GitHub 遠端 `alienid4/CL_FEE`，不用再手動打包。）
 
-`download.bat` 只會覆蓋程式碼與腳本，**不會動到 `data/` 與 `.env`**，
+`downloadpatch.bat` 只會覆蓋程式碼與腳本，**不會動到 `data/` 與 `.env`**，
 所以這台累積的試用資料與設定會原封不動保留。
+（會被整個換掉的是 `app\` 與 `tests\`——那兩個資料夾裡自己加的檔會被刪。）
 
 更新完重新執行 `demo_start.bat` / `demo_start.sh` 即可（會自動補裝新增的套件）。
 

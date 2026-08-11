@@ -16,10 +16,10 @@
 #     data\ .env       the target machine owns these. Shipping them would clobber
 #                      a live database; their absence is what makes "paste over"
 #                      safe. See 請先讀我.txt.
-#     download.bat     both fetch from github.com, which is blocked on the target
-#     update.bat       network. Shipping a button that cannot work just wastes a
-#                      mail round trip. Add -IncludeUpdaters for sites that can
-#                      reach GitHub.
+#     downloadpatch.bat  fetches from github.com, which is blocked on the target
+#     (+ its two shims)  network. Shipping a button that cannot work just wastes a
+#                        mail round trip. Add -IncludeUpdaters for sites that can
+#                        reach GitHub.
 #     tests\           needs pytest/httpx/playwright, which the runtime install
 #                      deliberately omits. Add -IncludeTests to ship them anyway.
 #     demo_start.bat   runs a throwaway 8025 preview against an empty database.
@@ -35,7 +35,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\package_notebook_full.ps1
 #   ... -ForMail            also emit a copy with a neutered extension (see below)
 #   ... -IncludeTests       add tests\ + pytest.ini
-#   ... -IncludeUpdaters    add download.bat + update.bat
+#   ... -IncludeUpdaters    add downloadpatch.bat (+ the download.bat/update.bat shims)
 
 param(
     [switch]$ForMail,
@@ -79,6 +79,9 @@ if ($IncludeTests) {
     Copy-Item -Path "$root\pytest.ini" -Destination "$stage\pytest.ini"
 }
 if ($IncludeUpdaters) {
+    # downloadpatch.bat is the updater and lives in the repo root (next to upload.bat);
+    # download.bat / update.bat are shims for machines set up under the older names.
+    Copy-Item -LiteralPath (Join-Path $root "downloadpatch.bat") -Destination (Join-Path $stage "downloadpatch.bat")
     foreach ($f in @("download.bat", "update.bat")) {
         Copy-Item -LiteralPath (Join-Path $pkg $f) -Destination (Join-Path $stage $f)
     }
