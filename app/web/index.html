@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-64-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-65-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -776,9 +776,19 @@
           <section class="dashboard-panel module-panel" id="purchases" hidden>
             <div class="dashboard-head">
               <div>
-                <p class="breadcrumb">費用（例行性費用／無合約費用）</p>
+                <p class="breadcrumb">費用</p>
               </div>
-              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="purchase-form">＋ 新增</button>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="expense-form" data-exp-only>＋ 新增費用主檔</button>
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="purchase-form" data-legacy-only hidden>＋ 新增</button>
+            </div>
+            <div class="subtabs" aria-label="費用頁籤">
+              <button class="subtab active" type="button" data-exp-tab="schedule">費用與排程</button>
+              <button class="subtab" type="button" data-exp-tab="legacy">單筆費用（既有）</button>
+            </div>
+            <div data-exp-panel="schedule">
+              <div id="expense-list" class="list compact-list"></div>
+              <div id="expense-section-panel" class="schedule-panel" hidden></div>
+              <div id="expense-preview-panel" class="schedule-panel" hidden></div>
             </div>
           </section>
 
@@ -1103,6 +1113,39 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="purchases" hidden>
+          <!-- 第一層 費用主檔（助理 0803 附件一第四節）。有合約時廠商/統編/期間/總費用由合約帶入，
+               總費用唯讀反灰；無合約時期間停用、總費用人工填。 -->
+          <form id="expense-form" class="resource-form" hidden>
+            <input name="id" type="hidden" />
+            <select name="contract_id" class="expense-contract-picker" title="關聯合約；選「無合約」就是例行性費用">
+              <option value="">（無合約費用）</option>
+            </select>
+            <input name="expense_name" placeholder="費用／合約名稱 *" required />
+            <input name="vendor_name" placeholder="廠商名稱" />
+            <input name="vendor_tax_id" placeholder="廠商統一編號（8 碼）" inputmode="numeric" pattern="\d{8}" />
+            <input name="start_date" placeholder="合約起日" type="date" title="無合約時停用，不得輸入" />
+            <input name="end_date" placeholder="合約迄日" type="date" title="無合約時停用，不得輸入" />
+            <input name="total_amount" placeholder="合約總費用（含稅）*" type="number" min="0" step="1"
+                   title="有合約時由合約帶入且不得修改；它是第二層所有費用區段加總的檢核基準" />
+            <fieldset class="mode-picker">
+              <legend>費用排程模式（可複選）</legend>
+              <label><input type="checkbox" name="mode_milestone" value="1" /> 里程碑</label>
+              <label><input type="checkbox" name="mode_periodic" value="1" /> 定期費用</label>
+              <label><input type="checkbox" name="mode_commitment" value="1" /> 最低承諾金額</label>
+              <p class="form-hint muted">
+                里程碑：各期名稱／日期／比例或金額可能不同，依總期數產生明細後逐期輸入。<br />
+                定期費用：依月、季、半年或年，自動產生固定週期的費用排程。<br />
+                最低承諾金額：第二層設定承諾期間與產生規則，實際費用於第三層按費用年月登錄。
+              </p>
+            </fieldset>
+            <input name="signoff_ref" placeholder="簽呈／請購編號" />
+            <input name="signoff_none_reason" placeholder="沒有編號的原因（沒填編號時必填）" />
+            <select name="owner" class="personnel-select" data-placeholder="承辦人"></select>
+            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
+            <input name="note" placeholder="備註" />
+            <button type="submit">儲存</button>
+            <button type="button" class="secondary" data-cancel hidden>取消</button>
+          </form>
           <form id="purchase-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
             <input name="purchase_code" placeholder="費用編號" required />
@@ -1123,10 +1166,10 @@
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
-          <div id="purchases-list" class="list compact-list"></div>
+          <div id="purchases-list" class="list compact-list" data-legacy-only hidden></div>
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-64-0"></script>
+    <script src="/static/app.js?v=v0-65-0"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.64.0 · 2026-08-07 · 標準採購流程一鍵排入 WBS（七個工作項，既有專案可補排）";
+const BUILD_TAG = "v0.65.0 · 2026-08-11 · 費用模組畫面：費用主檔＋費用區段＋排程預覽與確認";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -882,6 +882,416 @@ document.querySelector("#budgets")?.addEventListener("change", async (event) => 
     await loadResource("budget");  // 重載→系統編號就出現
   } catch (error) { window.alert(`歸戶失敗：${error.message}`); }
 });
+
+// ── 費用模組三層（助理 0803 附件一）：主檔 → 費用區段＋排程 → (第三層核銷之後做) ──
+// 第一層清單 → 點「費用排程」展開該筆的費用區段 → 產生排程 → 放大預覽逐期修正 → 確認排程。
+const EXPENSE_MODES = [
+  { key: "milestone", label: "里程碑" },
+  { key: "periodic", label: "定期費用" },
+  { key: "commitment", label: "最低承諾金額" },
+];
+const FREQ_LABEL = { monthly: "每月", quarterly: "每季", semi: "每半年", yearly: "每年" };
+let expenseCache = [];
+
+async function loadExpenses() {
+  const box = document.querySelector("#expense-list");
+  if (!box) return;
+  try {
+    expenseCache = (await api("/api/expenses")).data || [];
+  } catch (_e) { return; }
+  if (!expenseCache.length) {
+    box.innerHTML = `<p class="muted">還沒有費用主檔。點右上「＋ 新增費用主檔」建立：
+      選好合約（或勾無合約）→ 選費用排程模式 → 再到下面設定各期費用。</p>`;
+    return;
+  }
+  const rows = expenseCache.map((e) => {
+    const modes = String(e.modes || "").split(",").filter(Boolean)
+      .map((m) => (EXPENSE_MODES.find((x) => x.key === m) || {}).label || m).join("、");
+    const k = (resourceCaches.contract || []).find((c) => String(c.id) === String(e.contract_id));
+    return `<tr data-expense-id="${e.id}">
+      <td><strong>${escapeHtml(e.expense_name || "")}</strong></td>
+      <td>${k ? escapeHtml(k.contract_code) : '<span class="muted">無合約</span>'}</td>
+      <td>${escapeHtml(valueOrDash(e.vendor_name))}</td>
+      <td class="num">${money(e.total_amount)} 元</td>
+      <td>${escapeHtml(modes)}</td>
+      <td>${escapeHtml(valueOrDash(e.owner))}</td>
+      <td><button type="button" class="secondary btn-sm" data-exp-sections="${e.id}">費用排程</button>
+          <button type="button" class="secondary btn-sm" data-exp-edit="${e.id}">編輯</button></td>
+    </tr>`;
+  }).join("");
+  box.innerHTML = `<div class="grid-scroll"><table class="grid-table">
+    <thead><tr><th>費用名稱</th><th>合約</th><th>廠商</th><th class="num">合約總費用</th>
+    <th>排程模式</th><th>承辦人</th><th class="col-actions">操作</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+
+async function loadExpenseSections(expenseId) {
+  const box = document.querySelector("#expense-section-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.dataset.expenseId = expenseId;
+  box.innerHTML = `<p class="muted">載入費用區段…</p>`;
+  try {
+    const [sections, check] = await Promise.all([
+      api(`/api/expenses/${expenseId}/sections`).then((r) => r.data || []),
+      api(`/api/expenses/${expenseId}/check`).then((r) => r.data),
+    ]);
+    box.innerHTML = renderExpenseSections(expenseId, sections, check);
+  } catch (e) {
+    box.innerHTML = `<p class="error">費用區段載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+function renderExpenseSections(expenseId, sections, check) {
+  const exp = expenseCache.find((x) => String(x.id) === String(expenseId)) || {};
+  // 總費用 vs 各區段加總：對不上就講差多少，別讓人自己算
+  const balance = check.balanced
+    ? `<span class="chip done">各區段合計 ${money(check.section_total)} 元＝合約總費用</span>`
+    : `<span class="chip todo">各區段合計 ${money(check.section_total)} 元，`
+      + `與合約總費用 ${money(check.total_amount)} 元差 ${money(Math.abs(check.diff))} 元`
+      + `（${check.diff > 0 ? "還少" : "多"}了）</span>`;
+  const missing = (check.missing_sections || []).length
+    ? `<p class="muted">還沒建立的模式：${escapeHtml(check.missing_sections.join("、"))}</p>` : "";
+  const list = sections.length ? sections.map((s) => {
+    const mode = (EXPENSE_MODES.find((m) => m.key === s.mode) || {}).label || s.mode;
+    const confirmed = s.status === "confirmed";
+    const detail = s.mode === "periodic"
+      ? `${FREQ_LABEL[s.frequency] || s.frequency || "—"}．${s.periods} 期．首期 ${money(s.first_amount)} 元（${escapeHtml(s.first_month || "—")}）`
+      : `${s.periods} 期．${s.price_method === "percent" ? "依比例計算" : s.price_method === "fixed" ? "固定金額" : "—"}`;
+    return `<tr>
+      <td><strong>${escapeHtml(mode)}</strong>${s.version > 1 ? ` <span class="muted">v${s.version}</span>` : ""}</td>
+      <td>${escapeHtml(valueOrDash(s.section_name))}</td>
+      <td class="num">${money(s.section_amount)} 元</td>
+      <td>${escapeHtml(detail)}</td>
+      <td class="num">${s.schedule_count}</td>
+      <td>${confirmed
+        ? `<span class="chip done">已確認</span><br /><small class="muted">${escapeHtml(s.confirmed_by || "")} ${escapeHtml((s.confirmed_at || "").slice(0, 16))}</small>`
+        : '<span class="chip todo">草稿</span>'}</td>
+      <td>
+        ${confirmed
+          ? `<button type="button" class="secondary btn-sm" data-exp-reopen="${s.id}" title="已確認的排程要改：系統會建立新版本並保留原版">重新編輯</button>`
+          : `<button type="button" class="secondary btn-sm" data-exp-generate="${s.id}" title="依上面的設定產生各期排程；重產會蓋掉目前的明細">產生排程</button>`}
+        <button type="button" class="btn-sm" data-exp-preview="${s.id}">預覽費用排程</button>
+      </td></tr>`;
+  }).join("") : `<tr><td colspan="7" class="muted">這筆費用還沒有費用區段——用下面的表單依模式建立。</td></tr>`;
+
+  const modes = String(exp.modes || "").split(",").filter(Boolean);
+  const modeOptions = modes.map((m) =>
+    `<option value="${m}">${escapeHtml((EXPENSE_MODES.find((x) => x.key === m) || {}).label || m)}</option>`).join("");
+  return `<div class="sched-head">
+      <h3>${escapeHtml(exp.expense_name || "")}　費用區段</h3>
+      <button type="button" class="secondary btn-sm" data-exp-close>收合</button>
+    </div>
+    <p>${balance}</p>${missing}
+    <div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>模式</th><th>區段名稱</th><th class="num">區段金額</th><th>設定</th>
+      <th class="num">期數</th><th>狀態</th><th class="col-actions">操作</th></tr></thead>
+      <tbody>${list}</tbody></table></div>
+    <form class="resource-form" data-exp-section-form>
+      <select data-sec-mode required>${modeOptions}</select>
+      <input data-sec-name placeholder="費用區段名稱（例：軟體授權及專業服務費）" />
+      <input data-sec-amount type="number" min="0" step="1" placeholder="費用區段金額 *" required />
+      <input data-sec-periods type="number" min="1" step="1" placeholder="總期數 *" required />
+      <select data-sec-price title="里程碑計價方式">
+        <option value="percent">依比例計算</option>
+        <option value="fixed">固定金額</option>
+      </select>
+      <select data-sec-freq title="定期費用頻率">
+        <option value="">（定期費用才要選）頻率</option>
+        <option value="monthly">每月</option><option value="quarterly">每季</option>
+        <option value="semi">每半年</option><option value="yearly">每年</option>
+      </select>
+      <input data-sec-first-amount type="number" min="0" step="1" placeholder="第一期費用（定期費用）" />
+      <input data-sec-first-month type="month" placeholder="第一期費用年月" />
+      <input data-sec-first-due type="date" placeholder="第一期預計應付日" />
+      <button type="submit">新增費用區段</button>
+    </form>`;
+}
+
+async function loadExpensePreview(sectionId) {
+  const box = document.querySelector("#expense-preview-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.dataset.sectionId = sectionId;
+  box.innerHTML = `<p class="muted">載入排程…</p>`;
+  try {
+    box.innerHTML = renderExpensePreview((await api(`/api/expense-sections/${sectionId}/preview`)).data);
+  } catch (e) {
+    box.innerHTML = `<p class="error">排程預覽載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+function renderExpensePreview(res) {
+  const sec = res.section || {};
+  const isMilestone = sec.mode === "milestone";
+  const confirmed = sec.status === "confirmed";
+  const rows = (res.schedules || []).map((s) => `<tr>
+    <td>第 ${s.seq} 期</td>
+    <td>${isMilestone ? `<select data-sched-field="milestone_name" data-sched-id="${s.id}"${confirmed ? " disabled" : ""}>
+          <option value="">（未選）</option>
+          ${["簽約款", "交付款", "驗收款", "自訂"].map((n) =>
+            `<option value="${n}"${s.milestone_name === n ? " selected" : ""}>${n}</option>`).join("")}
+        </select>
+        <input data-sched-field="custom_name" data-sched-id="${s.id}" value="${escapeHtml(s.custom_name || "")}"
+               placeholder="自訂名稱" class="w-note"${confirmed ? " disabled" : ""} />`
+      : '<span class="muted">不適用</span>'}</td>
+    <td class="num">${isMilestone && sec.price_method === "percent"
+      ? `<input data-sched-field="percent" data-sched-id="${s.id}" type="number" min="0" max="100" step="0.01"
+                value="${Number(s.percent || 0)}" class="w-seq"${confirmed ? " disabled" : ""} /> %`
+      : '<span class="muted">—</span>'}</td>
+    <td class="num"><input data-sched-field="planned_amount" data-sched-id="${s.id}" type="number" min="0" step="1"
+        value="${Number(s.planned_amount || 0)}"${confirmed ? " disabled" : ""} /></td>
+    <td><input data-sched-field="expense_month" data-sched-id="${s.id}" type="month"
+        value="${escapeHtml(s.expense_month || "")}"${confirmed ? " disabled" : ""} /></td>
+    <td><input data-sched-field="due_date" data-sched-id="${s.id}" type="date"
+        value="${escapeHtml(s.due_date || "")}"${confirmed ? " disabled" : ""} /></td>
+    <td><input data-sched-field="note" data-sched-id="${s.id}" value="${escapeHtml(s.note || "")}"
+        placeholder="備註" class="w-note"${confirmed ? " disabled" : ""} />
+        ${s.manual_adjusted ? '<span class="badge" title="這一期被人工調整過">人工調整</span>' : ""}</td>
+  </tr>`).join("");
+
+  const problems = (res.problems || []).length
+    ? `<ul class="note-list">${res.problems.map((p) => `<li class="error">${escapeHtml(p)}</li>`).join("")}</ul>`
+    : `<p class="chip done">檢核通過：各期合計 ${money(res.scheduled_total)} 元＝費用區段金額</p>`;
+
+  return `<div class="sched-head">
+      <h3>費用排程預覽　<span class="muted">${escapeHtml((EXPENSE_MODES.find((m) => m.key === sec.mode) || {}).label || "")}
+        ${sec.version > 1 ? `· 第 ${sec.version} 版` : ""}</span></h3>
+      <button type="button" class="secondary btn-sm" data-exp-preview-close>收合</button>
+    </div>
+    ${problems}
+    <div class="grid-scroll"><table class="grid-table">
+      <thead><tr><th>期別</th><th>里程碑名稱</th><th class="num">比例</th><th class="num">應付費用</th>
+      <th>費用年月</th><th>預計應付日</th><th>備註</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="7" class="muted">還沒有排程明細，先按「產生排程」。</td></tr>'}</tbody>
+    </table></div>
+    ${confirmed
+      ? `<p class="muted">這一版已確認（${escapeHtml(sec.confirmed_by || "")} ${escapeHtml((sec.confirmed_at || "").slice(0, 16))}），
+         要改請回上面按「重新編輯」。</p>`
+      : `<button type="button" data-exp-confirm="${sec.id}"${res.can_confirm ? "" : " disabled"}
+           title="${res.can_confirm ? "檢核通過，確認後會記下確認人與時間" : "檢核未通過，先修正上面列出的問題"}">確認排程</button>`}`;
+}
+
+// 費用模組的互動：清單、區段、預覽三塊都掛在「費用」模組頁底下，用事件委派接。
+document.addEventListener("click", async (event) => {
+  const t = event.target;
+  const sections = t.closest("[data-exp-sections]");
+  if (sections) {
+    await loadExpenseSections(sections.getAttribute("data-exp-sections"));
+    document.querySelector("#expense-section-panel")?.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  if (t.closest("[data-exp-close]")) {
+    document.querySelector("#expense-section-panel").hidden = true;
+    document.querySelector("#expense-preview-panel").hidden = true;
+    return;
+  }
+  if (t.closest("[data-exp-preview-close]")) {
+    document.querySelector("#expense-preview-panel").hidden = true;
+    return;
+  }
+  const preview = t.closest("[data-exp-preview]");
+  if (preview) {
+    await loadExpensePreview(preview.getAttribute("data-exp-preview"));
+    document.querySelector("#expense-preview-panel")?.scrollIntoView({ block: "nearest" });
+    return;
+  }
+  const gen = t.closest("[data-exp-generate]");
+  if (gen) {
+    const id = gen.getAttribute("data-exp-generate");
+    gen.disabled = true;
+    gen.textContent = "產生中…";
+    try {
+      await api(`/api/expense-sections/${id}/generate`, { method: "POST" });
+      await loadExpenseSections(document.querySelector("#expense-section-panel").dataset.expenseId);
+      await loadExpensePreview(id);   // 產完直接打開預覽，接著就能逐期填
+    } catch (e) {
+      gen.disabled = false;
+      gen.textContent = "產生排程";
+      window.alert(`產生排程失敗：${e.message}`);
+    }
+    return;
+  }
+  const confirmBtn = t.closest("[data-exp-confirm]");
+  if (confirmBtn) {
+    const id = confirmBtn.getAttribute("data-exp-confirm");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "確認中…";
+    try {
+      await api(`/api/expense-sections/${id}/confirm`, { method: "POST" });
+      await loadExpenseSections(document.querySelector("#expense-section-panel").dataset.expenseId);
+      await loadExpensePreview(id);
+    } catch (e) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "確認排程";
+      window.alert(`確認排程失敗：${e.message}`);
+    }
+    return;
+  }
+  const reopen = t.closest("[data-exp-reopen]");
+  if (reopen) {
+    if (!window.confirm("重新編輯會建立新版本，原本已確認的那一版連明細會完整保留。要繼續嗎？")) return;
+    const id = reopen.getAttribute("data-exp-reopen");
+    try {
+      await api(`/api/expense-sections/${id}/reopen`, { method: "POST" });
+      await loadExpenseSections(document.querySelector("#expense-section-panel").dataset.expenseId);
+      await loadExpensePreview(id);
+    } catch (e) { window.alert(`重新編輯失敗：${e.message}`); }
+    return;
+  }
+  const edit = t.closest("[data-exp-edit]");
+  if (edit) startExpenseEdit(edit.getAttribute("data-exp-edit"));
+});
+
+// 預覽畫面逐期修正：改完就存，並標記為人工調整（助理 0803 要求留痕）。
+document.addEventListener("change", async (event) => {
+  const el = event.target.closest("[data-sched-field]");
+  if (!el) return;
+  const id = el.getAttribute("data-sched-id");
+  const field = el.getAttribute("data-sched-field");
+  const value = el.type === "number" ? Number(el.value || 0) : el.value;
+  try {
+    await api(`/api/expense-schedules/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+    await loadExpensePreview(document.querySelector("#expense-preview-panel").dataset.sectionId);
+  } catch (e) { window.alert(`儲存失敗：${e.message}`); }
+});
+
+// 新增費用區段
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-exp-section-form]");
+  if (!form) return;
+  event.preventDefault();
+  const expenseId = document.querySelector("#expense-section-panel").dataset.expenseId;
+  const v = (sel) => form.querySelector(sel)?.value || "";
+  try {
+    await api(`/api/expenses/${expenseId}/sections`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: v("[data-sec-mode]"),
+        section_name: v("[data-sec-name]"),
+        section_amount: Number(v("[data-sec-amount]") || 0),
+        periods: Number(v("[data-sec-periods]") || 0),
+        price_method: v("[data-sec-price]"),
+        frequency: v("[data-sec-freq]"),
+        first_amount: Number(v("[data-sec-first-amount]") || 0),
+        first_month: v("[data-sec-first-month]"),
+        first_due_date: v("[data-sec-first-due]"),
+      }),
+    });
+    await loadExpenseSections(expenseId);
+  } catch (e) { window.alert(`新增費用區段失敗：${e.message}`); }
+});
+
+// 費用主檔表單：有合約時廠商/統編/期間/總費用由合約帶入，總費用反灰不給改（助理 0803）
+async function syncExpenseContractFields() {
+  const form = document.querySelector("#expense-form");
+  if (!form) return;
+  const cid = form.elements.contract_id.value;
+  const total = form.elements.total_amount;
+  const dates = [form.elements.start_date, form.elements.end_date];
+  if (!cid) {
+    total.readOnly = false;
+    total.classList.remove("readonly-field");
+    for (const d of dates) { d.value = ""; d.disabled = true; }   // 無合約：期間停用、不得輸入
+    return;
+  }
+  const k = (resourceCaches.contract || []).find((c) => String(c.id) === String(cid));
+  if (!k) return;
+  for (const d of dates) d.disabled = false;
+  form.elements.start_date.value = k.start_date || "";
+  form.elements.end_date.value = k.end_date || "";
+  form.elements.vendor_name.value = k.vendor_name || "";
+  form.elements.vendor_tax_id.value = k.vendor_tax_id || "";
+  form.elements.total_amount.value = Number(k.amount || 0);
+  total.readOnly = true;                       // 助理明講：有合約時唯讀反灰
+  total.classList.add("readonly-field");
+  if (!form.elements.expense_name.value.trim()) form.elements.expense_name.value = k.contract_name || "";
+  if (!form.elements.owner.value) form.elements.owner.value = k.owner || "";
+}
+
+document.addEventListener("change", (event) => {
+  if (event.target.closest(".expense-contract-picker")) syncExpenseContractFields();
+});
+
+function startExpenseEdit(id) {
+  const form = document.querySelector("#expense-form");
+  const item = expenseCache.find((x) => String(x.id) === String(id));
+  if (!form || !item) return;
+  setManualForm(form, true);
+  form.elements.id.value = item.id;
+  for (const f of ["expense_name", "vendor_name", "vendor_tax_id", "start_date", "end_date",
+                   "total_amount", "signoff_ref", "signoff_none_reason", "owner", "note"]) {
+    if (form.elements[f]) form.elements[f].value = item[f] ?? "";
+  }
+  form.elements.contract_id.value = item.contract_id || "";
+  form.elements.case_id.value = item.case_id || "";
+  const modes = String(item.modes || "").split(",");
+  for (const m of EXPENSE_MODES) {
+    if (form.elements[`mode_${m.key}`]) form.elements[`mode_${m.key}`].checked = modes.includes(m.key);
+  }
+  syncExpenseContractFields();
+  form.querySelector('button[type="submit"]').textContent = "儲存";
+  form.querySelector("[data-cancel]").hidden = false;
+  form.scrollIntoView({ block: "nearest" });
+}
+
+document.querySelector("#expense-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const id = form.elements.id.value;
+  const modes = EXPENSE_MODES.filter((m) => form.elements[`mode_${m.key}`]?.checked).map((m) => m.key);
+  const body = {
+    contract_id: form.elements.contract_id.value ? Number(form.elements.contract_id.value) : null,
+    case_id: form.elements.case_id.value ? Number(form.elements.case_id.value) : null,
+    expense_name: form.elements.expense_name.value,
+    vendor_name: form.elements.vendor_name.value,
+    vendor_tax_id: form.elements.vendor_tax_id.value,
+    start_date: form.elements.start_date.value,
+    end_date: form.elements.end_date.value,
+    total_amount: Number(form.elements.total_amount.value || 0),
+    modes: modes.join(","),
+    signoff_ref: form.elements.signoff_ref.value,
+    signoff_none_reason: form.elements.signoff_none_reason.value,
+    owner: form.elements.owner.value,
+    note: form.elements.note.value,
+  };
+  try {
+    await api(id ? `/api/expenses/${id}` : "/api/expenses", {
+      method: id ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    form.reset();
+    form.elements.id.value = "";
+    form.querySelector('button[type="submit"]').textContent = "新增";
+    form.querySelector("[data-cancel]").hidden = true;
+    setManualForm(form, false);
+    await loadExpenses();
+  } catch (e) { window.alert(`儲存失敗：${e.message}`); }
+});
+
+// 費用頁籤：新的三層費用排程 vs 既有的單筆費用（purchases）
+document.addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-exp-tab]");
+  if (!tab) return;
+  const which = tab.getAttribute("data-exp-tab");
+  for (const b of document.querySelectorAll("[data-exp-tab]")) b.classList.toggle("active", b === tab);
+  document.querySelector("[data-exp-panel='schedule']").hidden = which !== "schedule";
+  for (const el of document.querySelectorAll("[data-legacy-only]")) el.hidden = which !== "legacy";
+  for (const el of document.querySelectorAll("[data-exp-only]")) el.hidden = which !== "schedule";
+});
+
+async function loadExpenseContractOptions() {
+  const sel = document.querySelector(".expense-contract-picker");
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">（無合約費用）</option>`
+    + (resourceCaches.contract || []).map((k) =>
+        `<option value="${k.id}">${escapeHtml(k.contract_code)}｜${escapeHtml(k.contract_name || "")}</option>`).join("");
+  if (cur) sel.value = cur;
+}
 
 // ── §8 付款排程面板：預計付款排程 vs 實際核銷，一頁看「還欠多少」 ──
 // 合約列點「付款排程」→ 就地展開：選付款方式→產生排程→逐期可改→標已付→底下顯示 預計/已付/還欠。
@@ -3968,6 +4378,8 @@ async function refresh() {
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
     loadSignoffOptions(), loadPurchaseOptions(), loadParentContractOptions(),
   ]);
+  // 費用主檔的清單與「關聯合約」下拉都要等合約載完才畫得出來（合約編號要從快取查）
+  await Promise.all([loadExpenses(), loadExpenseContractOptions()]);
 }
 
 // 進度總表：組別 tab / 子 tab / 由總覽點列進單一專案

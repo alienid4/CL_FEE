@@ -1871,6 +1871,15 @@ tr.person-off td { opacity: .55; }
 /* 合約模型：續約/增購/整併來源標籤、保固維護到期（過期標紅） */
 .relation-tag { display:inline-block; margin-left:4px; padding:1px 6px; border-radius:999px; font-size:.72rem;
   background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
+/* 費用模組（助理 0803）：有合約時總費用由合約帶入且不得修改 → 反灰讓人一看就知道不用填 */
+.readonly-field { background:var(--surface-2); color:var(--ink-2); cursor:not-allowed; }
+/* 費用排程模式可複選，選項下方直接放模式說明（助理要求說明要跟著選項一起看得到） */
+.mode-picker { grid-column:1 / -1; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:0; }
+.mode-picker legend { font-size:.8rem; color:var(--ink-2); padding:0 6px; }
+.mode-picker label { display:inline-flex; align-items:center; gap:6px; margin-right:16px; font-size:.9rem; }
+.form-hint { grid-column:1 / -1; font-size:.78rem; line-height:1.6; margin:6px 0 0; }
+.check-inline { display:inline-flex; align-items:center; gap:7px; font-size:.9rem; color:var(--ink-2); }
+
 /* 合約細項在公司合約系統裡（拍板 A4）：清單上帶編號跳出去查的外部連結 */
 .ext-link { display:inline-block; margin-left:6px; font-size:.72rem; white-space:nowrap;
   color:var(--accent); text-decoration:none; border-bottom:1px dotted var(--accent); }
