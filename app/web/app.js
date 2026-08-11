@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.63.0 · 2026-08-07 · 合約主檔補齊 0803 欄位：識別碼/統編/負責人/機房/到期四色燈";
+const BUILD_TAG = "v0.64.0 · 2026-08-07 · 標準採購流程一鍵排入 WBS（七個工作項，既有專案可補排）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -278,7 +278,7 @@ const resourceConfig = {
     plural: "projects", idAttr: "project-id", idField: "projectId", api: "/api/projects",
     navCount: "nav-count-projects", navLabel: "專案",
     fields: ["project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
-             "level", "progress_planned", "rag_status", "start_date", "end_date"],
+             "level", "progress_planned", "rag_status", "start_date", "end_date", "involves_procurement"],
     numberFields: ["progress", "progress_planned", "case_id"], canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => i.case_id
@@ -291,7 +291,12 @@ const resourceConfig = {
       { label: "負責人", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.owner))}</span>` },
       { label: "子項目", cls: "num", cell: (i) => {
           const t = Number(i.item_count || 0), d = Number(i.item_done || 0);
-          return t ? `<span title="完成 ${d} / 共 ${t} 個工作項">${d}/${t}</span>` : '<span class="muted" title="尚無工作項">0</span>';
+          // 還沒有工作項時直接給一鍵排標準流程（0803 之前建的專案沒有「涉及請購或合約」這個勾選）
+          if (!t) {
+            return `<button type="button" class="link-btn" data-standard-wbs="${i.id}"`
+              + ` title="排入標準採購流程的工作項：需求確認→廠商報價→上簽申請與核准→議價→合約簽訂→執行／建置→驗收">＋標準流程</button>`;
+          }
+          return `<span title="完成 ${d} / 共 ${t} 個工作項">${d}/${t}</span>`;
         } },
       { label: "進度", cls: "num", cell: (i) => progressBarOnly(i.progress_planned, i.progress) },
       { label: "預計", cls: "num", cell: (i) => `${Number(i.progress_planned || 0)}%` },
@@ -828,6 +833,26 @@ document.querySelector("#projects-list")?.addEventListener("click", (event) => {
   const opts = `<option value="">選案件…</option>`
     + (caseCache || []).map((c) => `<option value="${c.id}">${escapeHtml(c.case_code)}｜${escapeHtml(c.title || "")}</option>`).join("");
   assign.outerHTML = `<select class="btn-sm" data-assign-project-case-select="${id}">${opts}</select>`;
+});
+// 一鍵排標準採購流程（助理 0803）：七個工作項一次建好，承辦只要往下填日期與進度。
+// 同名的跳過，所以重複按不會長出兩套，也不會蓋掉已經填好的內容。
+document.querySelector("#projects-list")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-standard-wbs]");
+  if (!btn) return;
+  const id = btn.getAttribute("data-standard-wbs");
+  btn.disabled = true;
+  btn.textContent = "排入中…";
+  try {
+    const r = (await api(`/api/projects/${id}/standard-wbs`, { method: "POST" })).data;
+    // 先讓人看到結果再重繪（重繪會把這顆按鈕換成「0/7」，不先講一聲會不知道發生什麼事）
+    const skipped = r.skipped_count ? `，跳過 ${r.skipped_count} 個已有的` : "";
+    btn.textContent = `已排入 ${r.created_count} 項${skipped}`;
+    setTimeout(() => loadResource("project"), 900);
+  } catch (error) {
+    btn.disabled = false;
+    btn.textContent = "＋標準流程";
+    window.alert(`排入標準流程失敗：${error.message}`);
+  }
 });
 document.querySelector("#projects-list")?.addEventListener("change", async (event) => {
   const sel = event.target.closest("[data-assign-project-case-select]");
@@ -4039,6 +4064,11 @@ function serializeResourceForm(type) {
   for (const sel of targetForm.querySelectorAll("select[multiple][name]")) {
     data[sel.name] = new FormData(targetForm).getAll(sel.name).join(",");
   }
+  // 勾選欄位：沒勾的 FormData 根本不會帶這個 key，PATCH 就永遠取消不掉（只能從 0 改成 1）。
+  // 一律明確送 1/0。
+  for (const cb of targetForm.querySelectorAll('input[type="checkbox"][name]')) {
+    data[cb.name] = cb.checked ? 1 : 0;
+  }
   for (const field of config.numberFields) {
     // _id 結尾＝可為空的關聯外鍵，留空要送 null（不能送 0，0 不是合法的關聯目標）；
     // 其餘（金額/進度/數量…）留空視同 0，避免後端 float 欄位收到 null 報 422。
@@ -4077,6 +4107,10 @@ async function startResourceEdit(type, id) {
     const val = item[field] ?? "";
     // select 若沒有這個值的選項（例如舊資料的單位名稱還沒登記進主檔），先補一個選項，
     // 避免編輯時看起來「值不見了」、存檔時被誤蓋成空白
+    if (el.type === "checkbox") {
+      el.checked = String(val) === "1" || val === true;
+      continue;
+    }
     if (el.tagName === "SELECT" && el.multiple) {
       // 逗號分隔存、多選顯示：把存的字串拆回去逐項打勾（選項還沒登記的先補上，免得看起來值不見了）
       const picked = String(val).split(",").map((v) => v.trim()).filter(Boolean);

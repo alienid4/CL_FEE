@@ -499,6 +499,8 @@ class ProjectIn(BaseModel):
     rag_status: str = ""
     start_date: str = ""
     end_date: str = ""
+    # 助理 0803：涉及請購或合約 → 建立時自動排標準採購流程的工作項
+    involves_procurement: int = 0
 
 
 class ProjectPatch(BaseModel):
@@ -519,6 +521,7 @@ class ProjectPatch(BaseModel):
     rag_status: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    involves_procurement: int | None = None
 
 
 class ProjectItemIn(BaseModel):
@@ -745,6 +748,7 @@ class SettingsPatch(BaseModel):
     opt_contract_type: str | None = None
     opt_person_groups: str | None = None
     opt_contract_locations: str | None = None
+    opt_wbs_standard_items: str | None = None
     contract_system_url: str | None = None
 
 
@@ -769,7 +773,8 @@ class UserPatch(BaseModel):
 SETTINGS_PUBLIC_KEYS = [
     "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
     "opt_budget_categories", "opt_project_necessity", "opt_project_level", "opt_project_rag",
-    "opt_contract_type", "opt_person_groups", "opt_contract_locations", "contract_system_url",
+    "opt_contract_type", "opt_person_groups", "opt_contract_locations",
+    "opt_wbs_standard_items", "contract_system_url",
 ]
 
 # 主檔選項預設（後台未設定時採用）
@@ -784,6 +789,9 @@ OPTION_DEFAULTS = {
     # 合約地點／機房（助理 0803 給的清單）：機房會增減、也可能改名，同樣做成後台可維護，
     # 不寫死在程式裡——寫死的話多一個機房就要改版
     "opt_contract_locations": "板橋,內湖,敦南,國際大樓,COLO,分公司",
+    # 標準採購流程的工作項（助理 0803 附件二＋0807 流程圖，兩份一致）。
+    # 助理原話「系統不預先限制工作項名稱，上述僅為建議」，所以放後台可改。
+    "opt_wbs_standard_items": ",".join(store.STANDARD_WBS_ITEMS),
 }
 
 
@@ -804,7 +812,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.63.0 · 2026-08-07 · 合約主檔補齊助理 0803 欄位：系統識別碼(增購掛 A01 子號)、統編、負責人、組別、機房(可複選)、公司合約系統編號、到期警示四色三個月制、黃紅燈必填進度說明"
+BACKEND_BUILD = "v0.64.0 · 2026-08-07 · 標準採購流程一鍵排入 WBS：勾「涉及請購或合約」自動建七個工作項（需求確認→報價→上簽→議價→簽約→建置→驗收），既有專案也能補排，名單後台可改"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1211,6 +1219,7 @@ def create_app() -> FastAPI:
             "contract_type": _option_list("opt_contract_type"),
             "person_groups": _option_list("opt_person_groups"),
             "contract_locations": _option_list("opt_contract_locations"),
+            "wbs_standard_items": _option_list("opt_wbs_standard_items"),
             # 合約細項不進本系統（使用者拍板 A4：合約都是 PDF，細項在公司合約系統裡），
             # 這裡只存合約編號＋一個「查細項」連結樣板，讓人一鍵跳過去查，不用再輸一次。
             "contract_system_url": store_get_settings(["contract_system_url"])["contract_system_url"],
@@ -2234,7 +2243,22 @@ def create_app() -> FastAPI:
     # ---- 專案 projects ----
     @app.post("/api/projects", status_code=201)
     def create_project(payload: ProjectIn) -> dict[str, Any]:
-        return handle_create("projects", payload.model_dump())
+        result = handle_create("projects", payload.model_dump())
+        # 助理 0803 附件二第三點：勾了「涉及請購或合約」就先把標準採購流程排好，
+        # 承辦只要往下填日期與進度，不用每次自己打七個工作項的名字。
+        if int(payload.involves_procurement or 0) == 1:
+            applied = store.apply_standard_wbs(result["data"]["id"], payload.owner)
+            result["data"]["standard_wbs"] = applied
+        return result
+
+    @app.post("/api/projects/{project_id}/standard-wbs")
+    def apply_standard_wbs(project_id: int) -> dict[str, Any]:
+        # 既有專案補排標準流程（0803 之前建的專案沒有這個勾選）。
+        # 冪等：同名工作項已經有的跳過，不覆蓋承辦已填的內容。
+        try:
+            return ok(store.apply_standard_wbs(project_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個專案。") from exc
 
     @app.get("/api/projects")
     def projects(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:

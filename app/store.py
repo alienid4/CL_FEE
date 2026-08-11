@@ -528,6 +528,9 @@ def initialize_database() -> None:
         # 需求書 §6 專案主檔：廠商、是否跨子公司（金控/集團合作案是主管與處長的關注條件）
         ensure_column(conn, "projects", "vendor_name", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "projects", "cross_company", "TEXT NOT NULL DEFAULT ''")
+        # 助理 0803 附件二第三點：專案建立時先問「涉及請購或合約？」——
+        # 是 → 自動排標準採購流程的工作項；否 → 由同仁自己建需要的工作項。
+        ensure_column(conn, "projects", "involves_procurement", "INTEGER NOT NULL DEFAULT 0")
         # WBS 燈號是「人工指定」還是「系統自動判的」——不分開的話，自動判出來的值存進去之後
         # 會被誤認為人工指定，之後改子項目數就再也不會重算（做完了還掛著黃燈）。
         # 需求書 §6：「燈號可由系統判斷，也保留人工調整」，所以兩種都要留得住。
@@ -1316,7 +1319,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "category_shares": {"category", "unit_code", "unit_name", "share_pct", "source_file"},
         "projects": {"project_code", "project_name", "source", "necessity", "progress", "owner", "status", "case_id", "due_date", "note",
                      "level", "progress_planned", "rag_status", "start_date", "end_date",
-                     "vendor_name", "cross_company"},
+                     "vendor_name", "cross_company", "involves_procurement"},
         "signoffs": {"signoff_code", "subject", "applicant", "amount", "status", "sign_date", "case_id", "note", "attachment_ref"},
         "purchases": {"purchase_code", "item_name", "vendor_name", "quantity", "amount", "status", "case_id", "signoff_id", "note"},
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
@@ -4962,6 +4965,57 @@ def backfill_case_numbers() -> int:
             conn.execute("UPDATE cases SET fiscal_year=?, seq=? WHERE id=?", (fy, nxt, r["id"]))
             filled += 1
     return filled
+
+
+# 標準採購流程的工作項（黃助理 0803 附件二第三點，另一位助理 0807 的流程圖也是同一份）。
+# 助理原話：「系統不預先限制 WBS 工作項目名稱，上述僅為建議的標準工作項目」——
+# 所以做成後台可維護的清單，承辦仍可自己增刪，這裡只是「勾了涉及請購或合約就先幫你排好」。
+STANDARD_WBS_ITEMS = ["需求確認", "廠商報價", "上簽申請與核准", "議價", "合約簽訂", "執行／建置", "驗收"]
+
+
+def standard_wbs_items() -> list[str]:
+    raw = read_settings(["opt_wbs_standard_items"]).get("opt_wbs_standard_items", "")
+    items = [x.strip() for x in raw.split(",") if x.strip()]
+    return items or list(STANDARD_WBS_ITEMS)
+
+
+def apply_standard_wbs(project_id: int, owner: str = "") -> dict[str, Any]:
+    """把標準採購流程的工作項排進這個專案。
+
+    冪等：同名工作項已經有了就跳過，不重複建立也不覆蓋既有內容（承辦可能已經填了進度）。
+    每一項都是完整的 WBS 項目（有負責人、起訖、子項目數、燈號、關鍵風險點），
+    不是流程圖上的文字節點——助理特別強調過這點。
+    日期留空：這時候還不知道各階段何時做，硬塞日期會讓燈號一建好就亂判。
+    """
+    with connect() as conn:
+        project = get_row(conn, "projects", project_id)
+        exist = {str(r["item_name"]).strip()
+                 for r in conn.execute("SELECT item_name FROM project_items WHERE project_id = ?",
+                                       (project_id,)).fetchall()}
+        seq = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) AS n FROM project_items WHERE project_id = ?",
+            (project_id,)).fetchone()["n"]
+        created, skipped = [], []
+        for name in standard_wbs_items():
+            if name in exist:
+                skipped.append(name)
+                continue
+            seq += 1
+            _insert_row(conn, "project_items", {
+                "project_id": project_id,
+                "seq": seq,
+                "item_name": name,
+                "owner": owner or project["owner"] or "",
+                "sub_total": 0,
+                "sub_done": 0,
+                "progress": 0,
+                "rag": "",          # 沒起訖日就先不判燈號，等承辦填了日期再自動判
+                "status": "active",
+            })
+            created.append(name)
+    recompute_project_rollup(project_id)
+    return {"project_id": project_id, "created": created, "skipped": skipped,
+            "created_count": len(created), "skipped_count": len(skipped)}
 
 
 def backfill_contract_system_codes() -> dict[str, int]:

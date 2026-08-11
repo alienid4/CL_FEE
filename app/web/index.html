@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-63-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-64-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -1069,6 +1069,9 @@
               <option value="disabled">已停用</option>
             </select>
             <input name="note" placeholder="備註" />
+            <label class="check-inline" title="勾了之後，建立時系統會先把標準採購流程的工作項排好（需求確認→廠商報價→上簽申請與核准→議價→合約簽訂→執行／建置→驗收），你仍可自行增刪">
+              <input type="checkbox" name="involves_procurement" value="1" /> 涉及請購或合約（自動排標準流程工作項）
+            </label>
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
@@ -1124,6 +1127,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-63-0"></script>
+    <script src="/static/app.js?v=v0-64-0"></script>
   </body>
 </html>
