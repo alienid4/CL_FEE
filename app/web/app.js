@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.62.1 · 2026-08-07 · 補上專案匯入的編號漏網（工作表名當代號會帶中文與連字號）";
+const BUILD_TAG = "v0.63.0 · 2026-08-07 · 合約主檔補齊 0803 欄位：識別碼/統編/負責人/機房/到期四色燈";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -197,12 +197,15 @@ const resourceConfig = {
     idField: "contractId",
     api: "/api/contracts",
     fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "purchase_id", "status", "end_date",
-             "contract_type", "start_date", "warranty_end_date", "maintenance_end_date", "relation_type", "parent_contract_id"],
+             "contract_type", "start_date", "warranty_end_date", "maintenance_end_date", "relation_type", "parent_contract_id",
+             "vendor_tax_id", "owner", "group_name", "locations", "external_code", "progress_note", "end_reason"],
     numberFields: ["amount", "case_id", "purchase_id", "parent_contract_id"],
     canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
-      { label: "合約編號", cell: (i) => `<strong>${escapeHtml(i.contract_code)}</strong>${relationTag(i)}${contractSystemLink(i.contract_code)}` },
+      { label: "系統識別碼", cell: (i) => `<strong>${escapeHtml(valueOrDash(i.system_code))}</strong>${relationTag(i)}` },
+      { label: "合約編號", cell: (i) => `${escapeHtml(i.contract_code)}${contractSystemLink(i.external_code)}` },
+      { label: "到期警示", cell: (i) => expiryLightCell(i) },
       { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name) },
       { label: "類型", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.contract_type))}</span>` },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
@@ -397,6 +400,8 @@ function systemCodeCellPayment(payment) {
 // 合約細項不在本系統（使用者拍板 A4）：公司的合約都是 PDF，細項本來就在合約系統裡查，
 // 這裡只留合約編號，清單上給一個「查合約系統」的連結直接跳過去，不做匯入也不重存一份。
 // 樣板由後台設定：含 {code} 就把合約編號代進去，只填首頁網址就純粹開首頁。
+// 帶過去的是「公司內部合約系統編號」(external_code)，不是本系統的合約編號——
+// 助理 0803 明確要求兩者分開，拿本系統的號去查對方系統只會查不到。
 let contractSystemUrl = "";
 function contractSystemHref(code) {
   const base = String(contractSystemUrl || "").trim();
@@ -410,6 +415,23 @@ function contractSystemLink(code) {
   if (!href) return "";
   return ` <a class="ext-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer"`
     + ` title="到公司合約系統查這份合約的細項">🔗 合約系統</a>`;
+}
+
+// 合約到期警示（助理 0803）：紅=已到期、黃=3 個月內、綠=還早、灰=已整併或不續約。
+// 「沒填到期日」不併進綠燈——那是「不知道」不是「還早」，混在一起會讓人以為查過了。
+const EXPIRY_LIGHT = {
+  red: { dot: "🔴", label: "已到期" },
+  yellow: { dot: "🟡", label: "3個月內到期" },
+  green: { dot: "🟢", label: "尚未接近到期" },
+  gray: { dot: "⚪", label: "已整併／不續約" },
+  none: { dot: "—", label: "未設到期日" },
+};
+function expiryLightCell(k) {
+  const s = EXPIRY_LIGHT[k.expiry_light] || EXPIRY_LIGHT.none;
+  const warn = k.needs_progress_note
+    ? ` <span class="badge danger" title="快到期或已到期卻沒寫處理到哪：到期追蹤還不能算完成，請補『合約進度說明』">缺進度說明</span>` : "";
+  const note = String(k.progress_note || "").trim();
+  return `<span title="${escapeHtml(s.label)}${note ? "｜" + escapeHtml(note) : ""}">${s.dot} ${escapeHtml(s.label)}</span>${warn}`;
 }
 
 // 合約與舊約的關係：續約/增購/整併都指向同一個「來源合約」欄位，清單上直接標出來源編號，
@@ -2087,6 +2109,39 @@ async function loadParentContractOptions() {
   }
 }
 
+// 增購／附屬只能掛在「同一個案件底下的既有合約」上（助理 0803）：
+// 同案 0 份合約 → 這個選項直接停用（提示為什麼）；1 份 → 自動帶入且鎖住；2 份以上 → 要選。
+// 判斷邏輯在後端（/api/cases/{id}/addon-options），前端只負責照 mode 呈現。
+async function refreshAddonGate() {
+  const form = resourceForms.contract;
+  if (!form) return;
+  const nature = form.querySelector(".contract-nature-picker");
+  const parent = form.querySelector(".parent-contract-picker");
+  const caseId = form.elements.case_id ? form.elements.case_id.value : "";
+  const addonOpt = nature ? [...nature.options].find((o) => o.value === "addon") : null;
+  if (!nature || !parent || !addonOpt) return;
+  const hint = form.querySelector("[data-addon-hint]");
+  if (!caseId) {                       // 還沒選案件：無從判斷，先停用增購
+    addonOpt.disabled = true;
+    if (hint) hint.textContent = "選好關聯案件後，才知道能不能建增購／附屬合約。";
+    return;
+  }
+  let info;
+  try { info = (await api(`/api/cases/${caseId}/addon-options`)).data; } catch (_e) { return; }
+  addonOpt.disabled = info.mode === "disabled";
+  if (addonOpt.disabled && nature.value === "addon") nature.value = "";
+  if (hint) hint.textContent = info.hint;
+  const isAddon = nature.value === "addon";
+  // 只有一份既有合約時系統自動帶入並鎖住，避免有人手動改掛到別案的合約
+  if (isAddon && info.mode === "auto" && info.contracts.length === 1) {
+    parent.value = String(info.contracts[0].id);
+    parent.disabled = true;
+  } else {
+    parent.disabled = false;
+  }
+  parent.required = isAddon && info.mode === "choose";
+}
+
 async function loadPurchaseOptions() {
   const pickers = document.querySelectorAll(".purchase-picker");
   if (!pickers.length) return;
@@ -2117,6 +2172,12 @@ document.addEventListener("change", (event) => {
   if (!nameEl || nameEl.value.trim()) return;  // 已經有值就不覆蓋，避免蓋掉使用者已填的
   const c = caseOptionsCache.find((x) => String(x.id) === String(picker.value));
   if (c && c.title) nameEl.value = c.title;
+});
+
+// 換案件或改合約性質 → 重新判斷「增購／附屬」能不能選、原合約要不要自動帶
+document.addEventListener("change", (event) => {
+  if (!event.target.closest("#contract-form")) return;
+  if (event.target.matches(".case-picker, .contract-nature-picker")) refreshAddonGate();
 });
 
 // 追溯鏈：從案件一路看 簽呈 ▸ 請購 ▸ 合約 ▸ 付款（用 case_360 的聚合）。
@@ -3622,6 +3683,13 @@ async function loadOptions() {
     contractSystemUrl = o.contract_system_url || "";  // 合約系統連結樣板（後台可維護，空＝不顯示連結）
     personnelGroupOptions = o.person_groups || [];   // 人員組別選項（後台可維護）
     populatePersonnelGroupSelects();
+    // 地點／機房（可複選）：機房會增減改名，選項由後台維護，不寫死在前端
+    for (const sel of document.querySelectorAll(".contract-location-picker")) {
+      const picked = [...sel.selectedOptions].map((o) => o.value);
+      sel.innerHTML = (o.contract_locations || [])
+        .map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+      for (const opt of sel.options) opt.selected = picked.includes(opt.value);
+    }
     // 合約類型是 select（不是 datalist）：保留「未分類」預設項，其餘由後台選項維護
     for (const sel of document.querySelectorAll(".contract-type-picker")) {
       const cur = sel.value;
@@ -3966,6 +4034,11 @@ function serializeResourceForm(type) {
   const data = Object.fromEntries(new FormData(targetForm).entries());
   const id = data.id;
   delete data.id;
+  // 可複選欄位（合約的地點／機房）：FormData 每個選項各一筆，Object.fromEntries 只會留最後一個，
+  // 選了三個機房會只存到一個。改用 getAll 併成逗號分隔（後端就是這樣存）。
+  for (const sel of targetForm.querySelectorAll("select[multiple][name]")) {
+    data[sel.name] = new FormData(targetForm).getAll(sel.name).join(",");
+  }
   for (const field of config.numberFields) {
     // _id 結尾＝可為空的關聯外鍵，留空要送 null（不能送 0，0 不是合法的關聯目標）；
     // 其餘（金額/進度/數量…）留空視同 0，避免後端 float 欄位收到 null 報 422。
@@ -3998,11 +4071,21 @@ async function startResourceEdit(type, id) {
   // 合約：來源合約下拉要把「正在編輯的這份」拿掉（自己不能是自己的續約來源）。
   // 必須在下面填值之前重建選項，否則剛設好的 parent_contract_id 會被清掉。
   if (type === "contract") await loadParentContractOptions();
+  if (type === "contract") setTimeout(refreshAddonGate, 0);   // 值填完再判斷（下面才 set case_id）
   for (const field of config.fields) {
     const el = targetForm.elements[field];
     const val = item[field] ?? "";
     // select 若沒有這個值的選項（例如舊資料的單位名稱還沒登記進主檔），先補一個選項，
     // 避免編輯時看起來「值不見了」、存檔時被誤蓋成空白
+    if (el.tagName === "SELECT" && el.multiple) {
+      // 逗號分隔存、多選顯示：把存的字串拆回去逐項打勾（選項還沒登記的先補上，免得看起來值不見了）
+      const picked = String(val).split(",").map((v) => v.trim()).filter(Boolean);
+      for (const v of picked) {
+        if (![...el.options].some((o) => o.value === v)) el.add(new Option(`${v}（未登記）`, v));
+      }
+      for (const opt of el.options) opt.selected = picked.includes(opt.value);
+      continue;
+    }
     if (el.tagName === "SELECT" && val && ![...el.options].some((o) => o.value === String(val))) {
       el.add(new Option(`${val}（未登記）`, val));
     }

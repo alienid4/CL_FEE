@@ -458,8 +458,12 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     },
     "contracts": {
         "status": {"active", "reviewing", "closed", "disabled"},
-        # 與舊約的關係：空＝全新合約；renew續約 / addon增購 / merge整併（三者都要指 parent_contract_id）
+        # 合約性質（助理 0803 用語：新購／續約／增購附屬）＝與舊約的關係。
+        # 空＝新購；renew續約 / addon增購附屬 / merge整併（後三者都要指 parent_contract_id）。
+        # 與 contract_type（採購/維護/租賃…）不同：那是「買什麼」，這是「跟哪份舊約的關係」。
         "relation_type": {"", "renew", "addon", "merge"},
+        # 提前結束的原因：選了就轉灰燈（不再按到期日催）。空＝仍在正常存續。
+        "end_reason": {"", "merged", "not_renew"},
     },
     "payments": {
         "invoice_status": {"not_received", "received", "verified"},
@@ -603,6 +607,18 @@ def initialize_database() -> None:
         # 保固／維護到期日：與合約到期日不同（合約結束後保固/維護常還在跑），到期提醒要分開看
         ensure_column(conn, "contracts", "warranty_end_date", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "contracts", "maintenance_end_date", "TEXT NOT NULL DEFAULT ''")
+        # 助理 2026-08-03 欄位規格：合約主檔要能獨立回答「誰的約、跟誰簽、在哪個機房、
+        # 公司合約系統怎麼查、快到期了處理到哪」，這些原本得翻案件或問人。
+        ensure_column(conn, "contracts", "system_code", "TEXT NOT NULL DEFAULT ''")      # CT+年+流水，增購掛 A01
+        ensure_column(conn, "contracts", "system_seq", "INTEGER NOT NULL DEFAULT 0")     # 發號流水（只計自動發的）
+        ensure_column(conn, "contracts", "vendor_tax_id", "TEXT NOT NULL DEFAULT ''")    # 廠商統編，8 碼數字
+        ensure_column(conn, "contracts", "owner", "TEXT NOT NULL DEFAULT ''")            # 合約負責人
+        ensure_column(conn, "contracts", "group_name", "TEXT NOT NULL DEFAULT ''")       # 組別
+        ensure_column(conn, "contracts", "locations", "TEXT NOT NULL DEFAULT ''")        # 地點/機房，可複選（逗號分隔）
+        ensure_column(conn, "contracts", "external_code", "TEXT NOT NULL DEFAULT ''")    # 公司內部合約系統編號
+        ensure_column(conn, "contracts", "progress_note", "TEXT NOT NULL DEFAULT ''")    # 合約進度說明（黃/紅燈必填）
+        ensure_column(conn, "contracts", "end_reason", "TEXT NOT NULL DEFAULT ''")       # 已整併/不續約 → 燈號轉灰
+        ensure_column(conn, "contracts", "project_id", "INTEGER")                        # 對應專案
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -617,6 +633,7 @@ _FK_REFS = {
     "signoff_id": ("signoffs", "簽呈"),
     "purchase_id": ("purchases", "請購"),
     "parent_contract_id": ("contracts", "來源合約"),  # 續約/增購/整併指向的舊約
+    "project_id": ("projects", "專案"),               # 合約掛的專案（助理 0803）
 }
 
 
@@ -648,6 +665,88 @@ def _validate_contract_parent(conn: sqlite3.Connection, contract_id: int, parent
         if row is None or row["parent_contract_id"] is None:
             return
         cur = int(row["parent_contract_id"])
+
+
+_TAX_ID_OK = re.compile(r"^\d{8}$")
+
+
+def _validate_contract(conn: sqlite3.Connection, fields: dict[str, Any],
+                       before: dict[str, Any] | None = None) -> None:
+    """合約主檔的商業檢核（助理 0803 規格）。更新時只送部分欄位，所以拿舊值補齊再判——
+    不然「只改到期日」會因為看不到 progress_note 而誤判必填。"""
+    def val(key: str) -> str:
+        if key in fields:
+            return str(fields.get(key) or "").strip()
+        return str((before or {}).get(key) or "").strip()
+
+    tax = val("vendor_tax_id")
+    if tax and not _TAX_ID_OK.match(tax):
+        raise ValueError("廠商統一編號要是 8 碼數字。")
+
+    start, end = val("start_date"), val("end_date")
+    if start and end and end[:10] < start[:10]:
+        raise ValueError("合約迄日不能早於合約起日。")
+
+    # 「黃燈/紅燈要填進度說明」刻意不在這裡擋存檔——助理規格原文是
+    # 「到期警示為黃燈且進度說明未填寫時，不得將合約到期追蹤標示為完成」，
+    # 要的是追蹤不能算結案，不是不准建檔。擋存檔會連帶擋掉匯入既有合約、
+    # 示範資料與所有「先把約建進來、說明晚點補」的正常流程（那些約本來就快到期了）。
+    # 改成標記出來：contract_needs_progress_note() 供清單、待辦與提醒顯示。
+
+    # 增購／附屬一定要指到原合約，而且只能指同一個案件底下的——
+    # 跨案件掛增購，金額與追蹤都會算到別人的案子上
+    if val("relation_type") == "addon":
+        parent_id = fields.get("parent_contract_id", (before or {}).get("parent_contract_id"))
+        if not parent_id:
+            raise ValueError("增購／附屬合約必須指定原合約。")
+        parent = conn.execute(
+            "SELECT case_id FROM contracts WHERE id = ?", (int(parent_id),)).fetchone()
+        case_id = fields.get("case_id", (before or {}).get("case_id"))
+        if parent is not None and case_id and parent["case_id"] and int(parent["case_id"]) != int(case_id):
+            raise ValueError("原合約必須是同一個案件底下的合約。")
+
+
+def _next_contract_system_code(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str, Any]:
+    """配合約系統識別碼：新購/續約/整併＝CT＋年＋四位流水；增購附屬＝原識別碼＋A＋兩位流水。
+
+    年份取合約起日，沒填就用作業年度——識別碼要能一眼看出是哪一年的約，
+    用建檔當下的日期會讓補建的舊約掛到錯的年份。
+    """
+    if str(fields.get("relation_type") or "") == "addon" and fields.get("parent_contract_id"):
+        parent = conn.execute("SELECT system_code FROM contracts WHERE id = ?",
+                              (int(fields["parent_contract_id"]),)).fetchone()
+        base = str((parent or {})["system_code"] if parent else "").strip()
+        if base:
+            n = conn.execute(
+                "SELECT COUNT(*) c FROM contracts WHERE system_code LIKE ?", (base + "A%",)).fetchone()["c"]
+            for i in range(n + 1, n + 100):          # 撞號往後找，重跑不會蓋掉既有子號
+                code = f"{base}A{i:02d}"
+                if conn.execute("SELECT 1 FROM contracts WHERE system_code = ?", (code,)).fetchone() is None:
+                    return {"system_code": code, "system_seq": 0}
+    start = str(fields.get("start_date") or "").strip()
+    year = start[:4] if len(start) >= 4 and start[:4].isdigit() else get_working_year()
+    seq = conn.execute(
+        "SELECT COALESCE(MAX(system_seq), 0) + 1 AS n FROM contracts WHERE substr(system_code, 3, 4) = ?",
+        (year,)).fetchone()["n"]
+    return {"system_code": f"{CONTRACT_PREFIX}{year}{seq:04d}", "system_seq": seq}
+
+
+def contract_addon_options(case_id: int) -> dict[str, Any]:
+    """同一個案件底下可以當「原合約」的既有合約。
+
+    助理 0803 規格：0 筆 → 增購／附屬要停用（不給點）；1 筆 → 自動帶入且不給改；
+    2 筆以上 → 給使用者選，且必填。前端照 mode 決定怎麼顯示，判斷邏輯只留這一份。
+    """
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT id, system_code, contract_code, contract_name FROM contracts "
+            "WHERE case_id = ? AND status <> 'disabled' ORDER BY id", (case_id,)).fetchall()
+    items = [dict(r) for r in rows]
+    mode = "disabled" if not items else ("auto" if len(items) == 1 else "choose")
+    return {"case_id": case_id, "mode": mode, "count": len(items), "contracts": items,
+            "hint": {"disabled": "此案件尚無既有合約，無法建立增購／附屬合約。",
+                     "auto": "此案件只有一份合約，系統自動帶入為原合約。",
+                     "choose": "此案件有多份合約，請選擇要掛在哪一份底下。"}[mode]}
 
 
 def contract_lineage(contract_id: int) -> list[dict[str, Any]]:
@@ -689,6 +788,56 @@ def get_working_year() -> str:
 
 # 核銷編號：12 碼無連字號＝功能碼(4)＋西元年(4)＋流水號(4)，例 Sett20260012（主管指定格式）
 SETTLE_PREFIX = "Sett"
+
+# 合約系統識別碼：CT＋西元年＋四位流水（例 CT20260001）。增購／附屬掛在原合約底下，
+# 用「原識別碼＋A＋兩位流水」（例 CT20260001A01），一眼看得出誰是誰的增購。
+# 助理 0803 文件寫成 CT-2026-0001，但主管交代編號不得含連字號，故拿掉分隔符（見 _CODE_OK）。
+CONTRACT_PREFIX = "CT"
+CONTRACT_LIGHT_LABEL = {"red": "已到期", "yellow": "3 個月內到期", "green": "尚未接近到期",
+                        "gray": "已整併／不續約", "none": "未設到期日"}
+
+
+def contract_expiry_light(end_date: Any, end_reason: Any = "", today: date | None = None) -> str:
+    """合約到期警示（助理 0803 規格）：
+    紅＝已到期／黃＝距到期日 3 個月內／綠＝超過 3 個月／灰＝已整併或不續約。
+
+    灰燈優先於日期：已經整併或確定不續約的約，再催到期沒有意義。
+    沒填到期日回 none——「沒有日期」跟「日期還很遠」是兩回事，混成綠燈會讓人以為查過了。
+    即時計算不落地：燈號每天都在變，存進資料庫就得靠排程去刷，漏跑一天就是錯的。
+    """
+    if str(end_reason or "").strip() in ("merged", "not_renew"):
+        return "gray"
+    raw = str(end_date or "").strip()
+    if not raw:
+        return "none"
+    try:
+        due = datetime.strptime(raw[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return "none"
+    now = today or date.today()
+    if due < now:
+        return "red"
+    return "yellow" if due <= _add_months_date(now, 3) else "green"
+
+
+def contract_needs_progress_note(row: Any) -> bool:
+    """這份合約「到期追蹤還不能算完成」——快到期或已到期，卻沒寫處理到哪。
+
+    助理 0803 規格：黃燈且進度說明未填時，不得把到期追蹤標示為完成。
+    做成旗標而不是存檔檢核，既有合約與匯入資料才進得來（它們一進來常常就是黃燈）。
+    """
+    row = dict(row)   # sqlite3.Row 沒有 .get()，先轉成 dict 統一取值
+    light = contract_expiry_light(row.get("end_date"), row.get("end_reason"))
+    return light in ("yellow", "red") and not str(row.get("progress_note") or "").strip()
+
+
+def _add_months_date(d: date, months: int) -> date:
+    """d 往後 n 個月；當月沒有那一天就取月底（例：11/30 + 3 個月 → 2/28）。"""
+    y, m = divmod(d.year * 12 + (d.month - 1) + months, 12)
+    m += 1
+    last = [31, 29 if (y % 4 == 0 and y % 100 != 0) or y % 400 == 0 else 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]
+    return date(y, m, min(d.day, last))
 
 # 主管交代（2026-08-03）：系統自動產生的編號一律不得含連字號、底線與中文，
 # 只能是英數。理由是這些號碼要能貼進其他系統、當檔名、當搜尋關鍵字，
@@ -828,6 +977,20 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         # 主管 2026-08-03 交代編號不得含連字號，所以是 TMP20260001 而不是 TMP-2026-0001。
         if not str(fields.get("case_code") or "").strip():
             fields["case_code"] = f"TMP{fields.get('fiscal_year', '')}{tmp:04d}"
+    if table == "contracts":
+        # 助理 0803 規格：合約主檔要有自己的系統識別碼（跟公司合約系統編號分開），
+        # 增購／附屬掛在原合約底下用子號。檢核也在這裡做，走 API 或程式進來都擋得到。
+        _validate_contract(conn, fields)
+        if not str(fields.get("system_code") or "").strip():
+            fields = {**fields, **_next_contract_system_code(conn, fields)}
+        # 對應專案是系統關聯（助理註明「無須顯示給使用者」）：合約掛在案件上，
+        # 案件底下有專案就自動接起來，不要求人再選一次。
+        if not fields.get("project_id") and fields.get("case_id"):
+            prj = conn.execute(
+                "SELECT id FROM projects WHERE case_id = ? AND status <> 'disabled' ORDER BY id LIMIT 1",
+                (int(fields["case_id"]),)).fetchone()
+            if prj is not None:
+                fields["project_id"] = prj["id"]
     if table == "projects" and not str(fields.get("project_code") or "").strip():
         # 需求書 §6「專案不另設代號」＋助理回饋的新案申請沒有代號欄；系統自己配一個唯一碼，
         # 讓內部關聯與匯出仍有穩定識別（用 id 當流水，必唯一）。
@@ -1134,7 +1297,9 @@ def allowed_fields() -> dict[str, set[str]]:
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
                       "payment_method", "installments",
                       "start_date", "contract_type", "parent_contract_id", "relation_type",
-                      "warranty_end_date", "maintenance_end_date"},
+                      "warranty_end_date", "maintenance_end_date",
+                      "vendor_tax_id", "owner", "group_name", "locations", "external_code",
+                      "progress_note", "end_reason", "project_id"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount",
@@ -1207,8 +1372,10 @@ def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, An
         for key, value in payload.items()
         if key in allowed[table] and (value is not None or key in nullable)
     }
-    if scope is not None:
+    if scope is not None and table == "cases":
         fields.pop("owner", None)  # 承辦不得竄改案件歸屬（避免竊佔/送人）
+        # 限 cases：合約也有 owner（合約負責人），那是合約主檔自己的欄位，
+        # 跟「這件案子歸誰」不是同一回事，不能一起擋掉，否則承辦連自己的合約負責人都填不了。
     if not fields:
         raise ValueError("No valid fields supplied.")
     validate_status_fields(table, fields)
@@ -1218,8 +1385,10 @@ def update_row(table: str, row_id: int, payload: dict[str, Any]) -> dict[str, An
         if scope is not None and not _row_in_scope(conn, table, row_id, scope):
             raise LookupError(f"{table} row {row_id} not found")  # 非本人範圍，視同不存在
         _validate_fks(conn, fields)
-        if table == "contracts" and fields.get("parent_contract_id") is not None:
-            _validate_contract_parent(conn, row_id, int(fields["parent_contract_id"]))
+        if table == "contracts":
+            if fields.get("parent_contract_id") is not None:
+                _validate_contract_parent(conn, row_id, int(fields["parent_contract_id"]))
+            _validate_contract(conn, fields, dict(before))   # 帶舊值：只改一欄也要判得出必填
         cursor = conn.execute(
             f"UPDATE {table} SET {assignments} WHERE id = ?",
             [*fields.values(), row_id],
@@ -1470,7 +1639,19 @@ def list_rows(table: str, limit: int = 100) -> list[dict[str, Any]]:
         sql += f" WHERE {where}"
     sql += " ORDER BY id DESC LIMIT ?"
     with connect() as conn:
-        return conn.execute(sql, [*params, max(1, min(limit, 500))]).fetchall()
+        rows = conn.execute(sql, [*params, max(1, min(limit, 500))]).fetchall()
+    if table == "contracts":
+        # 到期警示即時算（助理 0803）：燈號每天都在變，存進資料庫就得靠排程刷，
+        # 漏跑一天畫面就是錯的。讀出來時算，永遠是今天的答案。
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["expiry_light"] = contract_expiry_light(d.get("end_date"), d.get("end_reason"))
+            # 到期追蹤還不能算完成：快到期／已到期卻沒寫處理到哪（助理 0803）
+            d["needs_progress_note"] = contract_needs_progress_note(d)
+            out.append(d)
+        rows = out
+    return rows
 
 
 def list_projects(limit: int = 100) -> list[dict[str, Any]]:
@@ -4781,6 +4962,36 @@ def backfill_case_numbers() -> int:
             conn.execute("UPDATE cases SET fiscal_year=?, seq=? WHERE id=?", (fy, nxt, r["id"]))
             filled += 1
     return filled
+
+
+def backfill_contract_system_codes() -> dict[str, int]:
+    """幫既有合約補系統識別碼（助理 0803 規格：每份合約都要有 CT 開頭的識別碼）。
+
+    分兩輪：先補主約、再補增購／附屬。順序不能反——增購的子號是「原合約識別碼＋A01」，
+    父的還沒有號的話子的就配不出來。冪等：已經有號的不動，重跑不會換號。
+    """
+    filled = addon = 0
+    with connect() as conn:
+        for is_addon_pass in (False, True):
+            rows = conn.execute(
+                "SELECT id, relation_type, parent_contract_id, start_date FROM contracts "
+                "WHERE COALESCE(system_code, '') = '' ORDER BY id").fetchall()
+            for r in rows:
+                row_is_addon = str(r["relation_type"] or "") == "addon" and bool(r["parent_contract_id"])
+                if row_is_addon is not is_addon_pass:
+                    continue
+                code = _next_contract_system_code(conn, {
+                    "relation_type": r["relation_type"],
+                    "parent_contract_id": r["parent_contract_id"],
+                    "start_date": r["start_date"],
+                })
+                conn.execute("UPDATE contracts SET system_code = ?, system_seq = ? WHERE id = ?",
+                             (code["system_code"], code["system_seq"], r["id"]))
+                write_audit_log(conn, "contracts", r["id"], "system_code",
+                                None, {"system_code": code["system_code"]})
+                filled += 1
+                addon += 1 if row_is_addon else 0
+    return {"filled": filled, "addon_filled": addon}
 
 
 def backfill_settle_numbers() -> int:

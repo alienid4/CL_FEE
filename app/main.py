@@ -194,6 +194,16 @@ class ContractIn(BaseModel):
     relation_type: str = ""
     warranty_end_date: str = ""
     maintenance_end_date: str = ""
+    # 助理 0803 欄位規格：合約主檔要能自己回答「跟誰簽、誰負責、哪個機房、
+    # 公司合約系統怎麼查、快到期處理到哪」
+    vendor_tax_id: str = ""
+    owner: str = ""
+    group_name: str = ""
+    locations: str = ""          # 可複選，逗號分隔
+    external_code: str = ""      # 公司內部合約系統編號
+    progress_note: str = ""
+    end_reason: str = ""         # merged 已整併 / not_renew 不續約 → 燈號轉灰
+    project_id: int | None = None
 
     @field_validator("amount")
     @classmethod
@@ -219,6 +229,14 @@ class ContractPatch(BaseModel):
     relation_type: str | None = None
     warranty_end_date: str | None = None
     maintenance_end_date: str | None = None
+    vendor_tax_id: str | None = None
+    owner: str | None = None
+    group_name: str | None = None
+    locations: str | None = None
+    external_code: str | None = None
+    progress_note: str | None = None
+    end_reason: str | None = None
+    project_id: int | None = None
 
 
 class PaymentIn(BaseModel):
@@ -726,6 +744,7 @@ class SettingsPatch(BaseModel):
     opt_project_rag: str | None = None
     opt_contract_type: str | None = None
     opt_person_groups: str | None = None
+    opt_contract_locations: str | None = None
     contract_system_url: str | None = None
 
 
@@ -750,7 +769,7 @@ class UserPatch(BaseModel):
 SETTINGS_PUBLIC_KEYS = [
     "smtp_host", "smtp_port", "smtp_user", "smtp_from", "email_map", "notify_enabled",
     "opt_budget_categories", "opt_project_necessity", "opt_project_level", "opt_project_rag",
-    "opt_contract_type", "opt_person_groups", "contract_system_url",
+    "opt_contract_type", "opt_person_groups", "opt_contract_locations", "contract_system_url",
 ]
 
 # 主檔選項預設（後台未設定時採用）
@@ -762,6 +781,9 @@ OPTION_DEFAULTS = {
     "opt_contract_type": "採購,維護,租賃,軟體授權,服務,其他",
     # 人員歸屬組別：不同單位組織不一樣，所以做成後台可改的選項，不寫死
     "opt_person_groups": "資料庫組,網路組,主機組,專案及流程管理組",
+    # 合約地點／機房（助理 0803 給的清單）：機房會增減、也可能改名，同樣做成後台可維護，
+    # 不寫死在程式裡——寫死的話多一個機房就要改版
+    "opt_contract_locations": "板橋,內湖,敦南,國際大樓,COLO,分公司",
 }
 
 
@@ -782,7 +804,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.62.1 · 2026-08-07 · 補上編號規則的漏網：專案 Excel 匯入原本用「工作表名-流水」當代號，會產生含中文與連字號的編號"
+BACKEND_BUILD = "v0.63.0 · 2026-08-07 · 合約主檔補齊助理 0803 欄位：系統識別碼(增購掛 A01 子號)、統編、負責人、組別、機房(可複選)、公司合約系統編號、到期警示四色三個月制、黃紅燈必填進度說明"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1188,6 +1210,7 @@ def create_app() -> FastAPI:
             "project_rag": _option_list("opt_project_rag"),
             "contract_type": _option_list("opt_contract_type"),
             "person_groups": _option_list("opt_person_groups"),
+            "contract_locations": _option_list("opt_contract_locations"),
             # 合約細項不進本系統（使用者拍板 A4：合約都是 PDF，細項在公司合約系統裡），
             # 這裡只存合約編號＋一個「查細項」連結樣板，讓人一鍵跳過去查，不用再輸一次。
             "contract_system_url": store_get_settings(["contract_system_url"])["contract_system_url"],
@@ -1467,6 +1490,12 @@ def create_app() -> FastAPI:
     @app.post("/api/dev-console/case-codes/fix")
     def case_codes_fix() -> dict[str, Any]:
         return ok(backfill_case_codes())
+
+    @app.post("/api/dev-console/contract-codes/fix")
+    def contract_codes_fix() -> dict[str, Any]:
+        # 合約系統識別碼是這次(0803)才加的欄位，既有合約都是空的 → 補發。
+        # 只補沒有的、先主約後增購，重跑不會換號。
+        return ok(store.backfill_contract_system_codes())
 
     @app.get("/api/audit-logs")
     def audit_logs(
@@ -1812,6 +1841,12 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return list_adjustments(contract_id)
+
+    @app.get("/api/cases/{case_id}/addon-options")
+    def contract_addon_options(case_id: int) -> dict[str, Any]:
+        # 增購／附屬能不能建、原合約要不要選（助理 0803）：
+        # 同案 0 份合約→停用、1 份→自動帶入、2 份以上→必選。判斷只留在後端一份。
+        return ok(store.contract_addon_options(case_id))
 
     @app.get("/api/contracts/{contract_id}/lineage")
     def contract_lineage(contract_id: int) -> dict[str, Any]:

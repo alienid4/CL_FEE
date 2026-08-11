@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-62-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-63-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -918,13 +918,25 @@
             <input name="end_date" placeholder="到期日" type="date" />
             <input name="warranty_end_date" placeholder="保固到期" type="date" title="保固到期日（常晚於合約到期日）" />
             <input name="maintenance_end_date" placeholder="維護到期" type="date" title="維護服務到期日" />
-            <select name="relation_type" title="與舊約的關係">
-              <option value="">全新合約</option>
+            <select name="relation_type" class="contract-nature-picker" title="合約性質：跟舊約的關係（跟上面的「合約類型」不同，那是買什麼）">
+              <option value="">新購（全新合約）</option>
               <option value="renew">續約自…</option>
-              <option value="addon">增購自…</option>
+              <option value="addon">增購／附屬自…</option>
               <option value="merge">整併自…</option>
             </select>
-            <select name="parent_contract_id" class="parent-contract-picker" title="來源合約（續約/增購/整併的那份舊約）"><option value="">（無來源合約）</option></select>
+            <select name="parent_contract_id" class="parent-contract-picker" title="原合約（續約/增購/整併的那份舊約），限同一案件底下"><option value="">（無來源合約）</option></select>
+            <input name="vendor_tax_id" placeholder="廠商統一編號（8 碼數字）" inputmode="numeric" pattern="\d{8}" title="8 碼數字" />
+            <select name="owner" class="personnel-select" data-placeholder="合約負責人" title="合約負責人（人員主檔的名單）"></select>
+            <select name="group_name" class="person-group-select" title="組別"><option value="">（未分組）</option></select>
+            <select name="locations" class="contract-location-picker" multiple size="3" title="地點／機房，可複選（按住 Ctrl 多選）"></select>
+            <input name="external_code" placeholder="公司內部合約系統編號" title="公司既有合約系統裡的編號，跟本系統的識別碼不同；填了清單才會出現「🔗 合約系統」連結" />
+            <select name="end_reason" title="提前結束的原因，選了到期警示轉灰燈（不再催到期）">
+              <option value="">（仍在存續）</option>
+              <option value="merged">已整併</option>
+              <option value="not_renew">不續約</option>
+            </select>
+            <input name="progress_note" placeholder="合約進度說明（黃燈／紅燈必填）" title="距到期 3 個月內或已到期時必填：續約、整併、不續約或目前處理到哪" />
+            <p class="form-hint muted" data-addon-hint role="status" aria-live="polite"></p>
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
@@ -1112,6 +1124,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-62-1"></script>
+    <script src="/static/app.js?v=v0-63-0"></script>
   </body>
 </html>
