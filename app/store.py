@@ -313,6 +313,48 @@ CREATE TABLE IF NOT EXISTS expense_schedules (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 第三層之一 最低承諾金額的實際費用明細（助理 0803 附件一第六節）：
+-- 承諾金額只是門檻，每期實際用了多少要在這裡登錄，系統再回寫承諾達成情形。
+CREATE TABLE IF NOT EXISTS expense_actuals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL,
+    schedule_id INTEGER NOT NULL,                    -- 對應第二層某一期排程
+    commit_period INTEGER NOT NULL DEFAULT 0,        -- 所屬承諾期別（系統帶）
+    usage_amount REAL NOT NULL DEFAULT 0,            -- 當期使用／應付金額（依認列基礎）
+    billing_start TEXT NOT NULL DEFAULT '',
+    billing_end TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    adjust_amount REAL NOT NULL DEFAULT 0,           -- 折讓／退款／前期調整，可正可負
+    adjust_reason TEXT NOT NULL DEFAULT '',          -- 調整金額不為 0 時必填
+    recognized_amount REAL NOT NULL DEFAULT 0,       -- 系統算：使用金額＋調整金額
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 第三層之二 請款／核銷（助理 0803）：一次作業只對一筆排程＋一張發票，不得複選。
+CREATE TABLE IF NOT EXISTS expense_settlements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    expense_id INTEGER NOT NULL,
+    section_id INTEGER NOT NULL,
+    schedule_id INTEGER NOT NULL,                    -- 單選一筆已確認的排程
+    actual_id INTEGER,                               -- 最低承諾模式：關聯一筆實際費用明細
+    settle_month TEXT NOT NULL DEFAULT '',           -- 費用核銷月份（系統帶、可調）
+    billing_start TEXT NOT NULL DEFAULT '',
+    billing_end TEXT NOT NULL DEFAULT '',
+    vendor_name TEXT NOT NULL DEFAULT '',
+    vendor_tax_id TEXT NOT NULL DEFAULT '',
+    invoice_date TEXT NOT NULL DEFAULT '',
+    invoice_no TEXT NOT NULL DEFAULT '',
+    claim_amount REAL NOT NULL DEFAULT 0,            -- 廠商本次請款金額
+    progress TEXT NOT NULL DEFAULT 'invoice_pending',
+    confirmed INTEGER NOT NULL DEFAULT 0,            -- 承辦「確認完成」→ 通知核銷者
+    settler TEXT NOT NULL DEFAULT '',                -- 核銷者
+    signoff_no TEXT NOT NULL DEFAULT '',             -- 費用核銷簽呈編號
+    doc_ref TEXT NOT NULL DEFAULT '',                -- 請款文件
+    diff_reason TEXT NOT NULL DEFAULT '',            -- 請款差異不為 0 時必填
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
@@ -553,6 +595,13 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
         "price_method": {"", "percent", "fixed"},
         "frequency": {"", "monthly", "quarterly", "semi", "yearly"},
         "status": {"draft", "confirmed"},
+        # 最低承諾金額：後續各期承諾金額怎麼來、達成率用哪個金額算
+        "next_amount_rule": {"", "same", "growth", "manual"},
+        "achievement_basis": {"", "usage", "payable"},   # 使用金額／應付金額
+    },
+    "expense_settlements": {
+        # 助理 0803 第六節的處理進度五態，預設「發票尚未收到」
+        "progress": {"invoice_pending", "ready_to_sign", "signing", "approved", "submitted"},
     },
     "purchases": {
         "status": {"pending", "ordered", "arrived", "closed", "disabled"},
@@ -604,6 +653,20 @@ def initialize_database() -> None:
         # 助理 0803 附件二第三點：專案建立時先問「涉及請購或合約？」——
         # 是 → 自動排標準採購流程的工作項；否 → 由同仁自己建需要的工作項。
         ensure_column(conn, "projects", "involves_procurement", "INTEGER NOT NULL DEFAULT 0")
+        # 費用模組第二層「最低承諾金額」模式（助理 0803 附件一 5.3）：
+        # 承諾金額是費用管理門檻，不是每期一次付清；實際發生的費用在第三層登錄，
+        # 系統再回頭算各期達成率、未達差額與超額轉入。
+        ensure_column(conn, "expense_sections", "commit_span_months", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "expense_sections", "next_amount_rule", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "expense_sections", "growth_pct", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "expense_sections", "carry_over", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "expense_sections", "achievement_basis", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "expense_sections", "shortfall_action", "TEXT NOT NULL DEFAULT ''")
+        # 排程明細屬於第幾個承諾期（最低承諾金額才有值）
+        ensure_column(conn, "expense_schedules", "commit_period", "INTEGER NOT NULL DEFAULT 0")
+        # 已封存的舊版費用區段（重新編輯時整段複製留存）：清單要看得到，但金額不能再被算一次——
+        # 不標的話總費用檢核與「排程總額」會把同一段算兩遍。
+        ensure_column(conn, "expense_sections", "archived", "INTEGER NOT NULL DEFAULT 0")
         # WBS 燈號是「人工指定」還是「系統自動判的」——不分開的話，自動判出來的值存進去之後
         # 會被誤認為人工指定，之後改子項目數就再也不會重算（做完了還掛著黃燈）。
         # 需求書 §6：「燈號可由系統判斷，也保留人工調整」，所以兩種都要留得住。
@@ -712,6 +775,8 @@ _FK_REFS = {
     "project_id": ("projects", "專案"),               # 合約掛的專案（助理 0803）
     "expense_id": ("expense_masters", "費用主檔"),     # 費用區段掛的主檔
     "section_id": ("expense_sections", "費用區段"),    # 排程明細掛的區段
+    "schedule_id": ("expense_schedules", "費用排程"),  # 第三層請款／實際費用對應的那一期
+    "actual_id": ("expense_actuals", "實際費用明細"),
 }
 
 
@@ -1409,10 +1474,19 @@ def allowed_fields() -> dict[str, set[str]]:
                             "signoff_none_reason", "owner", "note", "status"},
         "expense_sections": {"expense_id", "mode", "section_name", "section_amount", "price_method",
                              "periods", "frequency", "period_start", "period_end", "first_amount",
-                             "first_month", "first_due_date", "note", "status", "version"},
+                             "first_month", "first_due_date", "note", "status", "version",
+                             "commit_span_months", "next_amount_rule", "growth_pct", "carry_over",
+                             "achievement_basis", "shortfall_action"},
         "expense_schedules": {"section_id", "seq", "milestone_name", "custom_name", "percent",
                               "planned_amount", "expense_month", "billing_start", "billing_end",
-                              "due_date", "note", "manual_adjusted"},
+                              "due_date", "note", "manual_adjusted", "commit_period"},
+        "expense_actuals": {"section_id", "schedule_id", "commit_period", "usage_amount",
+                            "billing_start", "billing_end", "description", "adjust_amount",
+                            "adjust_reason", "recognized_amount"},
+        "expense_settlements": {"expense_id", "section_id", "schedule_id", "actual_id", "settle_month",
+                                "billing_start", "billing_end", "vendor_name", "vendor_tax_id",
+                                "invoice_date", "invoice_no", "claim_amount", "progress", "confirmed",
+                                "settler", "signoff_no", "doc_ref", "diff_reason", "note"},
     }
 
 
@@ -5155,11 +5229,103 @@ def generate_section_schedules(section_id: int) -> dict[str, Any]:
                     "expense_month": _month_add(sec["first_month"], i * step),
                     "due_date": _date_add_months(sec["first_due_date"], i * step),
                 })
+        elif mode == "commitment":
+            rows = _commitment_rows(sec)
         else:
             raise ValueError(f"{EXPENSE_MODE_LABEL.get(mode, mode)}模式的排程產生還沒開放。")
         for r in rows:
             _insert_row(conn, "expense_schedules", {**r, "section_id": section_id})
     return section_preview(section_id)
+
+
+def _commitment_rows(sec: Any) -> list[dict[str, Any]]:
+    """最低承諾金額（助理 0803 附件一 5.3）：先算各承諾期間的起訖，再依費用頻率在期間內鋪排程。
+
+    承諾金額是「這段期間至少要用掉多少」的門檻，不是每期一次付清——所以排程列的金額是
+    該承諾期的承諾金額攤到各期，實際發生多少要等第三層登錄後才算得出達成率。
+    即使承諾金額提前達成，仍保留後續排程到期間屆滿（助理明講）。
+    """
+    n = int(sec["periods"] or 0)                      # 承諾期數
+    span = int(sec["commit_span_months"] or 0)        # 每期期間長度（月）
+    step = _FREQ_MONTHS.get(str(sec["frequency"] or ""), 0)
+    start = str(sec["period_start"] or "").strip()
+    if n < 1 or span < 1 or not step:
+        raise ValueError("最低承諾金額要填承諾期數、每期期間長度（月）與費用頻率。")
+    if not start:
+        raise ValueError("最低承諾金額要填第一期承諾起日。")
+    if span % step:
+        raise ValueError(
+            f"每期期間長度 {span} 個月，除不盡費用頻率（{FREQ_LABEL_ZH.get(sec['frequency'], sec['frequency'])}）；"
+            "請調整成整數倍，否則同一期會被切一半。")
+    rule = str(sec["next_amount_rule"] or "same")
+    growth = float(sec["growth_pct"] or 0)
+    rows: list[dict[str, Any]] = []
+    seq = 0
+    amount = float(sec["first_amount"] or 0)
+    for p in range(n):                                 # 每個承諾期
+        p_start = _date_add_months(start, p * span)
+        per_period = round(amount / (span // step), 2) if span >= step else amount
+        for k in range(span // step):
+            seq += 1
+            offset = p * span + k * step
+            rows.append({
+                "seq": seq,
+                "commit_period": p + 1,
+                "planned_amount": per_period,
+                "expense_month": _month_add(p_start[:7], k * step),
+                "billing_start": _date_add_months(start, offset),
+                "billing_end": _date_add_months(start, offset + step),
+                "note": f"第 {p + 1} 承諾期",
+            })
+        if rule == "growth":
+            amount = round(amount * (1 + growth / 100), 2)
+    return rows
+
+
+FREQ_LABEL_ZH = {"monthly": "每月", "quarterly": "每季", "semi": "每半年", "yearly": "每年"}
+
+
+def commitment_achievement(section_id: int) -> dict[str, Any]:
+    """各承諾期的達成情形（助理 0803）：承諾金額、實際認列、達成率、未達差額、超額與轉入。
+
+    認列金額＝第三層登錄的實際費用（依設定的認列基礎），沒登錄的期別就是 0——
+    這時要顯示「尚未登錄」而不是「達成率 0%」，兩者意思完全不同。
+    """
+    with connect() as conn:
+        sec = dict(get_row(conn, "expense_sections", section_id))
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM expense_schedules WHERE section_id = ? ORDER BY seq", (section_id,)).fetchall()]
+        actuals = {r["schedule_id"]: r for r in conn.execute(
+            "SELECT schedule_id, SUM(recognized_amount) AS recognized, COUNT(*) AS n "
+            "FROM expense_actuals WHERE section_id = ? GROUP BY schedule_id", (section_id,)).fetchall()}
+    periods: dict[int, dict[str, Any]] = {}
+    for r in rows:
+        p = int(r["commit_period"] or 0)
+        d = periods.setdefault(p, {"commit_period": p, "committed": 0.0, "recognized": 0.0,
+                                   "logged": 0, "schedule_count": 0})
+        d["committed"] += float(r["planned_amount"] or 0)
+        d["schedule_count"] += 1
+        act = actuals.get(r["id"])
+        if act:
+            d["recognized"] += float(act["recognized"] or 0)
+            d["logged"] += int(act["n"] or 0)
+    out = []
+    carry = 0.0
+    for p in sorted(periods):
+        d = periods[p]
+        committed = round(d["committed"], 2)
+        recognized = round(d["recognized"] + (carry if int(sec["carry_over"] or 0) else 0), 2)
+        shortfall = round(max(committed - recognized, 0), 2)
+        excess = round(max(recognized - committed, 0), 2)
+        carry = excess if int(sec["carry_over"] or 0) else 0.0
+        out.append({**d, "committed": committed, "recognized": recognized,
+                    "shortfall": shortfall, "excess": excess,
+                    # 一筆都沒登錄 → 給 None 表示「還不知道」，不要拿 0% 混充「沒達成」
+                    "rate": None if not d["logged"] else (round(recognized / committed * 100, 1) if committed else None),
+                    "carry_in_next": carry})
+    return {"section_id": section_id, "carry_over": bool(int(sec["carry_over"] or 0)),
+            "basis": sec["achievement_basis"] or "usage",
+            "shortfall_action": sec["shortfall_action"], "periods": out}
 
 
 def _money_eq(a: float, b: float) -> bool:
@@ -5208,8 +5374,10 @@ def expense_master_check(expense_id: int) -> dict[str, Any]:
     """第一層總費用 vs 第二層各費用區段的加總（混合型時每個模式一個區段）。"""
     with connect() as conn:
         master = dict(get_row(conn, "expense_masters", expense_id))
+        # 只算現行版本：重新編輯留下來的舊版標了 archived，再算一次會讓總額憑空翻倍
         sections = [dict(r) for r in conn.execute(
-            "SELECT * FROM expense_sections WHERE expense_id = ? ORDER BY id", (expense_id,)).fetchall()]
+            "SELECT * FROM expense_sections WHERE expense_id = ? AND archived = 0 ORDER BY id",
+            (expense_id,)).fetchall()]
     section_total = round(sum(float(s["section_amount"] or 0) for s in sections), 2)
     total = float(master["total_amount"] or 0)
     diff = round(total - section_total, 2)
@@ -5251,8 +5419,10 @@ def reopen_section(section_id: int) -> dict[str, Any]:
         keep = {k: v for k, v in sec.items() if k in allowed_fields()["expense_sections"]}
         keep.update({"status": "confirmed", "version": int(sec["version"] or 1)})
         archived = _insert_row(conn, "expense_sections", keep)
-        conn.execute("UPDATE expense_sections SET confirmed_by = ?, confirmed_at = ? WHERE id = ?",
-                     (sec["confirmed_by"], sec["confirmed_at"], archived["id"]))
+        # 舊版標成已封存：清單仍看得到（查得到當初確認了什麼），但金額不再進任何加總
+        conn.execute(
+            "UPDATE expense_sections SET confirmed_by = ?, confirmed_at = ?, archived = 1 WHERE id = ?",
+            (sec["confirmed_by"], sec["confirmed_at"], archived["id"]))
         for r in conn.execute("SELECT * FROM expense_schedules WHERE section_id = ?", (section_id,)).fetchall():
             row = {k: v for k, v in dict(r).items() if k in allowed_fields()["expense_schedules"]}
             _insert_row(conn, "expense_schedules", {**row, "section_id": archived["id"]})
@@ -5276,6 +5446,147 @@ def list_expense_sections(expense_id: int) -> list[dict[str, Any]]:
                 "SELECT COUNT(*) n FROM expense_schedules WHERE section_id = ?", (r["id"],)).fetchone()["n"]
             out.append(d)
     return out
+
+
+# ── 費用模組第三層：實際費用明細與請款／核銷（助理 0803 附件一第六節）────────────
+SETTLE_PROGRESS_LABEL = {
+    "invoice_pending": "發票尚未收到", "ready_to_sign": "可預備上簽",
+    "signing": "款項簽核中", "approved": "款項已核准", "submitted": "提交會計（結案）",
+}
+
+
+def add_expense_actual(schedule_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """登錄最低承諾金額的當期實際費用。認列金額由系統算（使用金額＋調整金額），不讓人手填——
+    手填的話跟兩個來源欄位對不起來，達成率就查不出是怎麼算的。"""
+    with connect() as conn:
+        sched = get_row(conn, "expense_schedules", schedule_id)
+        sec = get_row(conn, "expense_sections", sched["section_id"])
+        if sec["mode"] != "commitment":
+            raise ValueError("實際費用明細只適用「最低承諾金額」模式；其他模式請直接建立請款／核銷資料。")
+        if sec["status"] != "confirmed":
+            raise RuntimeError("這個費用區段還沒確認排程，先確認後再登錄實際費用。")
+        usage = float(payload.get("usage_amount") or 0)
+        adjust = float(payload.get("adjust_amount") or 0)
+        if adjust and not str(payload.get("adjust_reason") or "").strip():
+            raise ValueError("有填調整金額就要寫調整原因（折讓、退款或前期調整都要說明）。")
+        row = _insert_row(conn, "expense_actuals", {
+            **{k: v for k, v in payload.items() if k in allowed_fields()["expense_actuals"]},
+            "section_id": sched["section_id"],
+            "schedule_id": schedule_id,
+            "commit_period": sched["commit_period"],
+            "billing_start": payload.get("billing_start") or sched["billing_start"],
+            "billing_end": payload.get("billing_end") or sched["billing_end"],
+            "recognized_amount": round(usage + adjust, 2),
+        })
+    return dict(row)
+
+
+def create_settlement(schedule_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """建立請款／核銷資料。
+
+    助理 0803 的硬規則：一次作業只能對「一筆已確認的排程」＋「一張發票」，不得複選。
+    所以這裡用 schedule_id 當入口，其餘關聯（費用主檔、區段、廠商、計費期間）全部由系統帶，
+    人只填發票與請款金額——欄位少一個就少一個填錯的機會。
+    """
+    with connect() as conn:
+        sched = get_row(conn, "expense_schedules", schedule_id)
+        sec = get_row(conn, "expense_sections", sched["section_id"])
+        master = get_row(conn, "expense_masters", sec["expense_id"])
+        if sec["status"] != "confirmed":
+            raise RuntimeError("這筆排程所屬的費用區段還沒確認，確認後才能建立請款／核銷資料。")
+        inv = str(payload.get("invoice_no") or "").strip()
+        if inv:
+            dup = conn.execute(
+                "SELECT id FROM expense_settlements WHERE invoice_no = ? AND schedule_id = ?",
+                (inv, schedule_id)).fetchone()
+            if dup is not None:
+                raise ValueError(f"發票號碼 {inv} 已經對這一期排程建過請款資料了（第 {dup['id']} 筆）。")
+        claim = float(payload.get("claim_amount") or 0)
+        diff = round(float(sched["planned_amount"] or 0) - claim, 2)
+        if abs(diff) >= 0.01 and not str(payload.get("diff_reason") or "").strip():
+            raise ValueError(
+                f"本次請款 {claim:,.0f} 元與排程應付 {float(sched['planned_amount'] or 0):,.0f} 元"
+                f"差 {abs(diff):,.0f} 元，請填差異原因。")
+        row = _insert_row(conn, "expense_settlements", {
+            **{k: v for k, v in payload.items() if k in allowed_fields()["expense_settlements"]},
+            "expense_id": sec["expense_id"],
+            "section_id": sched["section_id"],
+            "schedule_id": schedule_id,
+            "settle_month": payload.get("settle_month") or sched["expense_month"],
+            "billing_start": payload.get("billing_start") or sched["billing_start"],
+            "billing_end": payload.get("billing_end") or sched["billing_end"],
+            "vendor_name": payload.get("vendor_name") or master["vendor_name"],
+            "vendor_tax_id": payload.get("vendor_tax_id") or master["vendor_tax_id"],
+            "progress": payload.get("progress") or "invoice_pending",
+        })
+    return settlement_view(row["id"])
+
+
+def settlement_view(settlement_id: int) -> dict[str, Any]:
+    """單筆請款／核銷＋系統算出來的請款差異（排程應付 − 本次請款）。"""
+    with connect() as conn:
+        row = dict(get_row(conn, "expense_settlements", settlement_id))
+        sched = dict(get_row(conn, "expense_schedules", row["schedule_id"]))
+    planned = float(sched["planned_amount"] or 0)
+    row["planned_amount"] = planned
+    row["claim_diff"] = round(planned - float(row["claim_amount"] or 0), 2)
+    row["progress_label"] = SETTLE_PROGRESS_LABEL.get(row["progress"], row["progress"])
+    # 助理：「確認完成」只在進度為「可預備上簽」時出現
+    row["can_confirm"] = row["progress"] == "ready_to_sign"
+    return row
+
+
+def list_settlements(expense_id: int) -> dict[str, Any]:
+    """某費用主檔底下的請款／核銷，附累計與待請款（助理 0803 第七節的自動計算）。"""
+    with connect() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM expense_settlements WHERE expense_id = ? ORDER BY id DESC", (expense_id,)).fetchall()]
+        scheduled = conn.execute(
+            "SELECT COALESCE(SUM(sc.planned_amount), 0) AS total FROM expense_schedules sc "
+            "JOIN expense_sections se ON se.id = sc.section_id "
+            "WHERE se.expense_id = ? AND se.archived = 0",   # 封存的舊版不再計入排程總額
+            (expense_id,)).fetchone()["total"]
+    claimed = round(sum(float(r["claim_amount"] or 0) for r in rows), 2)
+    for r in rows:
+        r["progress_label"] = SETTLE_PROGRESS_LABEL.get(r["progress"], r["progress"])
+    return {"expense_id": expense_id, "settlements": rows,
+            "scheduled_total": round(float(scheduled or 0), 2),
+            "claimed_total": claimed,
+            "unclaimed_total": round(float(scheduled or 0) - claimed, 2)}
+
+
+def update_settlement_progress(settlement_id: int, progress: str | None = None,
+                               confirmed: bool | None = None) -> dict[str, Any]:
+    """推進處理進度／勾確認完成，並回傳「這一步要通知誰」。
+
+    助理 0803 的通知邏輯：承辦自己備齊 → 勾確認完成 → 通知核銷者；
+    行政整理好改成「可預備上簽」→ 通知承辦確認 → 承辦勾完成 → 再通知核銷者。
+    這裡只回傳該通知誰，實際寄信走既有的通知模組（沒設 SMTP 時本來就只會記錄不寄）。
+    """
+    with connect() as conn:
+        before = dict(get_row(conn, "expense_settlements", settlement_id))
+        fields: dict[str, Any] = {}
+        if progress is not None:
+            if progress not in SETTLE_PROGRESS_LABEL:
+                raise ValueError(f"不認得的處理進度：{progress}。")
+            fields["progress"] = progress
+        if confirmed is not None:
+            if confirmed and (fields.get("progress", before["progress"]) != "ready_to_sign"):
+                raise ValueError("只有處理進度是「可預備上簽」時才能勾確認完成。")
+            fields["confirmed"] = 1 if confirmed else 0
+        if not fields:
+            raise ValueError("沒有要更新的內容。")
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        conn.execute(f"UPDATE expense_settlements SET {sets} WHERE id = ?",
+                     [*fields.values(), settlement_id])
+        after = get_row(conn, "expense_settlements", settlement_id)
+        write_audit_log(conn, "expense_settlements", settlement_id, "progress", before, after)
+    notify = ""
+    if fields.get("confirmed"):
+        notify = "settler"      # 承辦確認完成 → 通知核銷者
+    elif fields.get("progress") == "ready_to_sign":
+        notify = "owner"        # 行政備妥 → 通知承辦確認
+    return {**settlement_view(settlement_id), "notify": notify}
 
 
 # 標準採購流程的工作項（黃助理 0803 附件二第三點，另一位助理 0807 的流程圖也是同一份）。

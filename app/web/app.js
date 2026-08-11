@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.65.0 · 2026-08-11 · 費用模組畫面：費用主檔＋費用區段＋排程預覽與確認";
+const BUILD_TAG = "v0.66.0 · 2026-08-11 · 費用模組三層完成：最低承諾金額達成率＋請款核銷五態";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -958,8 +958,9 @@ function renderExpenseSections(expenseId, sections, check) {
     const detail = s.mode === "periodic"
       ? `${FREQ_LABEL[s.frequency] || s.frequency || "—"}．${s.periods} 期．首期 ${money(s.first_amount)} 元（${escapeHtml(s.first_month || "—")}）`
       : `${s.periods} 期．${s.price_method === "percent" ? "依比例計算" : s.price_method === "fixed" ? "固定金額" : "—"}`;
-    return `<tr>
-      <td><strong>${escapeHtml(mode)}</strong>${s.version > 1 ? ` <span class="muted">v${s.version}</span>` : ""}</td>
+    return `<tr${s.archived ? ' class="row-archived"' : ""}>
+      <td><strong>${escapeHtml(mode)}</strong>${s.version > 1 ? ` <span class="muted">v${s.version}</span>` : ""}
+        ${s.archived ? ' <span class="badge" title="重新編輯前的版本，只供查閱，金額不計入加總">舊版</span>' : ""}</td>
       <td>${escapeHtml(valueOrDash(s.section_name))}</td>
       <td class="num">${money(s.section_amount)} 元</td>
       <td>${escapeHtml(detail)}</td>
@@ -972,6 +973,9 @@ function renderExpenseSections(expenseId, sections, check) {
           ? `<button type="button" class="secondary btn-sm" data-exp-reopen="${s.id}" title="已確認的排程要改：系統會建立新版本並保留原版">重新編輯</button>`
           : `<button type="button" class="secondary btn-sm" data-exp-generate="${s.id}" title="依上面的設定產生各期排程；重產會蓋掉目前的明細">產生排程</button>`}
         <button type="button" class="btn-sm" data-exp-preview="${s.id}">預覽費用排程</button>
+        ${s.mode === "commitment"
+          ? `<button type="button" class="secondary btn-sm" data-exp-achievement="${s.id}"
+               title="各承諾期的承諾額、實際認列、達成率、未達差額與超額轉入">承諾達成</button>` : ""}
       </td></tr>`;
   }).join("") : `<tr><td colspan="7" class="muted">這筆費用還沒有費用區段——用下面的表單依模式建立。</td></tr>`;
 
@@ -991,19 +995,37 @@ function renderExpenseSections(expenseId, sections, check) {
       <select data-sec-mode required>${modeOptions}</select>
       <input data-sec-name placeholder="費用區段名稱（例：軟體授權及專業服務費）" />
       <input data-sec-amount type="number" min="0" step="1" placeholder="費用區段金額 *" required />
-      <input data-sec-periods type="number" min="1" step="1" placeholder="總期數 *" required />
-      <select data-sec-price title="里程碑計價方式">
+      <input data-sec-periods type="number" min="1" step="1" placeholder="總期數／承諾期數 *" required />
+      <select data-sec-price title="里程碑計價方式" data-when="milestone">
         <option value="percent">依比例計算</option>
         <option value="fixed">固定金額</option>
       </select>
-      <select data-sec-freq title="定期費用頻率">
-        <option value="">（定期費用才要選）頻率</option>
+      <select data-sec-freq title="費用頻率" data-when="periodic commitment">
+        <option value="">（選）費用頻率</option>
         <option value="monthly">每月</option><option value="quarterly">每季</option>
         <option value="semi">每半年</option><option value="yearly">每年</option>
       </select>
-      <input data-sec-first-amount type="number" min="0" step="1" placeholder="第一期費用（定期費用）" />
-      <input data-sec-first-month type="month" placeholder="第一期費用年月" />
-      <input data-sec-first-due type="date" placeholder="第一期預計應付日" />
+      <input data-sec-first-amount type="number" min="0" step="1" data-when="periodic commitment"
+             placeholder="第一期費用／第一期承諾金額" />
+      <input data-sec-first-month type="month" data-when="periodic" placeholder="第一期費用年月" />
+      <input data-sec-first-due type="date" data-when="periodic" placeholder="第一期預計應付日" />
+      <input data-sec-period-start type="date" data-when="commitment" placeholder="第一期承諾起日" />
+      <input data-sec-span type="number" min="1" step="1" data-when="commitment"
+             placeholder="每期期間長度（月）" title="例如 12 個月；要能被費用頻率整除，否則同一期會被切一半" />
+      <select data-sec-next-rule data-when="commitment" title="後續各期承諾金額怎麼來">
+        <option value="same">後續同第一期金額</option>
+        <option value="growth">依固定比例增減</option>
+        <option value="manual">預覽後逐期調整</option>
+      </select>
+      <input data-sec-growth type="number" step="0.1" data-when="commitment" placeholder="增減比例 %" />
+      <select data-sec-basis data-when="commitment" title="達成金額認列基礎">
+        <option value="usage">達成認列：使用金額</option>
+        <option value="payable">達成認列：應付金額</option>
+      </select>
+      <label class="check-inline" data-when="commitment">
+        <input type="checkbox" data-sec-carry /> 超額轉入次期
+      </label>
+      <input data-sec-shortfall data-when="commitment" placeholder="期末未達處理方式（差額補繳／另案處理…）" />
       <button type="submit">新增費用區段</button>
     </form>`;
 }
@@ -1067,7 +1089,18 @@ function renderExpensePreview(res) {
     </table></div>
     ${confirmed
       ? `<p class="muted">這一版已確認（${escapeHtml(sec.confirmed_by || "")} ${escapeHtml((sec.confirmed_at || "").slice(0, 16))}），
-         要改請回上面按「重新編輯」。</p>`
+         要改請回上面按「重新編輯」。收到帳單或發票時，點下面那一期的「請款／核銷」登錄。</p>
+         <div class="grid-scroll"><table class="grid-table">
+           <thead><tr><th>期別</th><th class="num">應付費用</th><th>費用年月</th><th class="col-actions">第三層</th></tr></thead>
+           <tbody>${(res.schedules || []).map((s) => `<tr>
+             <td>第 ${s.seq} 期${s.commit_period ? `（第 ${s.commit_period} 承諾期）` : ""}</td>
+             <td class="num">${money(s.planned_amount)} 元</td>
+             <td>${escapeHtml(valueOrDash(s.expense_month))}</td>
+             <td><button type="button" class="secondary btn-sm" data-exp-settle="${s.id}">請款／核銷</button>
+                 ${sec.mode === "commitment"
+                   ? `<button type="button" class="secondary btn-sm" data-exp-actual="${s.id}"
+                        title="登錄這一期實際用了多少，系統才算得出承諾達成率">登錄實際費用</button>` : ""}</td>
+           </tr>`).join("")}</tbody></table></div>`
       : `<button type="button" data-exp-confirm="${sec.id}"${res.can_confirm ? "" : " disabled"}
            title="${res.can_confirm ? "檢核通過，確認後會記下確認人與時間" : "檢核未通過，先修正上面列出的問題"}">確認排程</button>`}`;
 }
@@ -1139,9 +1172,181 @@ document.addEventListener("click", async (event) => {
     } catch (e) { window.alert(`重新編輯失敗：${e.message}`); }
     return;
   }
+  const ach = t.closest("[data-exp-achievement]");
+  if (ach) {
+    await loadCommitmentAchievement(ach.getAttribute("data-exp-achievement"));
+    return;
+  }
+  const settle = t.closest("[data-exp-settle]");
+  if (settle) {
+    openSettlementForm(settle.getAttribute("data-exp-settle"));
+    return;
+  }
+  const actual = t.closest("[data-exp-actual]");
+  if (actual) {
+    openActualForm(actual.getAttribute("data-exp-actual"));
+    return;
+  }
+  const prog = t.closest("[data-settle-progress]");
+  if (prog) {
+    const [id, next] = prog.getAttribute("data-settle-progress").split(":");
+    try {
+      const r = (await api(`/api/settlements/${id}/progress`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next === "confirm" ? { confirmed: true } : { progress: next }),
+      })).data;
+      await loadSettlements(document.querySelector("#expense-section-panel").dataset.expenseId);
+      if (r.notify) {
+        window.alert(r.notify === "settler" ? "已標記完成，系統會通知核銷者。" : "已標記可預備上簽，系統會通知承辦確認。");
+      }
+    } catch (e) { window.alert(`更新進度失敗：${e.message}`); }
+    return;
+  }
   const edit = t.closest("[data-exp-edit]");
   if (edit) startExpenseEdit(edit.getAttribute("data-exp-edit"));
 });
+
+// 新增費用區段的表單：依選到的模式只顯示該模式要填的欄位（助理：選了模式只顯示適用欄位）
+document.addEventListener("change", (event) => {
+  const sel = event.target.closest("[data-sec-mode]");
+  if (!sel) return;
+  const form = sel.closest("[data-exp-section-form]");
+  for (const el of form.querySelectorAll("[data-when]")) {
+    const on = el.getAttribute("data-when").split(" ").includes(sel.value);
+    el.style.display = on ? "" : "none";
+  }
+});
+
+// 第三層：請款／核銷。助理明訂一次作業只對一筆排程＋一張發票，所以入口是「某一期」的按鈕，
+// 廠商、統編、計費期間、核銷月份都由系統帶，人只填發票與請款金額。
+function openSettlementForm(scheduleId) {
+  const box = document.querySelector("#expense-preview-panel");
+  box.hidden = false;
+  box.innerHTML = `<div class="sched-head">
+      <h3>請款／核銷（第 ${escapeHtml(scheduleId)} 期排程）</h3>
+      <button type="button" class="secondary btn-sm" data-exp-preview-close>收合</button>
+    </div>
+    <form class="resource-form" data-settle-form data-schedule-id="${scheduleId}">
+      <input name="invoice_date" type="date" placeholder="發票日期" required />
+      <input name="invoice_no" placeholder="發票號碼 *" required />
+      <input name="claim_amount" type="number" min="0" step="1" placeholder="請款金額 *" required />
+      <select name="settler" class="personnel-select" data-placeholder="核銷者"></select>
+      <input name="signoff_no" placeholder="費用核銷簽呈編號（上簽後填）" />
+      <input name="doc_ref" placeholder="請款文件（核銷申請書／付款憑證／請購簽呈…）" />
+      <input name="diff_reason" placeholder="差異原因（請款金額與排程不同時必填）" />
+      <input name="note" placeholder="備註（退件、差異或特殊情形）" />
+      <button type="submit">建立請款／核銷</button>
+    </form>
+    <div id="settlement-list"></div>`;
+  populatePersonnelSelects();
+  loadSettlements(document.querySelector("#expense-section-panel").dataset.expenseId);
+}
+
+function openActualForm(scheduleId) {
+  const box = document.querySelector("#expense-preview-panel");
+  box.hidden = false;
+  box.innerHTML = `<div class="sched-head">
+      <h3>登錄實際費用（最低承諾金額）</h3>
+      <button type="button" class="secondary btn-sm" data-exp-preview-close>收合</button>
+    </div>
+    <p class="muted">承諾金額只是門檻，這裡登錄的是這一期實際用了多少；系統再回頭算承諾達成率。
+      認列金額＝使用金額＋調整金額，由系統算，不用自己填。</p>
+    <form class="resource-form" data-actual-form data-schedule-id="${scheduleId}">
+      <input name="usage_amount" type="number" min="0" step="1" placeholder="當期使用／應付金額 *" required />
+      <input name="description" placeholder="費用說明" />
+      <input name="adjust_amount" type="number" step="1" placeholder="調整金額（折讓／退款，可為負）" />
+      <input name="adjust_reason" placeholder="調整原因（調整金額不為 0 時必填）" />
+      <button type="submit">登錄</button>
+    </form>`;
+}
+
+document.addEventListener("submit", async (event) => {
+  const sf = event.target.closest("[data-settle-form]");
+  const af = event.target.closest("[data-actual-form]");
+  if (!sf && !af) return;
+  event.preventDefault();
+  const form = sf || af;
+  const sid = form.getAttribute("data-schedule-id");
+  const data = Object.fromEntries(new FormData(form).entries());
+  for (const k of ["claim_amount", "usage_amount", "adjust_amount"]) {
+    if (k in data) data[k] = Number(data[k] || 0);
+  }
+  try {
+    await api(`/api/expense-schedules/${sid}/${sf ? "settlements" : "actuals"}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+    });
+    const expenseId = document.querySelector("#expense-section-panel").dataset.expenseId;
+    if (sf) { openSettlementForm(sid); } else { await loadExpenseSections(expenseId); }
+  } catch (e) { window.alert(`儲存失敗：${e.message}`); }
+});
+
+// 某費用主檔底下的請款／核銷清單＋累計、待請款（助理 0803 第七節的自動計算）
+async function loadSettlements(expenseId) {
+  const box = document.querySelector("#settlement-list");
+  if (!box || !expenseId) return;
+  try {
+    const res = (await api(`/api/expenses/${expenseId}/settlements`)).data;
+    const NEXT = { invoice_pending: ["ready_to_sign", "改為可預備上簽"], ready_to_sign: ["confirm", "確認完成"],
+                   signing: ["approved", "款項已核准"], approved: ["submitted", "提交會計（結案）"] };
+    const rows = (res.settlements || []).map((s) => {
+      const step = s.progress === "ready_to_sign" && s.confirmed ? ["signing", "送出簽核"] : NEXT[s.progress];
+      return `<tr>
+        <td>${escapeHtml(valueOrDash(s.invoice_no))}<br /><small class="muted">${escapeHtml(valueOrDash(s.invoice_date))}</small></td>
+        <td>${escapeHtml(valueOrDash(s.settle_month))}</td>
+        <td class="num">${money(s.claim_amount)} 元</td>
+        <td>${escapeHtml(s.progress_label)}${s.confirmed ? ' <span class="chip done">已確認完成</span>' : ""}</td>
+        <td>${escapeHtml(valueOrDash(s.settler))}</td>
+        <td>${step ? `<button type="button" class="secondary btn-sm" data-settle-progress="${s.id}:${step[0]}">${escapeHtml(step[1])}</button>` : '<span class="muted">已結案</span>'}</td>
+      </tr>`;
+    }).join("");
+    box.innerHTML = `<h4>這筆費用的請款／核銷</h4>
+      <p><span class="chip">排程總額 ${money(res.scheduled_total)} 元</span>
+         <span class="chip">累計請款 ${money(res.claimed_total)} 元</span>
+         <span class="chip ${res.unclaimed_total > 0 ? "todo" : "done"}">待請款 ${money(res.unclaimed_total)} 元</span></p>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>發票</th><th>核銷月份</th><th class="num">請款金額</th><th>處理進度</th>
+        <th>核銷者</th><th class="col-actions">下一步</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="muted">還沒有請款／核銷紀錄。</td></tr>'}</tbody>
+      </table></div>`;
+  } catch (e) {
+    box.innerHTML = `<p class="error">請款／核銷載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+// 最低承諾金額：各承諾期的達成情形（承諾額／實際認列／達成率／未達差額／超額轉入）
+async function loadCommitmentAchievement(sectionId) {
+  const box = document.querySelector("#expense-preview-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = `<p class="muted">計算承諾達成情形…</p>`;
+  try {
+    const res = (await api(`/api/expense-sections/${sectionId}/achievement`)).data;
+    const rows = (res.periods || []).map((p) => `<tr>
+      <td>第 ${p.commit_period} 承諾期</td>
+      <td class="num">${money(p.committed)} 元</td>
+      <td class="num">${p.logged ? `${money(p.recognized)} 元` : '<span class="muted">尚未登錄</span>'}</td>
+      <td class="num">${p.rate === null ? '<span class="muted" title="這一期還沒有任何實際費用登錄，不是達成率 0%">—</span>' : `${p.rate}%`}</td>
+      <td class="num">${p.shortfall ? `<b class="owe">${money(p.shortfall)} 元</b>` : "—"}</td>
+      <td class="num">${p.excess ? `${money(p.excess)} 元` : "—"}</td>
+      <td class="num">${res.carry_over && p.carry_in_next ? `${money(p.carry_in_next)} 元` : "—"}</td>
+    </tr>`).join("");
+    box.innerHTML = `<div class="sched-head">
+        <h3>承諾達成情形</h3>
+        <button type="button" class="secondary btn-sm" data-exp-preview-close>收合</button>
+      </div>
+      <p class="muted">認列基礎：${res.basis === "payable" ? "應付金額" : "使用金額"}
+        ｜超額${res.carry_over ? "轉入次期" : "不轉入次期"}
+        ${res.shortfall_action ? `｜期末未達：${escapeHtml(res.shortfall_action)}` : ""}</p>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>承諾期</th><th class="num">承諾金額</th><th class="num">實際認列</th>
+        <th class="num">達成率</th><th class="num">未達差額</th><th class="num">超額</th>
+        <th class="num">轉入次期</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="muted">「尚未登錄」跟「達成率 0%」是兩回事——沒有任何一期實際費用進來時，這裡不會顯示 0%。</p>`;
+  } catch (e) {
+    box.innerHTML = `<p class="error">達成情形載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
 
 // 預覽畫面逐期修正：改完就存，並標記為人工調整（助理 0803 要求留痕）。
 document.addEventListener("change", async (event) => {
@@ -1179,6 +1384,13 @@ document.addEventListener("submit", async (event) => {
         first_amount: Number(v("[data-sec-first-amount]") || 0),
         first_month: v("[data-sec-first-month]"),
         first_due_date: v("[data-sec-first-due]"),
+        period_start: v("[data-sec-period-start]"),
+        commit_span_months: Number(v("[data-sec-span]") || 0),
+        next_amount_rule: v("[data-sec-next-rule]"),
+        growth_pct: Number(v("[data-sec-growth]") || 0),
+        carry_over: f.querySelector("[data-sec-carry]")?.checked ? 1 : 0,
+        achievement_basis: v("[data-sec-basis]"),
+        shortfall_action: v("[data-sec-shortfall]"),
       }),
     });
     await loadExpenseSections(expenseId);

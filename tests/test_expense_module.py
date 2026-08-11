@@ -180,6 +180,12 @@ def test_重新編輯會建新版本並保留原版(tmp_path):
         # 原版整段留著（含明細），查得到當初確認的是什麼
         old = client.get(f"/api/expense-sections/{archived}/preview").json()["data"]
         assert old["section"]["status"] == "confirmed" and len(old["schedules"]) == 3
+        assert old["section"]["archived"] == 1
+        # 舊版金額不能再被算一次，否則總額會憑空翻倍
+        chk = client.get(f"/api/expenses/{m['id']}/check").json()["data"]
+        assert chk["section_total"] == 600 and chk["balanced"] is True
+        tot = client.get(f"/api/expenses/{m['id']}/settlements").json()["data"]
+        assert tot["scheduled_total"] == 600
 
 
 def test_混合型要各段加總等於總費用(tmp_path):
@@ -198,12 +204,13 @@ def test_混合型要各段加總等於總費用(tmp_path):
         assert chk2["balanced"] is True and chk2["diff"] == 0 and chk2["missing_sections"] == []
 
 
-def test_最低承諾金額這批還沒開放(tmp_path):
-    """A8 拍板分兩批：先做里程碑與定期費用，最低承諾金額排下一輪。
-    先擋住並講清楚，不要讓人以為建好了卻產不出排程。"""
+def test_最低承諾金額缺設定時說清楚缺什麼(tmp_path):
+    """最低承諾金額已於第二批開放（見 test_expense_commitment.py）。
+    這裡確認設定不齊時不會默默產出怪排程，而是講明白缺哪幾樣。"""
     with _client(tmp_path) as client:
         m = _master(client, expense_name="承諾", total_amount=100, modes="commitment").json()["data"]
         sec = client.post(f"/api/expenses/{m['id']}/sections", json={
             "mode": "commitment", "section_amount": 100, "periods": 3}).json()["data"]
         r = client.post(f"/api/expense-sections/{sec['id']}/generate")
-        assert r.status_code == 422 and "最低承諾金額" in r.json()["detail"]
+        assert r.status_code == 422
+        assert "每期期間長度" in r.json()["detail"] and "費用頻率" in r.json()["detail"]

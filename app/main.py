@@ -573,6 +573,47 @@ class ExpenseSectionIn(BaseModel):
     first_month: str = ""
     first_due_date: str = ""
     note: str = ""
+    # 最低承諾金額（助理 0803 附件一 5.3）
+    commit_span_months: int = 0             # 每期期間長度，例 12 個月
+    next_amount_rule: str = ""              # same 同第一期 / growth 依比例增減 / manual 逐期調
+    growth_pct: float = 0
+    carry_over: int = 0                     # 超額是否轉入次期
+    achievement_basis: str = ""             # usage 使用金額 / payable 應付金額
+    shortfall_action: str = ""              # 期末未達處理方式
+
+
+class ExpenseActualIn(BaseModel):
+    """第三層之一：最低承諾金額的當期實際費用（助理 0803 第六節）。"""
+    usage_amount: float = 0
+    billing_start: str = ""
+    billing_end: str = ""
+    description: str = ""
+    adjust_amount: float = 0
+    adjust_reason: str = ""
+
+
+class SettlementIn(BaseModel):
+    """第三層之二：請款／核銷。一次只對一筆排程＋一張發票，其餘關聯由系統帶。"""
+    actual_id: int | None = None
+    settle_month: str = ""
+    billing_start: str = ""
+    billing_end: str = ""
+    vendor_name: str = ""
+    vendor_tax_id: str = ""
+    invoice_date: str = ""
+    invoice_no: str = ""
+    claim_amount: float = 0
+    progress: str = ""
+    settler: str = ""
+    signoff_no: str = ""
+    doc_ref: str = ""
+    diff_reason: str = ""
+    note: str = ""
+
+
+class SettlementProgressIn(BaseModel):
+    progress: str | None = None
+    confirmed: bool | None = None
 
 
 class ExpenseSectionPatch(BaseModel):
@@ -890,7 +931,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.65.0 · 2026-08-11 · 費用模組三層地基（第一批）：費用主檔（有合約帶入、總費用唯讀）＋費用區段與排程（里程碑逐期、定期費用依頻率推算），含金額檢核、預覽、確認留痕與改版保留原版。前端畫面下一批"
+BACKEND_BUILD = "v0.66.0 · 2026-08-11 · 費用模組三層完成：最低承諾金額（承諾期間、達成率、超額轉入）＋第三層實際費用登錄與請款／核銷（一期一發票、請款差異、處理進度五態與通知對象）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2421,6 +2462,54 @@ def create_app() -> FastAPI:
             return ok(store.confirm_section(section_id))   # 確認人取自登入者（bind_actor 已綁）
         except LookupError as exc:
             raise HTTPException(status_code=404, detail="找不到這個費用區段。") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/expense-sections/{section_id}/achievement")
+    def commitment_achievement(section_id: int) -> dict[str, Any]:
+        # 最低承諾金額：各承諾期的承諾額、實際認列、達成率、未達差額、超額與轉入。
+        # 一筆都沒登錄的期別 rate 會是 null（「還不知道」不是「沒達成」）。
+        try:
+            return ok(store.commitment_achievement(section_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個費用區段。") from exc
+
+    # ── 第三層：實際費用明細與請款／核銷（助理 0803 附件一第六節）──
+    @app.post("/api/expense-schedules/{schedule_id}/actuals", status_code=201)
+    def add_actual(schedule_id: int, payload: ExpenseActualIn) -> dict[str, Any]:
+        try:
+            return ok(store.add_expense_actual(schedule_id, payload.model_dump()))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這一期費用排程。") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/expense-schedules/{schedule_id}/settlements", status_code=201)
+    def add_settlement(schedule_id: int, payload: SettlementIn) -> dict[str, Any]:
+        # 一次作業＝一筆排程＋一張發票（助理明訂不得複選），其餘欄位由系統帶
+        try:
+            return ok(store.create_settlement(schedule_id, payload.model_dump()))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這一期費用排程。") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/expenses/{expense_id}/settlements")
+    def expense_settlements(expense_id: int) -> dict[str, Any]:
+        # 附累計請款與待請款（助理 0803 第七節的自動計算）
+        return ok(store.list_settlements(expense_id))
+
+    @app.patch("/api/settlements/{settlement_id}/progress")
+    def settlement_progress(settlement_id: int, payload: SettlementProgressIn) -> dict[str, Any]:
+        # 推進處理進度／勾確認完成，回傳這一步該通知誰（承辦或核銷者）
+        try:
+            return ok(store.update_settlement_progress(settlement_id, payload.progress, payload.confirmed))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這筆請款／核銷資料。") from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
