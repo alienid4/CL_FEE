@@ -250,6 +250,69 @@ CREATE TABLE IF NOT EXISTS purchases (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ── 費用模組三層（黃助理 0803 附件一）──────────────────────────────
+-- 第一層 費用主檔：一份合約可以有多個費用主檔；沒有合約的費用（例行性費用）直接建在這裡。
+-- 「合約總費用(含稅)」是第二層所有費用區段加總的檢核基準——對不起來就不准確認排程。
+CREATE TABLE IF NOT EXISTS expense_masters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contract_id INTEGER,                             -- 空＝無合約費用
+    case_id INTEGER,
+    expense_name TEXT NOT NULL,                      -- 有合約時帶合約名稱，無合約時人工填費用名稱
+    vendor_name TEXT NOT NULL DEFAULT '',
+    vendor_tax_id TEXT NOT NULL DEFAULT '',
+    start_date TEXT NOT NULL DEFAULT '',             -- 無合約時停用（不得輸入）
+    end_date TEXT NOT NULL DEFAULT '',
+    total_amount REAL NOT NULL DEFAULT 0,            -- 含稅；有合約時由合約帶入且不得改
+    modes TEXT NOT NULL DEFAULT '',                  -- 可複選：milestone,periodic,commitment
+    signoff_ref TEXT NOT NULL DEFAULT '',            -- 簽呈／請購編號（沒有時填原因）
+    signoff_none_reason TEXT NOT NULL DEFAULT '',
+    owner TEXT NOT NULL DEFAULT '',                  -- 承辦人
+    note TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 第二層之一 費用區段：選了幾種模式就有幾個區段（混合型）；各區段金額合計＝第一層總費用
+CREATE TABLE IF NOT EXISTS expense_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    expense_id INTEGER NOT NULL,
+    mode TEXT NOT NULL,                              -- milestone / periodic / commitment
+    section_name TEXT NOT NULL DEFAULT '',
+    section_amount REAL NOT NULL DEFAULT 0,
+    price_method TEXT NOT NULL DEFAULT '',           -- 里程碑：percent 依比例 / fixed 固定金額
+    periods INTEGER NOT NULL DEFAULT 0,              -- 總期數
+    frequency TEXT NOT NULL DEFAULT '',              -- 定期費用：monthly/quarterly/semi/yearly
+    period_start TEXT NOT NULL DEFAULT '',           -- 費用期間起日
+    period_end TEXT NOT NULL DEFAULT '',
+    first_amount REAL NOT NULL DEFAULT 0,            -- 第一期費用（後續各期預設值）
+    first_month TEXT NOT NULL DEFAULT '',            -- 第一期費用年月 YYYY-MM
+    first_due_date TEXT NOT NULL DEFAULT '',         -- 第一期預計應付日（後續順延基準）
+    note TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',            -- draft 草稿 / confirmed 已確認
+    confirmed_by TEXT NOT NULL DEFAULT '',
+    confirmed_at TEXT NOT NULL DEFAULT '',
+    version INTEGER NOT NULL DEFAULT 1,              -- 已確認後重新編輯＝新版本，舊版留著
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 第二層之二 排程明細：里程碑逐期人工填；定期費用由系統依頻率推算後可逐期修正
+CREATE TABLE IF NOT EXISTS expense_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL DEFAULT 0,                  -- 第 N 期
+    milestone_name TEXT NOT NULL DEFAULT '',         -- 簽約款/交付款/驗收款/自訂（僅里程碑）
+    custom_name TEXT NOT NULL DEFAULT '',            -- 選「自訂」時必填
+    percent REAL NOT NULL DEFAULT 0,                 -- 比例計價時的各期比例
+    planned_amount REAL NOT NULL DEFAULT 0,          -- 應付費用
+    expense_month TEXT NOT NULL DEFAULT '',          -- 費用年月 YYYY-MM
+    billing_start TEXT NOT NULL DEFAULT '',          -- 計費期間
+    billing_end TEXT NOT NULL DEFAULT '',
+    due_date TEXT NOT NULL DEFAULT '',               -- 預計應付日／預計發生日
+    note TEXT NOT NULL DEFAULT '',
+    manual_adjusted INTEGER NOT NULL DEFAULT 0,      -- 人工調過系統算出來的值
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT '',
@@ -481,6 +544,16 @@ STATUS_VALUES: dict[str, dict[str, set[str]]] = {
     "signoffs": {
         "status": {"draft", "submitted", "approved", "rejected", "disabled"},
     },
+    "expense_masters": {
+        "status": {"active", "closed", "disabled"},
+    },
+    "expense_sections": {
+        # 助理 0803：里程碑／定期費用／最低承諾金額，可複選成混合型
+        "mode": {"milestone", "periodic", "commitment"},
+        "price_method": {"", "percent", "fixed"},
+        "frequency": {"", "monthly", "quarterly", "semi", "yearly"},
+        "status": {"draft", "confirmed"},
+    },
     "purchases": {
         "status": {"pending", "ordered", "arrived", "closed", "disabled"},
     },
@@ -637,6 +710,8 @@ _FK_REFS = {
     "purchase_id": ("purchases", "請購"),
     "parent_contract_id": ("contracts", "來源合約"),  # 續約/增購/整併指向的舊約
     "project_id": ("projects", "專案"),               # 合約掛的專案（助理 0803）
+    "expense_id": ("expense_masters", "費用主檔"),     # 費用區段掛的主檔
+    "section_id": ("expense_sections", "費用區段"),    # 排程明細掛的區段
 }
 
 
@@ -994,6 +1069,8 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
                 (int(fields["case_id"]),)).fetchone()
             if prj is not None:
                 fields["project_id"] = prj["id"]
+    if table == "expense_masters":
+        fields = _prepare_expense_master(conn, fields)
     if table == "projects" and not str(fields.get("project_code") or "").strip():
         # 需求書 §6「專案不另設代號」＋助理回饋的新案申請沒有代號欄；系統自己配一個唯一碼，
         # 讓內部關聯與匯出仍有穩定識別（用 id 當流水，必唯一）。
@@ -1326,6 +1403,16 @@ def allowed_fields() -> dict[str, set[str]]:
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
                           "support_needed", "duration_days", "status", "rag_manual"},
         "budget_allocations": {"budget_id", "seq", "unit_code", "unit_name", "share_pct", "amount", "source_file"},
+        # 費用模組三層（助理 0803 附件一）
+        "expense_masters": {"contract_id", "case_id", "expense_name", "vendor_name", "vendor_tax_id",
+                            "start_date", "end_date", "total_amount", "modes", "signoff_ref",
+                            "signoff_none_reason", "owner", "note", "status"},
+        "expense_sections": {"expense_id", "mode", "section_name", "section_amount", "price_method",
+                             "periods", "frequency", "period_start", "period_end", "first_amount",
+                             "first_month", "first_due_date", "note", "status", "version"},
+        "expense_schedules": {"section_id", "seq", "milestone_name", "custom_name", "percent",
+                              "planned_amount", "expense_month", "billing_start", "billing_end",
+                              "due_date", "note", "manual_adjusted"},
     }
 
 
@@ -4965,6 +5052,230 @@ def backfill_case_numbers() -> int:
             conn.execute("UPDATE cases SET fiscal_year=?, seq=? WHERE id=?", (fy, nxt, r["id"]))
             filled += 1
     return filled
+
+
+def _prepare_expense_master(conn: sqlite3.Connection, fields: dict[str, Any]) -> dict[str, Any]:
+    """第一層費用主檔的帶入與檢核（助理 0803 附件一第四節）。
+
+    有合約：廠商、統編、期間、總費用、承辦人一律由合約主檔帶入。總費用是**例外欄位**——
+      助理寫明有合約時唯讀反灰、不得人工修改，所以這裡直接以合約為準覆蓋送進來的值，
+      切換關聯合約時金額也會跟著換。
+    無合約：合約起迄日清空（助理寫「停用、不得輸入」），總費用改由人工填。
+    兩種情形總費用都必填且要大於 0——它是第二層所有區段加總的檢核基準，0 的話整個檢核失去意義。
+    """
+    fields = dict(fields)
+    contract_id = fields.get("contract_id")
+    if contract_id:
+        k = conn.execute(
+            "SELECT contract_name, vendor_name, vendor_tax_id, start_date, end_date, amount, owner, case_id "
+            "FROM contracts WHERE id = ?", (int(contract_id),)).fetchone()
+        if k is None:
+            raise ValueError(f"關聯的合約 ID {contract_id} 不存在，請確認後再填。")
+        fields["total_amount"] = float(k["amount"] or 0)          # 唯讀：以合約為準
+        for src, dst in (("contract_name", "expense_name"), ("vendor_name", "vendor_name"),
+                         ("vendor_tax_id", "vendor_tax_id"), ("start_date", "start_date"),
+                         ("end_date", "end_date"), ("owner", "owner"), ("case_id", "case_id")):
+            if not str(fields.get(dst) or "").strip():
+                fields[dst] = k[src]
+    else:
+        fields["start_date"] = ""
+        fields["end_date"] = ""
+    if float(fields.get("total_amount") or 0) <= 0:
+        raise ValueError("合約總費用（含稅）必填，且要大於 0——第二層所有費用區段都用它做加總檢核。")
+    modes = [m.strip() for m in str(fields.get("modes") or "").split(",") if m.strip()]
+    if not modes:
+        raise ValueError("請至少選一種費用排程模式（里程碑／定期費用／最低承諾金額，可複選）。")
+    bad = [m for m in modes if m not in EXPENSE_MODE_LABEL]
+    if bad:
+        raise ValueError(f"不認得的費用排程模式：{'、'.join(bad)}。")
+    fields["modes"] = ",".join(modes)
+    if not str(fields.get("signoff_ref") or "").strip() and not str(fields.get("signoff_none_reason") or "").strip():
+        raise ValueError("請填簽呈／請購編號；沒有編號的話，請在「無編號原因」說明為什麼。")
+    return fields
+
+
+# ── 費用模組第二層：排程產生、金額檢核、預覽與確認（助理 0803 附件一第五節）──────
+EXPENSE_MODE_LABEL = {"milestone": "里程碑", "periodic": "定期費用", "commitment": "最低承諾金額"}
+MILESTONE_NAMES = ["簽約款", "交付款", "驗收款", "自訂"]
+_FREQ_MONTHS = {"monthly": 1, "quarterly": 3, "semi": 6, "yearly": 12}
+
+
+def _month_add(ym: str, months: int) -> str:
+    """'2026-01' 往後 n 個月 → '2026-04'。給定期費用順延費用年月用。"""
+    raw = str(ym or "").strip().replace("/", "-")[:7]
+    if len(raw) < 7 or not raw[:4].isdigit():
+        return ""
+    y, m = int(raw[:4]), int(raw[5:7])
+    total = y * 12 + (m - 1) + months
+    return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
+def _date_add_months(ds: str, months: int) -> str:
+    raw = str(ds or "").strip()[:10]
+    try:
+        d = datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError:
+        return ""
+    return _add_months_date(d, months).isoformat()
+
+
+def generate_section_schedules(section_id: int) -> dict[str, Any]:
+    """依費用區段的設定產生排程明細。
+
+    里程碑：依總期數產生 N 筆「可編輯的空白列」——助理明確寫過不得只存第一期後由系統推測，
+      各期名稱/比例/金額/日期都要能各自輸入。比例計價時金額由系統算（區段金額×該期比例）。
+    定期費用：依第一期資料＋頻率推算後續各期（費用年月與預計應付日一起順延），
+      金額先全部帶第一期，之後可在預覽畫面逐期改。
+
+    重跑會重建：只清掉這個區段自己的明細再重產，人工調過的值會不見——所以呼叫端要先擋住
+    已確認的區段（confirmed 要走 reopen 建新版本）。
+    """
+    with connect() as conn:
+        sec = get_row(conn, "expense_sections", section_id)
+        if sec["status"] == "confirmed":
+            raise RuntimeError("這個費用區段已確認，要改請先『重新編輯』（會建立新版本並保留原版）。")
+        conn.execute("DELETE FROM expense_schedules WHERE section_id = ?", (section_id,))
+        mode = sec["mode"]
+        rows: list[dict[str, Any]] = []
+        if mode == "milestone":
+            n = int(sec["periods"] or 0)
+            if n < 1:
+                raise ValueError("里程碑總期數要填 1 以上的整數。")
+            for i in range(1, n + 1):
+                rows.append({"seq": i, "milestone_name": "", "percent": 0, "planned_amount": 0})
+        elif mode == "periodic":
+            n = int(sec["periods"] or 0)
+            step = _FREQ_MONTHS.get(str(sec["frequency"] or ""), 0)
+            if n < 1 or not step:
+                raise ValueError("定期費用要填費用頻率與期數（期數為 1 以上的整數）。")
+            for i in range(n):
+                rows.append({
+                    "seq": i + 1,
+                    "planned_amount": float(sec["first_amount"] or 0),
+                    "expense_month": _month_add(sec["first_month"], i * step),
+                    "due_date": _date_add_months(sec["first_due_date"], i * step),
+                })
+        else:
+            raise ValueError(f"{EXPENSE_MODE_LABEL.get(mode, mode)}模式的排程產生還沒開放。")
+        for r in rows:
+            _insert_row(conn, "expense_schedules", {**r, "section_id": section_id})
+    return section_preview(section_id)
+
+
+def _money_eq(a: float, b: float) -> bool:
+    """金額比對容忍到分（浮點數直接比會因為 0.1+0.2 這種誤差誤報不符）。"""
+    return abs(round(float(a or 0) - float(b or 0), 2)) < 0.01
+
+
+def section_preview(section_id: int) -> dict[str, Any]:
+    """放大檢視用的排程預覽＋檢核結果。
+
+    檢核不通過時要講清楚差多少、差在哪一段——只說「檢核失敗」等於要人自己去猜。
+    """
+    with connect() as conn:
+        sec = dict(get_row(conn, "expense_sections", section_id))
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM expense_schedules WHERE section_id = ? ORDER BY seq, id", (section_id,)).fetchall()]
+        master = dict(get_row(conn, "expense_masters", sec["expense_id"]))
+    problems: list[str] = []
+    total = round(sum(float(r["planned_amount"] or 0) for r in rows), 2)
+    section_amount = float(sec["section_amount"] or 0)
+    if not rows:
+        problems.append("還沒有排程明細，請先產生排程。")
+    if sec["mode"] == "milestone":
+        if sec["price_method"] == "percent":
+            pct = round(sum(float(r["percent"] or 0) for r in rows), 4)
+            if not _money_eq(pct, 100):
+                problems.append(f"各期比例合計 {pct}%，要等於 100%（差 {round(100 - pct, 4)}%）。")
+        missing = [r["seq"] for r in rows if not str(r["milestone_name"] or "").strip()]
+        if missing:
+            problems.append(f"第 {'、'.join(str(s) for s in missing)} 期還沒選里程碑名稱。")
+        custom_missing = [r["seq"] for r in rows
+                          if str(r["milestone_name"] or "") == "自訂" and not str(r["custom_name"] or "").strip()]
+        if custom_missing:
+            problems.append(f"第 {'、'.join(str(s) for s in custom_missing)} 期選了「自訂」，自訂里程碑備註必填。")
+    if rows and not _money_eq(total, section_amount):
+        diff = round(section_amount - total, 2)
+        problems.append(
+            f"各期應付費用合計 {total:,.0f} 元，與費用區段金額 {section_amount:,.0f} 元"
+            f"差 {diff:,.0f} 元（{'少' if diff > 0 else '多'}了）。")
+    return {"section": sec, "schedules": rows, "master": master,
+            "scheduled_total": total, "section_amount": section_amount,
+            "problems": problems, "can_confirm": not problems}
+
+
+def expense_master_check(expense_id: int) -> dict[str, Any]:
+    """第一層總費用 vs 第二層各費用區段的加總（混合型時每個模式一個區段）。"""
+    with connect() as conn:
+        master = dict(get_row(conn, "expense_masters", expense_id))
+        sections = [dict(r) for r in conn.execute(
+            "SELECT * FROM expense_sections WHERE expense_id = ? ORDER BY id", (expense_id,)).fetchall()]
+    section_total = round(sum(float(s["section_amount"] or 0) for s in sections), 2)
+    total = float(master["total_amount"] or 0)
+    diff = round(total - section_total, 2)
+    modes = [m for m in str(master["modes"] or "").split(",") if m]
+    missing = [EXPENSE_MODE_LABEL.get(m, m) for m in modes
+               if not any(s["mode"] == m for s in sections)]
+    return {"expense_id": expense_id, "total_amount": total, "section_total": section_total,
+            "diff": diff, "balanced": _money_eq(total, section_total),
+            "missing_sections": missing, "sections": sections}
+
+
+def confirm_section(section_id: int) -> dict[str, Any]:
+    """確認排程：檢核全過才准，並記下確認人與時間（助理 0803 要求留存）。"""
+    actor = _current_actor.get()
+    preview = section_preview(section_id)
+    if preview["problems"]:
+        raise ValueError("；".join(preview["problems"]))
+    with connect() as conn:
+        before = get_row(conn, "expense_sections", section_id)
+        conn.execute(
+            "UPDATE expense_sections SET status = 'confirmed', confirmed_by = ?, confirmed_at = ? WHERE id = ?",
+            (actor, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), section_id))
+        after = get_row(conn, "expense_sections", section_id)
+        write_audit_log(conn, "expense_sections", section_id, "confirm", before, after)
+    return dict(after)
+
+
+def reopen_section(section_id: int) -> dict[str, Any]:
+    """已確認的排程要改：建立新版本並保留原版（助理 0803「應保留原排程版本」）。
+
+    原版整段複製成一筆 confirmed 的舊版紀錄（含明細），目前這筆退回草稿讓人改——
+    直接就地改的話，之前確認過什麼就查不到了。
+    """
+    actor = _current_actor.get()
+    with connect() as conn:
+        sec = dict(get_row(conn, "expense_sections", section_id))
+        if sec["status"] != "confirmed":
+            raise RuntimeError("只有『已確認』的費用區段需要重新編輯；草稿直接改就好。")
+        keep = {k: v for k, v in sec.items() if k in allowed_fields()["expense_sections"]}
+        keep.update({"status": "confirmed", "version": int(sec["version"] or 1)})
+        archived = _insert_row(conn, "expense_sections", keep)
+        conn.execute("UPDATE expense_sections SET confirmed_by = ?, confirmed_at = ? WHERE id = ?",
+                     (sec["confirmed_by"], sec["confirmed_at"], archived["id"]))
+        for r in conn.execute("SELECT * FROM expense_schedules WHERE section_id = ?", (section_id,)).fetchall():
+            row = {k: v for k, v in dict(r).items() if k in allowed_fields()["expense_schedules"]}
+            _insert_row(conn, "expense_schedules", {**row, "section_id": archived["id"]})
+        conn.execute(
+            "UPDATE expense_sections SET status = 'draft', version = ?, confirmed_by = '', confirmed_at = '' "
+            "WHERE id = ?", (int(sec["version"] or 1) + 1, section_id))
+        after = get_row(conn, "expense_sections", section_id)
+        write_audit_log(conn, "expense_sections", section_id, "reopen", sec,
+                        {**dict(after), "archived_section_id": archived["id"]})
+    return {"section": dict(after), "archived_section_id": archived["id"], "actor": actor}
+
+
+def list_expense_sections(expense_id: int) -> list[dict[str, Any]]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM expense_sections WHERE expense_id = ? ORDER BY id", (expense_id,)).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["schedule_count"] = conn.execute(
+                "SELECT COUNT(*) n FROM expense_schedules WHERE section_id = ?", (r["id"],)).fetchone()["n"]
+            out.append(d)
+    return out
 
 
 # 標準採購流程的工作項（黃助理 0803 附件二第三點，另一位助理 0807 的流程圖也是同一份）。

@@ -524,6 +524,84 @@ class ProjectPatch(BaseModel):
     involves_procurement: int | None = None
 
 
+class ExpenseMasterIn(BaseModel):
+    """第一層 費用主檔（助理 0803 附件一第四節）。有合約時多數欄位由合約帶入。"""
+    contract_id: int | None = None          # 空＝無合約費用
+    case_id: int | None = None
+    expense_name: str = ""
+    vendor_name: str = ""
+    vendor_tax_id: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    total_amount: float = 0
+    modes: str = ""                         # milestone,periodic,commitment（可複選）
+    signoff_ref: str = ""
+    signoff_none_reason: str = ""
+    owner: str = ""
+    note: str = ""
+    status: str = "active"
+
+
+class ExpenseMasterPatch(BaseModel):
+    contract_id: int | None = None
+    case_id: int | None = None
+    expense_name: str | None = None
+    vendor_name: str | None = None
+    vendor_tax_id: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    total_amount: float | None = None
+    modes: str | None = None
+    signoff_ref: str | None = None
+    signoff_none_reason: str | None = None
+    owner: str | None = None
+    note: str | None = None
+    status: str | None = None
+
+
+class ExpenseSectionIn(BaseModel):
+    """第二層 費用區段：選了幾種模式就有幾段，各段金額合計＝第一層總費用。"""
+    mode: str
+    section_name: str = ""
+    section_amount: float = 0
+    price_method: str = ""                  # 里程碑：percent / fixed
+    periods: int = 0
+    frequency: str = ""                     # 定期費用：monthly/quarterly/semi/yearly
+    period_start: str = ""
+    period_end: str = ""
+    first_amount: float = 0
+    first_month: str = ""
+    first_due_date: str = ""
+    note: str = ""
+
+
+class ExpenseSectionPatch(BaseModel):
+    section_name: str | None = None
+    section_amount: float | None = None
+    price_method: str | None = None
+    periods: int | None = None
+    frequency: str | None = None
+    period_start: str | None = None
+    period_end: str | None = None
+    first_amount: float | None = None
+    first_month: str | None = None
+    first_due_date: str | None = None
+    note: str | None = None
+
+
+class ExpenseSchedulePatch(BaseModel):
+    """預覽畫面逐期修正（助理 0803：修正內容要標示為人工調整並保留異動紀錄）。"""
+    milestone_name: str | None = None
+    custom_name: str | None = None
+    percent: float | None = None
+    planned_amount: float | None = None
+    expense_month: str | None = None
+    billing_start: str | None = None
+    billing_end: str | None = None
+    due_date: str | None = None
+    note: str | None = None
+
+
 class ProjectItemIn(BaseModel):
     item_name: str = Field(min_length=1)
     owner: str = ""
@@ -812,7 +890,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.64.0 · 2026-08-07 · 標準採購流程一鍵排入 WBS：勾「涉及請購或合約」自動建七個工作項（需求確認→報價→上簽→議價→簽約→建置→驗收），既有專案也能補排，名單後台可改"
+BACKEND_BUILD = "v0.65.0 · 2026-08-11 · 費用模組三層地基（第一批）：費用主檔（有合約帶入、總費用唯讀）＋費用區段與排程（里程碑逐期、定期費用依頻率推算），含金額檢核、預覽、確認留痕與改版保留原版。前端畫面下一批"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2275,6 +2353,86 @@ def create_app() -> FastAPI:
     @app.delete("/api/projects/{project_id}", status_code=204)
     def delete_project(project_id: int) -> None:
         handle_delete("projects", project_id)
+
+    # ── 費用模組三層（助理 0803 附件一）：主檔 → 費用區段＋排程 → (第三層核銷之後做) ──
+    @app.post("/api/expenses", status_code=201)
+    def create_expense(payload: ExpenseMasterIn) -> dict[str, Any]:
+        return handle_create("expense_masters", payload.model_dump())
+
+    @app.get("/api/expenses")
+    def list_expenses(limit: int = Query(100, ge=1, le=500)) -> dict[str, Any]:
+        return ok(list_rows("expense_masters", limit))
+
+    @app.patch("/api/expenses/{expense_id}")
+    def update_expense(expense_id: int, payload: ExpenseMasterPatch) -> dict[str, Any]:
+        return handle_change("expense_masters", expense_id, payload.model_dump(exclude_unset=True))
+
+    @app.get("/api/expenses/{expense_id}/check")
+    def expense_check(expense_id: int) -> dict[str, Any]:
+        # 第一層總費用 vs 各費用區段加總；混合型少建了哪一段也會列出來
+        try:
+            return ok(store.expense_master_check(expense_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這筆費用主檔。") from exc
+
+    @app.get("/api/expenses/{expense_id}/sections")
+    def expense_sections(expense_id: int) -> dict[str, Any]:
+        return ok(store.list_expense_sections(expense_id))
+
+    @app.post("/api/expenses/{expense_id}/sections", status_code=201)
+    def create_expense_section(expense_id: int, payload: ExpenseSectionIn) -> dict[str, Any]:
+        data = payload.model_dump()
+        data["expense_id"] = expense_id
+        return handle_create("expense_sections", data)
+
+    @app.patch("/api/expense-sections/{section_id}")
+    def update_expense_section(section_id: int, payload: ExpenseSectionPatch) -> dict[str, Any]:
+        return handle_change("expense_sections", section_id, payload.model_dump(exclude_unset=True))
+
+    @app.post("/api/expense-sections/{section_id}/generate")
+    def generate_schedules(section_id: int) -> dict[str, Any]:
+        # 里程碑＝依總期數產生 N 筆可編輯明細；定期費用＝依第一期＋頻率推算後續
+        try:
+            return ok(store.generate_section_schedules(section_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個費用區段。") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/expense-sections/{section_id}/preview")
+    def preview_schedules(section_id: int) -> dict[str, Any]:
+        # 放大檢視用：完整排程＋檢核結果（差多少、差在哪一段都講明白）
+        try:
+            return ok(store.section_preview(section_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個費用區段。") from exc
+
+    @app.patch("/api/expense-schedules/{schedule_id}")
+    def update_schedule(schedule_id: int, payload: ExpenseSchedulePatch) -> dict[str, Any]:
+        data = payload.model_dump(exclude_unset=True)
+        data["manual_adjusted"] = 1          # 人工調過系統算出來的值，留痕跡
+        return handle_change("expense_schedules", schedule_id, data)
+
+    @app.post("/api/expense-sections/{section_id}/confirm")
+    def confirm_schedules(section_id: int) -> dict[str, Any]:
+        try:
+            return ok(store.confirm_section(section_id))   # 確認人取自登入者（bind_actor 已綁）
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個費用區段。") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/expense-sections/{section_id}/reopen")
+    def reopen_schedules(section_id: int) -> dict[str, Any]:
+        # 已確認要改：建新版本、保留原版（助理 0803 要求）
+        try:
+            return ok(store.reopen_section(section_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個費用區段。") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     # ---- 工作項 project_items（進度總表點進去的細節，可由主管/助理/承辦維護；CIO 唯讀）----
     @app.get("/api/projects/{project_id}/items")
