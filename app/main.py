@@ -524,6 +524,13 @@ class ProjectPatch(BaseModel):
     involves_procurement: int | None = None
 
 
+class CrossLinkIn(BaseModel):
+    """跨模組歸戶：把某筆專案／預算掛到指定案件底下（人裁決後才送）。"""
+    kind: str            # project / budget
+    id: int
+    case_id: int
+
+
 class ProjectSubitemIn(BaseModel):
     """工作項底下的子項目（使用者 2026-08-12：子項總數要能繼續追下去）。"""
     name: str = Field(min_length=1)
@@ -957,7 +964,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.68.0 · 2026-08-12 · 工作項底下可再拆子項目（名稱／負責人／完成日／勾完成），子項總數與完成度改由子項自動算；舊資料只有數字的可一鍵拆開"
+BACKEND_BUILD = "v0.69.0 · 2026-08-12 · 跨模組串接：案件／專案／預算名字不同但在講同一件事（青浦機房搬遷／青浦機房搬遷專案／桃園青浦機房），用最長共同片段找候選、由人裁決歸戶。純字串比對，不連網不用 AI"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2296,6 +2303,21 @@ def create_app() -> FastAPI:
         # 一鍵還原：清掉所有裁決，回到剛匯入的原始狀態（原始資料本就沒動過）
         _require_unit_editor(request)
         return ok(reset_unit_decisions())
+
+    # ---- 跨模組串接：案件／專案／預算名字不同但在講同一件事 ----
+    # 純字串比對（不連網、不用 AI），只提候選，歸不歸戶由人決定。
+    @app.get("/api/cross-links")
+    def cross_links(limit: int = Query(200, ge=1, le=500)) -> dict[str, Any]:
+        return ok(store.cross_kind_link_candidates(limit))
+
+    @app.post("/api/cross-links/apply")
+    def apply_cross_link(payload: CrossLinkIn) -> dict[str, Any]:
+        try:
+            return ok(store.apply_cross_kind_link(payload.kind, payload.id, payload.case_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這筆資料或指定的案件。") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     # ---- 名稱歸納：案件名/專案名/廠商名 撞名清洗（比照單位主檔）----
     @app.get("/api/name-values")

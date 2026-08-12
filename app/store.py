@@ -3400,6 +3400,115 @@ NAME_SOURCES: dict[str, list[tuple[str, str]]] = {
 NAME_KIND_LABEL = {"case": "案件名稱", "project": "專案名稱", "vendor": "廠商名稱", "budget": "預算項目"}
 
 
+# ── 跨模組串接：案件／專案／預算其實在講同一件事，但名字都不一樣 ──────────────
+# 使用者 2026-08-12 舉的實例：
+#   案件「青浦機房搬遷」／專案「青浦機房搬遷專案」／預算「桃園青浦機房」
+# 既有的名稱歸納是「同類別內」合併別名（中華電信＝中華電信有限公司），
+# 這裡是「跨類別」找出它們指的是同一件事，把專案／預算歸戶到同一個案件底下。
+#
+# 純字串演算法，離線可跑（使用者明講不能依賴 AI，怕以後功能失效）：
+# 取最長共同片段，長度與佔比都要過門檻才算候選，而且**一律由人裁決**——
+# 「桃園機房搬遷」與「青浦機房搬遷」共用「機房搬遷」，自動併就把兩個案子併成一個了。
+_NAME_NOISE = ("專案", "計畫", "案件", "作業", "系統", "費用", "採購", "建置", "案")
+
+
+def _name_core(name: Any) -> str:
+    """比對前先把常見尾綴與空白拿掉，讓「青浦機房搬遷」和「青浦機房搬遷專案」對得上。"""
+    s = "".join(str(name or "").split())
+    for _ in range(3):                      # 「…專案計畫」這種疊字尾綴，剝幾層
+        for tail in _NAME_NOISE:
+            if len(s) > len(tail) + 2 and s.endswith(tail):
+                s = s[: -len(tail)]
+                break
+        else:
+            break
+    return s
+
+
+def longest_common_part(a: Any, b: Any) -> str:
+    """兩個名稱的最長共同片段（連續字元）。中文沒有空白斷詞，用這個最直觀，
+    而且算出來的東西可以直接顯示給人看——「因為都有『青浦機房』」比「相似度 0.72」好懂。"""
+    x, y = _name_core(a), _name_core(b)
+    if not x or not y:
+        return ""
+    best_len, best_end = 0, 0
+    prev = [0] * (len(y) + 1)
+    for i in range(1, len(x) + 1):
+        cur = [0] * (len(y) + 1)
+        for j in range(1, len(y) + 1):
+            if x[i - 1] == y[j - 1]:
+                cur[j] = prev[j - 1] + 1
+                if cur[j] > best_len:
+                    best_len, best_end = cur[j], i
+        prev = cur
+    return x[best_end - best_len: best_end]
+
+
+def names_look_related(a: Any, b: Any, min_len: int = 3, min_ratio: float = 0.5) -> tuple[bool, str]:
+    """兩個名稱像不像同一件事 →（像不像, 共同片段）。
+
+    門檻刻意保守：共同片段至少 3 個字，而且要佔短名稱一半以上。
+    寧可漏掉幾個讓人手動歸戶，也不要把「桃園機房搬遷」跟「青浦機房搬遷」配在一起——
+    併錯比沒併更難救（資料已經掛過去了）。
+    """
+    part = longest_common_part(a, b)
+    if len(part) < min_len:
+        return False, part
+    shorter = min(len(_name_core(a)), len(_name_core(b))) or 1
+    return (len(part) / shorter) >= min_ratio, part
+
+
+def cross_kind_link_candidates(limit: int = 200) -> dict[str, Any]:
+    """找出「名字不同但可能是同一件事」的專案／預算，建議歸戶到哪個案件。
+
+    只看還沒掛案件、或掛到別的案件的資料；已經在同一個案件底下的不重複提示。
+    """
+    with connect() as conn:
+        cases = [dict(r) for r in conn.execute(
+            "SELECT id, case_code, title FROM cases WHERE status != 'disabled'").fetchall()]
+        projects = [dict(r) for r in conn.execute(
+            "SELECT id, project_code AS code, project_name AS name, case_id FROM projects "
+            "WHERE status != 'disabled'").fetchall()]
+        budgets = [dict(r) for r in conn.execute(
+            "SELECT id, budget_code AS code, budget_code AS name, case_id FROM budgets "
+            "WHERE status != 'disabled'").fetchall()]
+    case_title = {c["id"]: c["title"] for c in cases}
+    out: list[dict[str, Any]] = []
+    for kind, rows in (("project", projects), ("budget", budgets)):
+        for r in rows:
+            for c in cases:
+                if r["case_id"] and int(r["case_id"]) == int(c["id"]):
+                    continue                       # 已經掛在這個案件下了
+                related, part = names_look_related(r["name"], c["title"])
+                if not related:
+                    continue
+                out.append({
+                    "kind": kind, "id": r["id"], "code": r["code"], "name": r["name"],
+                    "current_case_id": r["case_id"],
+                    "current_case_title": case_title.get(r["case_id"]) if r["case_id"] else None,
+                    "suggest_case_id": c["id"], "suggest_case_code": c["case_code"],
+                    "suggest_case_title": c["title"], "common_part": part,
+                })
+    # 同一筆資料可能對到多個案件：共同片段長的排前面，讓人先看最像的那個
+    out.sort(key=lambda x: (-len(x["common_part"]), x["kind"], str(x["name"])))
+    return {"candidates": out[:limit], "total": len(out),
+            "note": "共同片段是純字串比對算出來的（不連網、不用 AI）；要不要歸戶由你決定。"}
+
+
+def apply_cross_kind_link(kind: str, row_id: int, case_id: int) -> dict[str, Any]:
+    """把某筆專案／預算歸戶到指定案件（使用者裁決後才會走到這裡）。"""
+    table = {"project": "projects", "budget": "budgets"}.get(kind)
+    if not table:
+        raise ValueError(f"只支援專案與預算的跨模組歸戶，收到：{kind}")
+    with connect() as conn:
+        before = get_row(conn, table, row_id)
+        get_row(conn, "cases", case_id)              # 案件不存在會 raise LookupError
+        conn.execute(f"UPDATE {table} SET case_id = ? WHERE id = ?", (case_id, row_id))
+        after = get_row(conn, table, row_id)
+        write_audit_log(conn, table, row_id, "cross-link", before, after)
+    return {"kind": kind, "id": row_id, "case_id": case_id, "row": dict(after)}
+
+
 def _name_alias_map(conn, kind: str) -> dict[str, str]:
     """{別名 → 主名(canonical)}（限某 kind）。"""
     rows = conn.execute(

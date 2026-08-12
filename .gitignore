@@ -14,10 +14,21 @@ venv/
 env/
 
 # Runtime data
+# 整個 data/ 都忽略，不要只擋 *.db：手動備份常常叫 fee_control.db.backup-YYYYMMDD、
+# .unused-… 這種名字，副檔名不是 .db 就漏掉了，而那裡面是公司真實資料。
+# （2026-08-12 差點把兩個備份 commit 進 public repo，靠 pre-commit 擋下來。）
+data/
 data/*.db
 data/*.sqlite
 data/*.sqlite3
 data/reset_backups/
+
+# 更新器（downloadpatch.bat）在部署擺法下會把 helper 腳本複製到專案根目錄。
+# 正本在 notebook-package/，根目錄這幾份是執行產物，不該回頭進版控。
+/service.bat
+/service.ps1
+/download.bat
+/update.bat
 logs/
 *.log
 

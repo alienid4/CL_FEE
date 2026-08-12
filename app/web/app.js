@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.68.0 · 2026-08-12 · 工作項可以再往下拆子項目（完成度改由子項自動算）";
+const BUILD_TAG = "v0.69.0 · 2026-08-12 · 跨模組串接：案件／專案／預算名字不同也認得出是同一件事";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5812,10 +5812,78 @@ function clusterNames(values) {
   });
 }
 
+// 跨模組串接：案件／專案／預算名字不同但在講同一件事（青浦機房搬遷／青浦機房搬遷專案／桃園青浦機房）。
+// 比對在後端做（純字串，不連網、不用 AI），這裡只負責把候選列出來讓人裁決。
+async function loadCrossLinks() {
+  const box = document.querySelector("#name-result");
+  const sum = document.querySelector("#name-summary");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">比對中…</p>`;
+  try {
+    const data = (await api("/api/cross-links")).data || {};
+    const cands = data.candidates || [];
+    if (sum) {
+      sum.innerHTML = cands.length
+        ? `<p class="warn-line">⚠ 找到 <strong>${cands.length}</strong> 筆專案／預算，名字跟某個案件很像但沒掛在一起。系統只提建議、不自動歸戶。</p>`
+        : `<p class="ok-line">✓ 沒有找到名字相近卻沒串在一起的資料。</p>`;
+    }
+    if (!cands.length) {
+      box.innerHTML = `<p class="muted">目前沒有建議。<br />
+        比對方式：取兩個名稱的最長共同片段，至少 3 個字且要佔短名稱一半以上才會列出來——
+        寧可漏掉幾個讓你手動歸戶，也不要把「桃園機房搬遷」跟「青浦機房搬遷」配在一起。</p>`;
+      return;
+    }
+    const KIND = { project: "專案", budget: "預算" };
+    box.innerHTML = `<p class="muted">${escapeHtml(data.note || "")}</p>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>類型</th><th>目前這筆</th><th>目前掛在</th><th>建議歸到的案件</th>
+        <th>為什麼像</th><th class="col-actions">操作</th></tr></thead>
+        <tbody>${cands.map((c) => `<tr>
+          <td>${escapeHtml(KIND[c.kind] || c.kind)}</td>
+          <td><strong>${escapeHtml(c.name || "")}</strong><br /><small class="muted">${escapeHtml(c.code || "")}</small></td>
+          <td>${c.current_case_title
+                ? escapeHtml(c.current_case_title)
+                : '<span class="muted">尚未歸戶</span>'}</td>
+          <td><strong>${escapeHtml(c.suggest_case_title || "")}</strong><br />
+              <small class="muted">${escapeHtml(c.suggest_case_code || "")}</small></td>
+          <td><span class="badge">共同「${escapeHtml(c.common_part)}」</span></td>
+          <td><button type="button" class="btn-sm" data-cross-apply
+                data-kind="${escapeHtml(c.kind)}" data-id="${c.id}" data-case="${c.suggest_case_id}"
+                title="把這筆歸到該案件底下（會留稽核紀錄，可日後改掛）">歸到這個案件</button></td>
+        </tr>`).join("")}</tbody></table></div>`;
+  } catch (error) {
+    box.innerHTML = `<p class="muted">比對失敗：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+document.querySelector("#name-result")?.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-cross-apply]");
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = "歸戶中…";
+  try {
+    await api("/api/cross-links/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: btn.getAttribute("data-kind"),
+        id: Number(btn.getAttribute("data-id")),
+        case_id: Number(btn.getAttribute("data-case")),
+      }),
+    });
+    await Promise.all([loadResource("project"), loadResource("budget")]);
+    await loadCrossLinks();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "歸到這個案件";
+    window.alert(`歸戶失敗：${e.message}`);
+  }
+});
+
 async function loadNameCleaning() {
   const box = document.querySelector("#name-result");
   const sum = document.querySelector("#name-summary");
   if (!box) return;
+  if (nameKind === "cross") { await loadCrossLinks(); return; }   // 跨模組走另一套比對
   box.innerHTML = `<p class="muted">掃描中…</p>`;
   try {
     const data = (await api(`/api/name-values?kind=${nameKind}`)).data || {};
