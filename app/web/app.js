@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.67.0 · 2026-08-12 · 燈號矛盾修正；預算分攤可就地改金額／比例";
+const BUILD_TAG = "v0.68.0 · 2026-08-12 · 工作項可以再往下拆子項目（完成度改由子項自動算）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3252,15 +3252,23 @@ function pfDetail(p) {
 
 const canEditPortfolio = () => currentUser && (currentUser.allowed_actions || []).includes("edit");
 
+let pfItemsCache = [];       // 目前展開的專案的工作項；子項目面板要靠它顯示父工作項的名稱與數字
 async function loadProjectItems(projectId) {
   const box = document.querySelector("#pf-items");
   if (!box) return;
   try {
     const items = (await api(`/api/projects/${projectId}/items`)).data || [];
+    pfItemsCache = items;
     box.innerHTML = renderItemsSection(projectId, items);
   } catch (error) {
     box.innerHTML = `<p class="muted">工作項載入失敗：${escapeHtml(error.message)}</p>`;
   }
+}
+
+// 子項目改動後重載工作項表：完成度／燈號是後端算的，要重抓才看得到新數字
+async function reloadPfItems() {
+  const pid = document.querySelector("#pf-items")?.getAttribute("data-project-id");
+  if (pid) await loadProjectItems(pid);
 }
 
 // 工作項表格：開始日/結束日拆兩欄才能各自排序；預設依「結束日離今天的遠近」排，越急迫的越前面
@@ -3297,7 +3305,20 @@ function pfCellHtml(field, it) {
     case "start_date": return escapeHtml(valueOrDash(it.start_date));
     case "end_date": return escapeHtml(valueOrDash(it.end_date));
     case "exec_status": return escapeHtml(valueOrDash(it.exec_status));  // 純文字；燈號移到獨立的「燈號」欄（B1）
-    case "sub_total": case "sub_done": return String(Number(it[field] || 0));
+    case "sub_total": {
+      // 子項總數可以再往下追：有子項就展開清單，只有數字（Excel 帶進來的）就給「拆成子項目」
+      const n = Number(it.sub_total || 0);
+      const hasList = Number(it.subitem_count || 0) > 0;
+      if (hasList) {
+        return `<button type="button" class="link-btn" data-subitems="${it.id}"
+          title="展開子項目清單（這個數字是子項算出來的）">${n} ▸</button>`;
+      }
+      return n > 0
+        ? `${n} <button type="button" class="link-btn" data-split-item="${it.id}"
+             title="這個數字沒有對應的子項目清單（多半是 Excel 帶進來的）。拆開後可以逐項填內容與勾完成">拆開</button>`
+        : `<button type="button" class="link-btn" data-subitems="${it.id}" title="新增子項目">＋子項</button>`;
+    }
+    case "sub_done": return String(Number(it[field] || 0));
     case "progress": {  // ＝已完成÷總數（後端算），標示出來讓人知道不是手填的
       const n = Number(it.progress || 0);
       return `<span title="＝已完成 ${Number(it.sub_done || 0)} ÷ 子項總數 ${Number(it.sub_total || 0)}，系統自動計算">${n}%</span>`;
@@ -3379,8 +3400,133 @@ function renderItemsSection(projectId, items) {
         <tbody>${rows}</tbody>
       </table>
     </div>
+    <div id="pf-subitems" class="schedule-panel" hidden></div>
     <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>`;
 }
+
+// ── 子項目：工作項再往下一層（使用者 2026-08-12「子項總數怎不能繼續追下去」）──
+// 拆開之後「子項總數／已完成／完成度／燈號」都由這裡算，工作項那兩欄不再手填。
+async function loadSubitems(itemId) {
+  const box = document.querySelector("#pf-subitems");
+  if (!box || !itemId || itemId === "undefined") return;
+  box.hidden = false;
+  box.dataset.itemId = itemId;
+  box.innerHTML = `<p class="muted">載入子項目…</p>`;
+  try {
+    const subs = (await api(`/api/project-items/${itemId}/subitems`)).data || [];
+    const item = (pfItemsCache || []).find((x) => String(x.id) === String(itemId)) || {};
+    const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
+    const rows = subs.length ? subs.map((s) => `<tr>
+        <td class="num">${s.seq}</td>
+        <td><input class="cell-input" data-sub-field="name" data-sub-id="${s.id}"
+              value="${escapeHtml(s.name || "")}"${editable ? "" : " disabled"} /></td>
+        <td><input class="cell-input" data-sub-field="owner" data-sub-id="${s.id}" list="pf-item-personnel-list"
+              value="${escapeHtml(s.owner || "")}"${editable ? "" : " disabled"} /></td>
+        <td><input class="cell-input" type="date" data-sub-field="end_date" data-sub-id="${s.id}"
+              value="${escapeHtml(s.end_date || "")}"${editable ? "" : " disabled"} /></td>
+        <td class="num"><input type="checkbox" data-sub-field="done" data-sub-id="${s.id}"
+              ${s.done ? "checked" : ""}${editable ? "" : " disabled"} title="勾了就算完成，完成度自動重算" /></td>
+        <td><input class="cell-input" data-sub-field="note" data-sub-id="${s.id}"
+              value="${escapeHtml(s.note || "")}" placeholder="備註"${editable ? "" : " disabled"} /></td>
+        <td>${editable ? `<button type="button" class="danger btn-sm" data-sub-del="${s.id}">刪除</button>` : ""}</td>
+      </tr>`).join("")
+      : `<tr><td colspan="7" class="muted">還沒有子項目${editable ? "，用下面那列新增。" : "。"}</td></tr>`;
+  box.innerHTML = `
+      <div class="sched-head">
+        <h3>${escapeHtml(item.item_name || "工作項")}　子項目
+          <span class="muted">完成 ${Number(item.sub_done || 0)} / 共 ${Number(item.sub_total || 0)}
+          （這兩個數字由子項目算出來，不用手填）</span></h3>
+        <button type="button" class="secondary btn-sm" data-sub-close>收合</button>
+      </div>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th class="w-seq">#</th><th>子項目名稱</th><th class="w-owner">負責人</th>
+        <th class="w-date">完成日</th><th class="w-seq">完成</th><th>備註</th><th class="col-actions">操作</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      ${editable ? `<form class="resource-form" data-sub-form="${itemId}">
+        <input data-new-sub-name placeholder="子項目名稱 *" required />
+        <input data-new-sub-owner placeholder="負責人" list="pf-item-personnel-list" />
+        <input data-new-sub-end type="date" title="完成日" />
+        <button type="submit">新增子項目</button>
+      </form>` : ""}`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (e) {
+    box.innerHTML = `<p class="error">子項目載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+document.addEventListener("click", async (event) => {
+  const open = event.target.closest("[data-subitems]");
+  if (open) { await loadSubitems(open.getAttribute("data-subitems")); return; }
+  if (event.target.closest("[data-sub-close]")) {
+    document.querySelector("#pf-subitems").hidden = true;
+    return;
+  }
+  const split = event.target.closest("[data-split-item]");
+  if (split) {
+    const id = split.getAttribute("data-split-item");
+    split.disabled = true;
+    split.textContent = "拆開中…";
+    try {
+      const r = (await api(`/api/project-items/${id}/split`, { method: "POST" })).data;
+      await reloadPfItems();
+      await loadSubitems(id);
+      window.alert(`已拆成 ${r.created} 筆子項目（前 ${r.done} 筆先標成完成），名稱請自行改成實際內容。`);
+    } catch (e) {
+      split.disabled = false;
+      split.textContent = "拆開";
+      window.alert(`拆開失敗：${e.message}`);
+    }
+    return;
+  }
+  const del = event.target.closest("[data-sub-del]");
+  if (del) {
+    if (!window.confirm("刪掉這個子項目？完成度會跟著重算。")) return;
+    // 先把 itemId 抓起來：reloadPfItems 會重畫整個工作項區塊（連帶換掉 #pf-subitems 這個元素），
+    // 之後再讀它的 dataset 就是新的空元素，拿到 undefined。
+    const itemId = document.querySelector("#pf-subitems")?.dataset.itemId;
+    try {
+      await api(`/api/project-subitems/${del.getAttribute("data-sub-del")}`, { method: "DELETE" });
+      await reloadPfItems();
+      await loadSubitems(itemId);
+    } catch (e) { window.alert(`刪除失敗：${e.message}`); }
+  }
+});
+
+document.addEventListener("change", async (event) => {
+  const el = event.target.closest("[data-sub-field]");
+  if (!el) return;
+  const field = el.getAttribute("data-sub-field");
+  const value = el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
+  const itemId = document.querySelector("#pf-subitems")?.dataset.itemId;   // reload 前先抓（見上面的註解）
+  try {
+    await api(`/api/project-subitems/${el.getAttribute("data-sub-id")}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: value }),
+    });
+    await reloadPfItems();                     // 工作項的完成度／燈號跟著變
+    await loadSubitems(itemId);
+  } catch (e) { window.alert(`儲存失敗：${e.message}`); }
+});
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-sub-form]");
+  if (!form) return;
+  event.preventDefault();
+  const itemId = form.getAttribute("data-sub-form");
+  try {
+    await api(`/api/project-items/${itemId}/subitems`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.querySelector("[data-new-sub-name]").value,
+        owner: form.querySelector("[data-new-sub-owner]").value,
+        end_date: form.querySelector("[data-new-sub-end]").value,
+      }),
+    });
+    await reloadPfItems();
+    await loadSubitems(itemId);
+  } catch (e) { window.alert(`新增子項目失敗：${e.message}`); }
+});
 
 // 助理定義的五色燈號代碼（後端 WBS_RAG_ORDER）→ 本站既有的色調 class。
 const WBS_RAG_TO_TONE = { gray: "done", white: "todo", green: "live", yellow: "soon", red: "over" };

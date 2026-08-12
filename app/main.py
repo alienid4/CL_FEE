@@ -524,6 +524,26 @@ class ProjectPatch(BaseModel):
     involves_procurement: int | None = None
 
 
+class ProjectSubitemIn(BaseModel):
+    """工作項底下的子項目（使用者 2026-08-12：子項總數要能繼續追下去）。"""
+    name: str = Field(min_length=1)
+    owner: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    done: int = 0
+    note: str = ""
+
+
+class ProjectSubitemPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    owner: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    done: int | None = None
+    note: str | None = None
+    seq: int | None = None
+
+
 class BudgetAllocationPatch(BaseModel):
     """人工微調單一單位的分攤：給金額或比例其中一個，另一個由系統換算。"""
     amount: float | None = None
@@ -937,7 +957,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.67.0 · 2026-08-12 · 修「執行進度已完成卻判已延遲」的燈號矛盾（開機自動刷舊資料）；預算分攤金額／比例可就地人工微調；合約系統識別碼改開機自動補"
+BACKEND_BUILD = "v0.68.0 · 2026-08-12 · 工作項底下可再拆子項目（名稱／負責人／完成日／勾完成），子項總數與完成度改由子項自動算；舊資料只有數字的可一鍵拆開"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2621,6 +2641,50 @@ def create_app() -> FastAPI:
         handle_delete("project_items", item_id)
         if existing:
             store.recompute_project_rollup(existing["project_id"])
+
+    # ---- 子項目：工作項再往下一層（使用者 2026-08-12：子項總數要能繼續追下去）----
+    # 拆了子項之後「子項總數／已完成／完成度／燈號」都由子項算，不再手填。
+    @app.get("/api/project-items/{item_id}/subitems")
+    def project_subitems(item_id: int) -> dict[str, Any]:
+        return ok(store.list_project_subitems(item_id))
+
+    @app.post("/api/project-items/{item_id}/subitems", status_code=201)
+    def create_project_subitem(item_id: int, payload: ProjectSubitemIn) -> dict[str, Any]:
+        try:
+            return ok(store.save_project_subitem(item_id, payload.model_dump()))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個工作項。") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/project-items/{item_id}/split")
+    def split_project_item(item_id: int) -> dict[str, Any]:
+        # 舊資料只有數字沒有清單（Excel 帶進來的 3/3），照數字拆成對應筆數的空白子項讓人補內容
+        try:
+            return ok(store.split_item_into_subitems(item_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這個工作項。") from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.patch("/api/project-subitems/{subitem_id}")
+    def update_project_subitem(subitem_id: int, payload: ProjectSubitemPatch) -> dict[str, Any]:
+        existing = store.fetch_one("project_subitems", subitem_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="找不到這個子項目。")
+        try:
+            return ok(store.save_project_subitem(
+                existing["item_id"], payload.model_dump(exclude_unset=True), subitem_id))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete("/api/project-subitems/{subitem_id}")
+    def delete_project_subitem(subitem_id: int) -> dict[str, Any]:
+        if store.fetch_one("project_subitems", subitem_id) is None:
+            raise HTTPException(status_code=404, detail="找不到這個子項目。")
+        return ok(store.delete_project_subitem(subitem_id))
 
     @app.post("/api/projects/import-xlsx")
     async def import_projects_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:

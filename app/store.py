@@ -420,6 +420,23 @@ CREATE TABLE IF NOT EXISTS project_items (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 工作項底下的子項目（使用者 2026-08-12：「子項總數怎不能繼續追下去」）。
+-- 原本 project_items 只有 sub_total／sub_done 兩個數字欄位，填了 3/3 也看不出那三項是什麼。
+-- 拆了子項之後，那兩個數字改由這張表算出來，不再手填。
+CREATE TABLE IF NOT EXISTS project_subitems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    seq INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    owner TEXT NOT NULL DEFAULT '',
+    start_date TEXT NOT NULL DEFAULT '',
+    end_date TEXT NOT NULL DEFAULT '',
+    done INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS budget_allocations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     budget_id INTEGER NOT NULL,
@@ -1530,6 +1547,8 @@ def allowed_fields() -> dict[str, set[str]]:
         "project_items": {"project_id", "seq", "item_name", "owner", "start_date", "end_date", "exec_status",
                           "sub_total", "sub_done", "progress", "rag", "risk_note", "decision_needed",
                           "support_needed", "duration_days", "status", "rag_manual"},
+        "project_subitems": {"item_id", "seq", "name", "owner", "start_date", "end_date",
+                             "done", "note", "status"},
         "budget_allocations": {"budget_id", "seq", "unit_code", "unit_name", "share_pct", "amount", "source_file"},
         # 費用模組三層（助理 0803 附件一）
         "expense_masters": {"contract_id", "case_id", "expense_name", "vendor_name", "vendor_tax_id",
@@ -2316,10 +2335,17 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def list_project_items(project_id: int) -> list[dict[str, Any]]:
-    """某專案的工作項清單（排除已停用），依序號排序。"""
+    """某專案的工作項清單（排除已停用），依序號排序。
+
+    subitem_count：這個工作項底下有沒有真的子項目清單。畫面要靠它分辨
+    「3 是子項算出來的（可以點開）」還是「3 只是 Excel 帶進來的數字（要先拆）」。
+    """
     with connect() as conn:
         rows = conn.execute(
-            "SELECT * FROM project_items WHERE project_id = ? AND status != 'disabled' ORDER BY seq ASC, id ASC",
+            "SELECT i.*, (SELECT COUNT(*) FROM project_subitems s "
+            "             WHERE s.item_id = i.id AND s.status != 'disabled') AS subitem_count "
+            "FROM project_items i WHERE i.project_id = ? AND i.status != 'disabled' "
+            "ORDER BY i.seq ASC, i.id ASC",
             (project_id,),
         ).fetchall()
         return [dict(r) for r in rows]
@@ -2410,6 +2436,104 @@ def wbs_auto_rag(progress: float, start_date: Any, end_date: Any) -> str:
             behind = (expected - progress) > 10       # 落後預期一成以上＝有風險
     near_due = bool(end) and 0 <= (end - today).days <= 14
     return "yellow" if (behind or near_due) else "green"
+
+
+def list_project_subitems(item_id: int) -> list[dict[str, Any]]:
+    with connect() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT * FROM project_subitems WHERE item_id = ? AND status != 'disabled' "
+            "ORDER BY seq, id", (item_id,)).fetchall()]
+
+
+def _rollup_item_from_subitems(conn: sqlite3.Connection, item_id: int) -> dict[str, Any] | None:
+    """子項目異動後，把父工作項的「子項總數／已完成／完成度／燈號」重算，再往上滾到專案。
+
+    拆了子項就以子項為準——原本那兩個數字是人工填的，兩邊並存一定會有一天對不起來。
+    子項全刪光時把數字歸零並退回用「執行進度」判斷（跟沒拆過的工作項一樣）。
+    """
+    item = conn.execute("SELECT * FROM project_items WHERE id = ?", (item_id,)).fetchone()
+    if item is None:
+        return None
+    rows = conn.execute(
+        "SELECT done FROM project_subitems WHERE item_id = ? AND status != 'disabled'",
+        (item_id,)).fetchall()
+    total = len(rows)
+    done = sum(1 for r in rows if int(r["done"] or 0) == 1)
+    progress = wbs_item_progress(total, done, item["exec_status"])
+    fields: dict[str, Any] = {"sub_total": total, "sub_done": done, "progress": progress}
+    if int(item["rag_manual"] or 0) != 1:
+        fields["rag"] = wbs_auto_rag(progress, item["start_date"], item["end_date"])
+    assignments = ", ".join(f"{k} = ?" for k in fields)
+    conn.execute(f"UPDATE project_items SET {assignments} WHERE id = ?", [*fields.values(), item_id])
+    _recompute_project_rollup(conn, item["project_id"])
+    return dict(conn.execute("SELECT * FROM project_items WHERE id = ?", (item_id,)).fetchone())
+
+
+def save_project_subitem(item_id: int, payload: dict[str, Any],
+                         subitem_id: int | None = None) -> dict[str, Any]:
+    """新增或修改一筆子項目，並立刻把父工作項與專案的數字重算。"""
+    with connect() as conn:
+        if conn.execute("SELECT 1 FROM project_items WHERE id = ?", (item_id,)).fetchone() is None:
+            raise LookupError(f"project_items row {item_id} not found")
+        fields = {k: v for k, v in payload.items()
+                  if k in allowed_fields()["project_subitems"] and v is not None}
+        if subitem_id is None:
+            if not str(fields.get("name") or "").strip():
+                raise ValueError("子項目名稱必填。")
+            fields["item_id"] = item_id
+            if not fields.get("seq"):
+                fields["seq"] = conn.execute(
+                    "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM project_subitems WHERE item_id = ?",
+                    (item_id,)).fetchone()["n"]
+            row = _insert_row(conn, "project_subitems", fields)
+        else:
+            before = get_row(conn, "project_subitems", subitem_id)
+            if not fields:
+                raise ValueError("沒有可更新的欄位。")
+            assignments = ", ".join(f"{k} = ?" for k in fields)
+            conn.execute(f"UPDATE project_subitems SET {assignments} WHERE id = ?",
+                         [*fields.values(), subitem_id])
+            row = get_row(conn, "project_subitems", subitem_id)
+            write_audit_log(conn, "project_subitems", subitem_id, "update", before, row)
+        parent = _rollup_item_from_subitems(conn, item_id)
+    return {"subitem": dict(row), "item": parent}
+
+
+def delete_project_subitem(subitem_id: int) -> dict[str, Any]:
+    with connect() as conn:
+        before = get_row(conn, "project_subitems", subitem_id)
+        item_id = before["item_id"]
+        conn.execute("DELETE FROM project_subitems WHERE id = ?", (subitem_id,))
+        write_audit_log(conn, "project_subitems", subitem_id, "delete", before, None)
+        parent = _rollup_item_from_subitems(conn, item_id)
+    return {"deleted": subitem_id, "item": parent}
+
+
+def split_item_into_subitems(item_id: int) -> dict[str, Any]:
+    """把「只有數字沒有清單」的舊工作項拆成子項目。
+
+    既有資料多半是 Excel 帶進來的：sub_total=3、sub_done=3，但那三項是什麼沒人知道。
+    這裡照數字產出對應筆數的空白子項（前 N 筆先勾完成，對齊原本的已完成數），
+    名稱留「子項目 1、2…」讓承辦自己改——**不猜內容**，猜出來的名字看起來像真的最危險。
+    已經有子項就不做，避免重複拆。
+    """
+    with connect() as conn:
+        item = get_row(conn, "project_items", item_id)
+        exist = conn.execute("SELECT COUNT(*) n FROM project_subitems WHERE item_id = ?",
+                             (item_id,)).fetchone()["n"]
+        if exist:
+            raise RuntimeError("這個工作項已經有子項目了，不用再拆一次。")
+        total = int(item["sub_total"] or 0)
+        done = int(item["sub_done"] or 0)
+        if total <= 0:
+            raise ValueError("這個工作項的子項總數是 0，沒有東西可以拆——請直接新增子項目。")
+        for i in range(1, total + 1):
+            _insert_row(conn, "project_subitems", {
+                "item_id": item_id, "seq": i, "name": f"子項目 {i}",
+                "owner": item["owner"] or "", "done": 1 if i <= done else 0,
+            })
+        parent = _rollup_item_from_subitems(conn, item_id)
+    return {"created": total, "done": done, "item": parent}
 
 
 def recompute_project_rollup(project_id: int) -> dict[str, Any] | None:
