@@ -1873,6 +1873,12 @@ tr.person-off td { opacity: .55; }
   background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
 /* 重新編輯前的舊版費用區段：留著查閱，但視覺上要跟現行版本分得開 */
 .row-archived { opacity:.62; }
+/* 預算分攤可就地微調：談定的分攤常常不是純比例，要能改個別單位的金額或% */
+.alloc-input { width:7.5rem; text-align:right; padding:3px 6px; border:1px solid var(--line);
+  border-radius:6px; background:var(--surface); color:var(--ink); font:inherit; font-size:.86rem; }
+.alloc-input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+.alloc-input:disabled { background:var(--surface-2); color:var(--ink-3); }
+
 /* 費用模組（助理 0803）：有合約時總費用由合約帶入且不得修改 → 反灰讓人一看就知道不用填 */
 .readonly-field { background:var(--surface-2); color:var(--ink-2); cursor:not-allowed; }
 /* 費用排程模式可複選，選項下方直接放模式說明（助理要求說明要跟著選項一起看得到） */

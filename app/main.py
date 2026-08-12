@@ -524,6 +524,12 @@ class ProjectPatch(BaseModel):
     involves_procurement: int | None = None
 
 
+class BudgetAllocationPatch(BaseModel):
+    """人工微調單一單位的分攤：給金額或比例其中一個，另一個由系統換算。"""
+    amount: float | None = None
+    share_pct: float | None = None
+
+
 class ExpenseMasterIn(BaseModel):
     """第一層 費用主檔（助理 0803 附件一第四節）。有合約時多數欄位由合約帶入。"""
     contract_id: int | None = None          # 空＝無合約費用
@@ -931,7 +937,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.66.0 · 2026-08-11 · 費用模組三層完成：最低承諾金額（承諾期間、達成率、超額轉入）＋第三層實際費用登錄與請款／核銷（一期一發票、請款差異、處理進度五態與通知對象）"
+BACKEND_BUILD = "v0.67.0 · 2026-08-12 · 修「執行進度已完成卻判已延遲」的燈號矛盾（開機自動刷舊資料）；預算分攤金額／比例可就地人工微調；合約系統識別碼改開機自動補"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2125,6 +2131,25 @@ def create_app() -> FastAPI:
         # 以費用項目看：這筆共用費用攤給哪些單位、各多少
         return ok(list_budget_allocations(budget_id))
 
+    @app.patch("/api/budget-allocations/{alloc_id}")
+    def patch_budget_allocation(alloc_id: int, payload: BudgetAllocationPatch) -> dict[str, Any]:
+        # 人工微調單一單位的分攤（談定的分攤常常不是純比例）。給金額或比例其中一個，
+        # 另一個系統跟著算；改完分攤方法會鎖回「固定金額」，免得下次重算把人工結果洗掉。
+        try:
+            return ok(store.update_budget_allocation(alloc_id, payload.amount, payload.share_pct))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這筆分攤。") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/budgets/{budget_id}/allocation-check")
+    def budget_allocation_check(budget_id: int) -> dict[str, Any]:
+        # 分攤合計 vs 費用項目金額，對不上直接講差多少
+        try:
+            return ok(store.budget_allocation_check(budget_id))
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="找不到這筆費用項目。") from exc
+
     @app.get("/api/budget-units")
     def budget_units(unit_code: str | None = Query(None)) -> dict[str, Any]:
         # 以單位看：各單位在所有項目的分攤合計；帶 unit_code 則回該單位的每筆明細
@@ -2539,7 +2564,9 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=422, detail="子項目完成數不能大於總數。")
         except (TypeError, ValueError):
             raise HTTPException(status_code=422, detail="子項目數必須是數字。") from None
-        progress = store.wbs_item_progress(total, done)
+        # 執行進度那欄也算數：沒拆子項但寫了「已完成」就是 100%，
+        # 不然畫面會出現「執行進度：已完成 / 燈號：已延遲」自相矛盾的一列
+        progress = store.wbs_item_progress(total, done, base.get("exec_status"))
         data["progress"] = progress
         # 燈號：這次有明確帶 rag＝人工指定（記 rag_manual=1，之後不被系統覆蓋）；
         # 帶空字串＝把它交回系統自動判；沒帶就沿用原本是人工還是自動的狀態。

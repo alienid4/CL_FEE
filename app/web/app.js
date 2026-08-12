@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.66.0 · 2026-08-11 · 費用模組三層完成：最低承諾金額達成率＋請款核銷五態";
+const BUILD_TAG = "v0.67.0 · 2026-08-12 · 燈號矛盾修正；預算分攤可就地改金額／比例";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -4915,6 +4915,9 @@ async function loadBudgetAllocations(budgetId, sel) {
     const al = (await api(`/api/budgets/${budgetId}/allocations`)).data || [];
     const bud = (resourceCaches.budget || []).find((b) => String(b.id) === String(budgetId));
     const total = al.reduce((s, a) => s + Number(a.amount_int || 0), 0);  // 整數欄合計＝項目總額
+    // 人工改過某一列之後合計就會跟項目金額對不上，當場講差多少（20 幾列不該讓人自己加）
+    let balance = null;
+    try { balance = (await api(`/api/budgets/${budgetId}/allocation-check`)).data; } catch (_e) { /* 非必要 */ }
     const editable = currentUser && (currentUser.allowed_actions || []).includes("edit");
     const absorber = al.find((a) => a.is_remainder_unit);
     const method = bud ? (bud.alloc_method || "fixed") : "fixed";
@@ -4946,11 +4949,20 @@ async function loadBudgetAllocations(budgetId, sel) {
           const remTag = a.is_remainder_unit
             ? ` <span class="badge warn" title="整數化湊不齊的尾數歸此單位">含尾數 ${a.remainder >= 0 ? "+" : ""}${money(a.remainder)}</span>`
             : "";
+          // 金額與比例都可以就地改（談定的分攤常常不是純比例，改一個另一個系統跟著算）
+          const amountCell = editable
+            ? `<input class="alloc-input" type="number" min="0" step="1" value="${Number(a.amount_int || 0)}"
+                 data-alloc-amount="${a.id}" data-budget="${budgetId}" title="改金額，比例跟著算" />`
+            : `${money(a.amount_int)} 元`;
+          const pctCell = editable
+            ? `<input class="alloc-input" type="number" min="0" max="100" step="0.01" value="${Number(a.share_pct || 0)}"
+                 data-alloc-pct="${a.id}" data-budget="${budgetId}" title="改比例，金額跟著算" />%`
+            : `${Number(a.share_pct || 0)}%`;
           return `<tr>
           <td>${escapeHtml(valueOrDash(a.unit_code))}</td>
           <td>${escapeHtml(a.unit_name)}${remTag}</td>
-          <td class="num">${Number(a.share_pct || 0)}%</td>
-          <td class="num">${money(a.amount_int)} 元</td></tr>`;
+          <td class="num">${pctCell}</td>
+          <td class="num">${amountCell}</td></tr>`;
         }).join("")
       : `<tr><td colspan="4" class="muted">這筆預算沒有分攤明細（可能是手動建立、或匯入時無分攤表）。</td></tr>`;
     const overrideCtl = (editable && al.length)
@@ -4967,6 +4979,13 @@ async function loadBudgetAllocations(budgetId, sel) {
         <button type="button" class="secondary btn-sm" data-alloc-close>關閉</button>
       </div>
       <div class="alloc-ctls">${methodCtl}${categoryCtl}${overrideCtl}</div>
+      ${balance && !balance.balanced
+        ? `<p class="chip todo">分攤合計 ${money(balance.allocated)} 元，與費用項目金額 ${money(balance.total)} 元`
+          + ` 差 ${money(Math.abs(balance.diff))} 元（${balance.diff > 0 ? "還少" : "多"}了）——`
+          + `尾數會由「尾數承擔單位」吸收，差太多請檢查是不是有一列改錯。</p>`
+        : ""}
+      ${editable ? `<p class="muted">分攤% 與分攤金額都可以直接改，改一個另一個會自動換算。
+        人工改過之後分攤方法會鎖回「固定金額」，避免下次按重算把談好的結果洗掉。</p>` : ""}
       <div class="grid-scroll"><table class="grid-table">
         <thead><tr><th>單位代碼</th><th>單位名稱</th><th>分攤%</th><th>分攤金額</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -5908,6 +5927,28 @@ document.addEventListener("click", (event) => {
     document.querySelector('a.module-card[href="#data-admin"]')?.click();
   }
 });
+// 分攤金額／比例就地改：給哪一個就以哪一個為準，另一個由後端換算，改完重載看合計對不對
+document.addEventListener("change", async (event) => {
+  const amt = event.target.closest("[data-alloc-amount]");
+  const pct = event.target.closest("[data-alloc-pct]");
+  const el = amt || pct;
+  if (!el) return;
+  const id = el.getAttribute(amt ? "data-alloc-amount" : "data-alloc-pct");
+  const budgetId = el.getAttribute("data-budget");
+  const body = amt ? { amount: Number(el.value || 0) } : { share_pct: Number(el.value || 0) };
+  el.disabled = true;
+  try {
+    await api(`/api/budget-allocations/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    await loadResource("budget");            // 分攤方法可能被鎖回固定金額
+    await loadBudgetAllocations(budgetId);
+  } catch (error) {
+    el.disabled = false;
+    window.alert(`分攤修改失敗：${error.message}`);
+  }
+});
+
 // 改「尾數承擔單位」→ 存進該預算、重載分攤（尾數即時改歸新單位）。document 委派＝兩個容器都適用
 document.addEventListener("change", async (event) => {
   const sel = event.target.closest("[data-rem-budget]");

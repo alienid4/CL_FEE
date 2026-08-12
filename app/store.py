@@ -758,6 +758,69 @@ def initialize_database() -> None:
         ensure_column(conn, "contracts", "progress_note", "TEXT NOT NULL DEFAULT ''")    # 合約進度說明（黃/紅燈必填）
         ensure_column(conn, "contracts", "end_reason", "TEXT NOT NULL DEFAULT ''")       # 已整併/不續約 → 燈號轉灰
         ensure_column(conn, "contracts", "project_id", "INTEGER")                        # 對應專案
+        _fill_missing_contract_system_codes(conn)
+        _refresh_wbs_progress_from_exec_status(conn)
+
+
+def _fill_missing_contract_system_codes(conn: sqlite3.Connection) -> int:
+    """開機補號：既有合約沒有系統識別碼就配一個。
+
+    system_code 是 2026-08-03 才加的欄位，之前建的合約全是空的，畫面上「系統識別碼」
+    那一欄就整排空白。原本要人到後台按一次補號才會有——沒人知道要按，等於預設壞的。
+    這裡在建表／補欄位之後直接補掉，重開就是好的。
+
+    冪等且便宜：先數一次還有幾筆沒號，是 0 就直接回。先主約後增購，因為增購的子號
+    要接在原合約的識別碼後面，父的還沒號就配不出來。
+    """
+    if conn.execute("SELECT COUNT(*) n FROM contracts WHERE COALESCE(system_code,'') = ''"
+                    ).fetchone()["n"] == 0:
+        return 0
+    filled = 0
+    for is_addon_pass in (False, True):
+        rows = conn.execute(
+            "SELECT id, relation_type, parent_contract_id, start_date FROM contracts "
+            "WHERE COALESCE(system_code, '') = '' ORDER BY id").fetchall()
+        for r in rows:
+            row_is_addon = str(r["relation_type"] or "") == "addon" and bool(r["parent_contract_id"])
+            if row_is_addon is not is_addon_pass:
+                continue
+            code = _next_contract_system_code(conn, {
+                "relation_type": r["relation_type"],
+                "parent_contract_id": r["parent_contract_id"],
+                "start_date": r["start_date"],
+            })
+            conn.execute("UPDATE contracts SET system_code = ?, system_seq = ? WHERE id = ?",
+                         (code["system_code"], code["system_seq"], r["id"]))
+            filled += 1
+    return filled
+
+
+def _refresh_wbs_progress_from_exec_status(conn: sqlite3.Connection) -> int:
+    """開機修正：沒拆子項但「執行進度」寫了已完成的工作項，進度補成 100%、燈號重判。
+
+    這些列原本進度是 0%，過了結束日就被自動判成紅燈「已延遲」，畫面上跟同一列的
+    「執行進度：已完成」自相矛盾（實際資料裡 26 個專案都中）。修法在 wbs_item_progress，
+    但既有資料的 progress／rag 是存在資料庫裡的，要一起刷過才看得到效果。
+
+    只動系統自動判的（rag_manual=0）。人工指定過的燈號不碰——那是使用者的決定。
+    """
+    rows = conn.execute(
+        "SELECT id, project_id, sub_total, sub_done, progress, rag, exec_status, start_date, end_date "
+        "FROM project_items WHERE COALESCE(sub_total,0) <= 0 AND COALESCE(progress,0) <= 0 "
+        "AND COALESCE(exec_status,'') <> ''").fetchall()
+    touched, projects = 0, set()
+    for r in rows:
+        if not wbs_exec_done(r["exec_status"]):
+            continue
+        rag = wbs_auto_rag(100.0, r["start_date"], r["end_date"])
+        conn.execute(
+            "UPDATE project_items SET progress = 100, rag = CASE WHEN COALESCE(rag_manual,0) = 1 "
+            "THEN rag ELSE ? END WHERE id = ?", (rag, r["id"]))
+        projects.add(r["project_id"])
+        touched += 1
+    for pid in projects:
+        _recompute_project_rollup(conn, pid)     # 專案層的完成度／燈號跟著重算
+    return touched
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -2225,7 +2288,8 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 # 匯入也走同一套自動計算：進度由子項目數算、燈號正規化（Excel 是中文）後
                 # 沒指定就自動判。匯入不強制「紅/黃要填風險點」——舊總表沒填的很多，
                 # 擋下來會讓整批匯入失敗；那是人在系統裡編輯時才強制。
-                ifields["progress"] = wbs_item_progress(ifields.get("sub_total"), ifields.get("sub_done"))
+                ifields["progress"] = wbs_item_progress(
+                    ifields.get("sub_total"), ifields.get("sub_done"), ifields.get("exec_status"))
                 rag = normalize_wbs_rag(ifields.get("rag"))
                 ifields["rag_manual"] = 1 if rag else 0   # Excel 有填燈號＝視為人工指定
                 ifields["rag"] = rag or wbs_auto_rag(
@@ -2290,15 +2354,34 @@ def normalize_wbs_rag(value: Any) -> str:
     return zh.get(v, "")
 
 
-def wbs_item_progress(sub_total: Any, sub_done: Any) -> float:
-    """子項目完成數 ÷ 總數 → 進度%。總數 0（還沒拆子項）就回 0，不要除以零。"""
+def wbs_exec_done(exec_status: Any) -> bool:
+    """執行進度這欄（自由文字，多半從 Excel 帶進來）是不是在說「這項做完了」。
+
+    「未完成」「尚未完成」要排除掉——只比對「有沒有完成兩個字」會把它們也算成完成。
+    """
+    v = " ".join(str(exec_status or "").split())
+    if not v:
+        return False
+    if any(neg in v for neg in ("未完成", "尚未", "未結", "不完成")):
+        return False
+    return ("完成" in v) or ("結案" in v) or (v in ("100%", "100％", "done", "Done", "DONE"))
+
+
+def wbs_item_progress(sub_total: Any, sub_done: Any, exec_status: Any = "") -> float:
+    """子項目完成數 ÷ 總數 → 進度%。
+
+    沒拆子項（總數 0）時看「執行進度」那欄：承辦寫了「已完成」就算 100%。
+    原本一律回 0，於是「執行進度＝已完成、子項數 0」的工作項進度是 0%，
+    過了結束日就被自動判成紅燈「已延遲」——畫面上同一列自己打自己，26 個專案都這樣。
+    有拆子項時仍以子項為準（那是更精確的資訊，也是助理規格寫的算法）。
+    """
     try:
         total = float(sub_total or 0)
         done = float(sub_done or 0)
     except (TypeError, ValueError):
-        return 0.0
+        return 100.0 if wbs_exec_done(exec_status) else 0.0
     if total <= 0:
-        return 0.0
+        return 100.0 if wbs_exec_done(exec_status) else 0.0
     return round(max(0.0, min(100.0, done / total * 100)), 1)
 
 
@@ -2334,37 +2417,43 @@ def recompute_project_rollup(project_id: int) -> dict[str, Any] | None:
     專案層這三個欄位改為唯讀衍生——人只維護 WBS，專案數字自動長出來，
     避免「WBS 說落後、專案卻寫如期」這種自己打自己的畫面。沒有 WBS 就不動專案原值。"""
     with connect() as conn:
-        items = conn.execute(
-            "SELECT sub_total, sub_done, progress, rag, start_date, end_date FROM project_items "
-            "WHERE project_id = ? AND status != 'disabled'", (project_id,)).fetchall()
-        if not items:
-            return None
-        total = sum(float(i["sub_total"] or 0) for i in items)
-        done = sum(float(i["sub_done"] or 0) for i in items)
-        # 有拆子項就按子項比例；完全沒拆（總數都是 0）就退回各 WBS 進度的平均
-        if total > 0:
-            progress = round(max(0.0, min(100.0, done / total * 100)), 1)
-        else:
-            progress = round(sum(float(i["progress"] or 0) for i in items) / len(items), 1)
-        starts = [d for d in (_pdate(i["start_date"]) for i in items) if d]
-        ends = [d for d in (_pdate(i["end_date"]) for i in items) if d]
-        rags = [str(i["rag"] or "").strip() for i in items]
-        rags = [r for r in rags if r in WBS_RAG_ORDER]
-        worst = next((r for r in WBS_RAG_ORDER if r in rags), "") if rags else ""
-        fields = {
-            "progress": progress,
-            "start_date": min(starts).isoformat() if starts else "",
-            "end_date": max(ends).isoformat() if ends else "",
-        }
-        if worst:
-            fields["rag_status"] = WBS_RAG_LABEL[worst]
-        before = get_row(conn, "projects", project_id)
-        assignments = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE projects SET {assignments} WHERE id = ?", [*fields.values(), project_id])
-        after = get_row(conn, "projects", project_id)
-        if any(str(before.get(k)) != str(after.get(k)) for k in fields):
-            write_audit_log(conn, "projects", project_id, "update", before, after)
-        return after
+        return _recompute_project_rollup(conn, project_id)
+
+
+def _recompute_project_rollup(conn: sqlite3.Connection, project_id: int) -> dict[str, Any] | None:
+    """recompute_project_rollup 的核心，吃現成連線——開機遷移時已經在交易裡，
+    再開一條連線會跟自己搶鎖。"""
+    items = conn.execute(
+        "SELECT sub_total, sub_done, progress, rag, start_date, end_date FROM project_items "
+        "WHERE project_id = ? AND status != 'disabled'", (project_id,)).fetchall()
+    if not items:
+        return None
+    total = sum(float(i["sub_total"] or 0) for i in items)
+    done = sum(float(i["sub_done"] or 0) for i in items)
+    # 有拆子項就按子項比例；完全沒拆（總數都是 0）就退回各 WBS 進度的平均
+    if total > 0:
+        progress = round(max(0.0, min(100.0, done / total * 100)), 1)
+    else:
+        progress = round(sum(float(i["progress"] or 0) for i in items) / len(items), 1)
+    starts = [d for d in (_pdate(i["start_date"]) for i in items) if d]
+    ends = [d for d in (_pdate(i["end_date"]) for i in items) if d]
+    rags = [str(i["rag"] or "").strip() for i in items]
+    rags = [r for r in rags if r in WBS_RAG_ORDER]
+    worst = next((r for r in WBS_RAG_ORDER if r in rags), "") if rags else ""
+    fields = {
+        "progress": progress,
+        "start_date": min(starts).isoformat() if starts else "",
+        "end_date": max(ends).isoformat() if ends else "",
+    }
+    if worst:
+        fields["rag_status"] = WBS_RAG_LABEL[worst]
+    before = get_row(conn, "projects", project_id)
+    assignments = ", ".join(f"{k} = ?" for k in fields)
+    conn.execute(f"UPDATE projects SET {assignments} WHERE id = ?", [*fields.values(), project_id])
+    after = get_row(conn, "projects", project_id)
+    if any(str(before.get(k)) != str(after.get(k)) for k in fields):
+        write_audit_log(conn, "projects", project_id, "update", before, after)
+    return after
 
 
 def next_project_item_seq(project_id: int) -> int:
@@ -2624,6 +2713,55 @@ def list_budget_allocations(budget_id: int) -> list[dict[str, Any]]:
     absorber["is_remainder_unit"] = True
     absorber["remainder"] = remainder
     return rows
+
+
+def update_budget_allocation(alloc_id: int, amount: Any = None, share_pct: Any = None) -> dict[str, Any]:
+    """人工改單一單位的分攤金額或比例。
+
+    使用者實際卡住的地方：分攤表只能整批重算（換分攤方法），改不了個別單位——
+    但實務上談定的分攤常常是「大致按比例、某一兩個單位另議」，沒有人工微調就只能改 Excel 重匯。
+
+    給金額就以金額為準、比例跟著算；給比例就以比例為準、金額跟著算（兩者一致，不會各說各話）。
+    改完把預算的分攤方法降回 fixed——不然下次任何人按「重算」都會把這次人工談好的結果洗掉。
+    """
+    with connect() as conn:
+        row = get_row(conn, "budget_allocations", alloc_id)
+        budget = get_row(conn, "budgets", row["budget_id"])
+        total = float(budget.get("amount") or 0)
+        if amount is not None:
+            new_amount = round(float(amount), 2)
+            new_pct = round(new_amount / total * 100, 4) if total > 0 else 0.0
+        elif share_pct is not None:
+            new_pct = round(float(share_pct), 4)
+            new_amount = round(total * new_pct / 100, 2)
+        else:
+            raise ValueError("請給金額或比例其中一個。")
+        if new_amount < 0:
+            raise ValueError("分攤金額不能是負數。")
+        conn.execute("UPDATE budget_allocations SET amount = ?, share_pct = ? WHERE id = ?",
+                     (new_amount, new_pct, alloc_id))
+        after = get_row(conn, "budget_allocations", alloc_id)
+        write_audit_log(conn, "budget_allocations", alloc_id, "manual-adjust", row, after)
+        if str(budget.get("alloc_method") or "") != "fixed":
+            before_b = dict(budget)
+            conn.execute("UPDATE budgets SET alloc_method = 'fixed' WHERE id = ?", (row["budget_id"],))
+            write_audit_log(conn, "budgets", row["budget_id"], "alloc-method-locked",
+                            before_b, get_row(conn, "budgets", row["budget_id"]))
+    return budget_allocation_check(row["budget_id"])
+
+
+def budget_allocation_check(budget_id: int) -> dict[str, Any]:
+    """分攤合計 vs 費用項目金額。改了一個單位就會對不上，要當場說差多少，
+    不然人得自己拿計算機加 20 幾列。"""
+    rows = list_budget_allocations(budget_id)
+    with connect() as conn:
+        budget = get_row(conn, "budgets", budget_id)
+    total = float(budget.get("amount") or 0)
+    allocated = round(sum(float(r.get("amount") or 0) for r in rows), 2)
+    diff = round(total - allocated, 2)
+    return {"budget_id": budget_id, "total": total, "allocated": allocated, "diff": diff,
+            "balanced": abs(diff) < 0.01, "alloc_method": budget.get("alloc_method"),
+            "allocations": rows}
 
 
 def budget_unit_rollup(unit_code: str | None = None) -> dict[str, Any]:
@@ -5641,33 +5779,15 @@ def apply_standard_wbs(project_id: int, owner: str = "") -> dict[str, Any]:
 
 
 def backfill_contract_system_codes() -> dict[str, int]:
-    """幫既有合約補系統識別碼（助理 0803 規格：每份合約都要有 CT 開頭的識別碼）。
+    """手動補合約系統識別碼（後台備援）。
 
-    分兩輪：先補主約、再補增購／附屬。順序不能反——增購的子號是「原合約識別碼＋A01」，
-    父的還沒有號的話子的就配不出來。冪等：已經有號的不動，重跑不會換號。
+    正常情況這裡會回 0——開機時 `_fill_missing_contract_system_codes()` 已經補完了。
+    留這支是為了「補完之後又從別處灌進沒有識別碼的資料」這種情況，不用重開服務。
+    補號規則與開機那支同一份，不另外寫一套。
     """
-    filled = addon = 0
     with connect() as conn:
-        for is_addon_pass in (False, True):
-            rows = conn.execute(
-                "SELECT id, relation_type, parent_contract_id, start_date FROM contracts "
-                "WHERE COALESCE(system_code, '') = '' ORDER BY id").fetchall()
-            for r in rows:
-                row_is_addon = str(r["relation_type"] or "") == "addon" and bool(r["parent_contract_id"])
-                if row_is_addon is not is_addon_pass:
-                    continue
-                code = _next_contract_system_code(conn, {
-                    "relation_type": r["relation_type"],
-                    "parent_contract_id": r["parent_contract_id"],
-                    "start_date": r["start_date"],
-                })
-                conn.execute("UPDATE contracts SET system_code = ?, system_seq = ? WHERE id = ?",
-                             (code["system_code"], code["system_seq"], r["id"]))
-                write_audit_log(conn, "contracts", r["id"], "system_code",
-                                None, {"system_code": code["system_code"]})
-                filled += 1
-                addon += 1 if row_is_addon else 0
-    return {"filled": filled, "addon_filled": addon}
+        filled = _fill_missing_contract_system_codes(conn)
+    return {"filled": filled}
 
 
 def backfill_settle_numbers() -> int:

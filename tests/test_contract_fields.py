@@ -143,7 +143,7 @@ def test_合約迄日不得早於起日(tmp_path):
         assert r.status_code == 422 and "不能早於" in r.json()["detail"]
 
 
-def test_既有合約可補發系統識別碼且先主約後增購(tmp_path):
+def test_既有合約補發識別碼且先主約後增購(tmp_path):
     with _client(tmp_path) as client:
         import app.store as store
 
@@ -156,13 +156,33 @@ def test_既有合約可補發系統識別碼且先主約後增購(tmp_path):
             conn.execute("UPDATE contracts SET system_code = '', system_seq = 0")
 
         r = client.post("/api/dev-console/contract-codes/fix").json()["data"]
-        assert r["filled"] == 2 and r["addon_filled"] == 1
+        assert r["filled"] == 2
         codes = {k["contract_code"]: k["system_code"] for k in client.get("/api/contracts").json()["data"]}
         assert codes["OLD1"].startswith("CT")
         assert codes["OLD2"] == codes["OLD1"] + "A01"      # 增購仍掛在原合約底下
         assert addon["id"] and main["id"]
 
         assert client.post("/api/dev-console/contract-codes/fix").json()["data"]["filled"] == 0  # 冪等
+
+
+def test_舊資料庫重開就自動補識別碼(tmp_path):
+    """system_code 是 0803 才加的欄位，之前建的合約全是空的，畫面上那一欄會整排空白。
+    要人到後台按一次才有＝沒人知道要按，等於預設是壞的。改成開機自動補。"""
+    with _client(tmp_path) as client:
+        import app.store as store
+
+        c = _case(client)
+        main = _contract(client, contract_code="B4", case_id=c["id"]).json()["data"]
+        _contract(client, contract_code="B4A", case_id=c["id"],
+                  relation_type="addon", parent_contract_id=main["id"])
+        with store.connect() as conn:                      # 退回成「舊資料庫」的樣子
+            conn.execute("UPDATE contracts SET system_code = '', system_seq = 0")
+        assert all(k["system_code"] == "" for k in client.get("/api/contracts").json()["data"])
+
+    # 重開服務（等同使用者更新完按 service.bat 重啟）：不必進後台按任何東西
+    with _client(tmp_path) as client2:
+        codes = {k["contract_code"]: k["system_code"] for k in client2.get("/api/contracts").json()["data"]}
+        assert codes["B4"].startswith("CT") and codes["B4A"] == codes["B4"] + "A01"
 
 
 def test_對應專案由系統自動關聯(tmp_path):
