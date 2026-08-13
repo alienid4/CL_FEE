@@ -120,6 +120,34 @@ def test_可以個別覆蓋推測的組別(tmp_path):
         assert [m for m in masters if m["name"] == "許晉豪"][0]["group_name"] == "主機組"
 
 
+def test_補登記時可以一起填EMAIL且通知找得到人(tmp_path):
+    """助理 2026-08-13：人員＋組別＋EMAIL 沒填好就沒辦法繼續測。
+    通知原本只查得到「登入帳號」的 email，核銷者存的是人名，寄不出去。"""
+    with _client(tmp_path) as client:
+        client.post("/api/projects", json={
+            "project_name": "骨幹", "owner": "許晉豪", "source": "網路組處級專案"})
+        r = client.post("/api/personnel-suggest/create", json={
+            "names": ["許晉豪"], "emails": {"許晉豪": "hsu@example.com"}}).json()["data"]
+        assert r["created"][0]["email"] == "hsu@example.com"
+
+        from app import notify, store
+        assert store.personnel_email("許晉豪") == "hsu@example.com"
+        # 用人名（不是帳號）也找得到收件者了
+        assert notify._recipient_for("許晉豪", {}) == "hsu@example.com"
+        assert notify._recipient_for("查無此人", {}) == ""
+
+
+def test_人員清單會回報還缺幾個EMAIL(tmp_path):
+    with _client(tmp_path) as client:
+        client.post("/api/personnel-master", json={"name": "有信箱", "group_name": "主機組",
+                                                   "email": "a@example.com"})
+        client.post("/api/personnel-master", json={"name": "沒信箱", "group_name": "主機組"})
+        client.post("/api/personnel-master", json={"name": "沒組別"})
+
+        data = client.get("/api/personnel-master").json()["data"]
+        assert data["missing_email"] == 2 and data["missing_group"] == 1
+
+
 def test_沒選人要擋下來(tmp_path):
     with _client(tmp_path) as client:
         assert client.post("/api/personnel-suggest/create", json={"names": []}).status_code == 422

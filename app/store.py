@@ -706,6 +706,10 @@ def initialize_database() -> None:
         # 人員歸屬組別（主機組/資料庫組/網路組…）：案件的「負責人」要能依組別過濾。
         # 組別本身是可維護的選項（不同單位組織不一樣），不寫死在程式裡。
         ensure_column(conn, "personnel_master", "group_name", "TEXT NOT NULL DEFAULT ''")
+        # 助理 2026-08-13 回報「人員＋組別＋EMAIL 沒填好就沒辦法繼續測」：
+        # 通知原本只查得到「登入帳號」的 email，但核銷者／負責人這些欄位存的是人員主檔的
+        # 人名，寄信時對不到收件者。email 直接掛在人員主檔上，人名就找得到信箱。
+        ensure_column(conn, "personnel_master", "email", "TEXT NOT NULL DEFAULT ''")
         # 帳號的管轄組別：組長要能由管理員指派管哪一組（內建 ap05 寫在程式裡，
         # 後台自建的組長帳號靠這個欄位）。非組長角色留空即可。
         ensure_column(conn, "users", "group_name", "TEXT NOT NULL DEFAULT ''")
@@ -775,6 +779,11 @@ def initialize_database() -> None:
         ensure_column(conn, "contracts", "progress_note", "TEXT NOT NULL DEFAULT ''")    # 合約進度說明（黃/紅燈必填）
         ensure_column(conn, "contracts", "end_reason", "TEXT NOT NULL DEFAULT ''")       # 已整併/不續約 → 燈號轉灰
         ensure_column(conn, "contracts", "project_id", "INTEGER")                        # 對應專案
+        # 備註是助理 0803 附件一就列的欄位（合約主檔最後一項），先前漏加；
+        # source_file/source_row 讓匯入進來的合約指得回盤點表的哪一列（比照案件匯入）
+        ensure_column(conn, "contracts", "note", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "contracts", "source_file", "TEXT NOT NULL DEFAULT ''")
+        ensure_column(conn, "contracts", "source_row", "INTEGER NOT NULL DEFAULT 0")
         _fill_missing_contract_system_codes(conn)
         _refresh_wbs_progress_from_exec_status(conn)
 
@@ -1524,7 +1533,8 @@ def allowed_fields() -> dict[str, set[str]]:
                       "start_date", "contract_type", "parent_contract_id", "relation_type",
                       "warranty_end_date", "maintenance_end_date",
                       "vendor_tax_id", "owner", "group_name", "locations", "external_code",
-                      "progress_note", "end_reason", "project_id"},
+                      "progress_note", "end_reason", "project_id",
+                      "note", "source_file", "source_row"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",
                      "vendor", "approval_level", "owner", "owner_email", "net_amount", "tax_amount",
@@ -2112,6 +2122,228 @@ def _xls_pct(v: Any) -> float:
     except (TypeError, ValueError):
         return 0.0
     return round(f * 100, 1) if f <= 1 else round(f, 1)
+
+
+# ── 合約盤點表匯入（黃助理 2026-08-13 給的「合約盤點_主機組.xlsx」）───────────
+# 表頭不在第一列（前面有填寫說明），所以用欄名定位，不寫死列號——各組交回來的檔案
+# 說明列數可能不一樣，寫死列號第二個組就爆。
+_CONTRACT_COL_MAP = {
+    "詩芸備註": "inventory_note",
+    "已確認完成": "confirmed",
+    "合約編號": "external_code",       # EF-20190726-046：公司的號，有連字號，照原樣留
+    "合約名稱": "contract_name",
+    "合約系統之內容說明": "content_note",
+    "合約狀態": "inventory_status",
+    "合約狀態詳細說明": "progress_note",
+    "組別": "group_name",
+    "合約維護人": "owner",
+    "廠商名稱": "vendor_name",
+    "廠商統編或ID": "vendor_tax_id",
+    "合約開始日": "start_date",
+    "合約到期日": "end_date",
+}
+# 組別正規化：H 欄有「AS400」，那是系統名不是組別（使用者 2026-08-13 裁決：歸主機組）
+_GROUP_ALIAS = {"AS400": "主機組"}
+# A、G 欄的文字裡藏著關聯合約編號（「已由新合約取代EF-20240416-005」）
+# 主機組是 EF-20240416-005；其他組的前綴與位數未必一樣，稍微放寬但仍要有「英文-數字-數字」
+# 的骨架，才不會把說明文字裡的日期或金額當成合約編號抓進來。
+_CONTRACT_CODE_RE = re.compile(r"[A-Za-z]{2,4}-\d{4,8}-\d{2,4}")
+_PREV_OWNER_RE = re.compile(r"原合約維護人[：:]\s*([^\s，,、;；]+)")
+
+
+def parse_contract_inventory_xlsx(data: bytes) -> dict[str, Any]:
+    """解析合約盤點表 → 合約清單＋盤點發現的事（關聯、原維護人）。
+
+    回傳的每一筆都帶 source_sheet 與 source_row，匯錯了查得回原始那一列。
+    """
+    import io
+    import openpyxl
+
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[dict[str, Any]] = []
+    skipped_sheets: list[str] = []
+    try:
+        for sheet in wb.sheetnames:
+            rows = [list(r) for r in wb[sheet].iter_rows(values_only=True)]
+            header_idx = next(
+                (i for i, r in enumerate(rows[:20])
+                 if r and any(str(c).strip() == "合約編號" for c in r if c is not None)), None)
+            if header_idx is None:
+                skipped_sheets.append(sheet)      # 說明頁之類的，沒有合約編號欄
+                continue
+            header = [str(c).strip() if c is not None else "" for c in rows[header_idx]]
+            idx = {_CONTRACT_COL_MAP[h]: i for i, h in enumerate(header) if h in _CONTRACT_COL_MAP}
+            for rno, r in enumerate(rows[header_idx + 1:], start=header_idx + 2):
+                def val(key: str) -> str:
+                    i = idx.get(key)
+                    if i is None or i >= len(r) or r[i] is None:
+                        return ""
+                    return " ".join(str(r[i]).split())
+                name = val("contract_name")
+                code = val("external_code")
+                if not name and not code:
+                    continue                       # 整列空白
+                item: dict[str, Any] = {
+                    "source_sheet": sheet, "source_row": rno,
+                    "external_code": code,
+                    "contract_name": name,
+                    "vendor_name": val("vendor_name"),
+                    "vendor_tax_id": val("vendor_tax_id"),
+                    "owner": val("owner"),
+                    "group_name": _GROUP_ALIAS.get(val("group_name"), val("group_name")),
+                    "start_date": _norm_date(_raw(r, idx.get("start_date"))),
+                    "end_date": _norm_date(_raw(r, idx.get("end_date"))),
+                    "progress_note": val("progress_note"),
+                    "inventory_status": val("inventory_status"),
+                    "inventory_note": val("inventory_note"),
+                    "content_note": val("content_note"),
+                    "confirmed": str(val("confirmed")).lower() in ("true", "v", "y", "yes", "是"),
+                }
+                # 盤點表寫的「原合約維護人：張根榮」＝離職或職務異動，接得上交接功能
+                prev = _PREV_OWNER_RE.search(item["inventory_note"])
+                item["previous_owner"] = prev.group(1) if prev else ""
+                # A、G 欄提到的其他合約編號＝續約/取代/整併關係的線索
+                related = set(_CONTRACT_CODE_RE.findall(item["inventory_note"]))
+                related |= set(_CONTRACT_CODE_RE.findall(item["progress_note"]))
+                related.discard(code)
+                item["related_codes"] = sorted(related)
+                item["relation_hint"] = _relation_hint(item["progress_note"])
+                out.append(item)
+    finally:
+        wb.close()
+    return {"contracts": out, "count": len(out), "skipped_sheets": skipped_sheets}
+
+
+def _raw(row: list, i: int | None) -> Any:
+    return row[i] if (i is not None and i < len(row)) else None
+
+
+def commit_contract_inventory(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """把盤點表寫進合約主檔。以「公司內部合約編號」為識別鍵：同編號更新、沒見過的新增。
+
+    冪等——助理 8/19 盤點完會再給一次，同一份檔重匯不該長出第二套。
+    分兩輪：先把合約都建好，再回頭接關聯（被提到的那份合約可能排在後面，先接會找不到）。
+    盤點表的原始欄位（合約狀態、詩芸備註、內容說明）一律留在備註裡，不丟資訊——
+    「查無後續合約」是盤點當下的標記，不是合約本身的狀態，硬套成系統狀態會失真。
+    """
+    actor = _current_actor.get()
+    created, updated, skipped = [], [], []
+    with connect() as conn:
+        # 識別鍵優先用公司的合約編號；盤點表裡有 1 筆沒填編號，那種退回用合約名稱比對——
+        # 不然重匯時它每次都被當成新的，第二次就撞 contract_code 的唯一鍵直接 500。
+        existing: dict[str, dict[str, Any]] = {}
+        for r in conn.execute("SELECT * FROM contracts").fetchall():
+            row = dict(r)
+            key = str(row.get("external_code") or "").strip() or str(row.get("contract_name") or "").strip()
+            if key:
+                existing.setdefault(key, row)
+        for item in rows:
+            code = str(item.get("external_code") or "").strip()
+            name = str(item.get("contract_name") or "").strip()
+            if not name:
+                skipped.append({"row": item.get("source_row"), "reason": "沒有合約名稱"})
+                continue
+            key = code or name
+            note_bits = [b for b in (
+                f"盤點狀態：{item['inventory_status']}" if item.get("inventory_status") else "",
+                f"內容：{item['content_note']}" if item.get("content_note") else "",
+                f"盤點備註：{item['inventory_note']}" if item.get("inventory_note") else "",
+            ) if b]
+            fields = {
+                "contract_name": name,
+                "external_code": code,
+                "vendor_name": item.get("vendor_name", ""),
+                "vendor_tax_id": item.get("vendor_tax_id", ""),
+                "owner": item.get("owner", ""),
+                "group_name": item.get("group_name", ""),
+                "start_date": item.get("start_date", ""),
+                "end_date": item.get("end_date", ""),
+                "progress_note": item.get("progress_note", ""),
+                "note": "；".join(note_bits),
+                "source_file": "合約盤點表",
+                "source_row": int(item.get("source_row") or 0),
+            }
+            if key in existing:
+                row_id = existing[key]["id"]
+                before = existing[key]
+                sets = ", ".join(f"{k} = ?" for k in fields)
+                conn.execute(f"UPDATE contracts SET {sets} WHERE id = ?", [*fields.values(), row_id])
+                after = get_row(conn, "contracts", row_id)
+                write_audit_log(conn, "contracts", row_id, "import-update", before, after)
+                existing[key] = dict(after)
+                updated.append(key)
+                continue
+            # 盤點表沒有本系統的合約編號，用公司的號當 contract_code；沒有編號就用名稱
+            fields["contract_code"] = code or name
+            fields.update(_next_contract_system_code(conn, fields))
+            columns = ", ".join(fields)
+            cur = conn.execute(
+                f"INSERT INTO contracts ({columns}) VALUES ({', '.join('?' * len(fields))})",
+                list(fields.values()))
+            after = get_row(conn, "contracts", cur.lastrowid)
+            write_audit_log(conn, "contracts", cur.lastrowid, "import",
+                            None, {**dict(after), "import_source": "合約盤點表", "actor": actor})
+            existing[key] = dict(after)
+            created.append(key)
+
+        # 第二輪：接續約／取代／整併關係（前面建好了才找得到被提到的那一份）
+        linked = 0
+        for item in rows:
+            code = str(item.get("external_code") or "").strip()
+            hint = item.get("relation_hint") or ""
+            targets = [c for c in (item.get("related_codes") or []) if c in existing]
+            if not code or code not in existing or not targets or not hint:
+                continue
+            me = existing[code]
+            if me.get("parent_contract_id"):
+                continue                          # 已經接過就不覆蓋（人工改過的優先）
+            parent = existing[targets[0]]
+            if int(parent["id"]) == int(me["id"]):
+                continue
+            # 防循環：兩份合約的說明互相提到對方時（真實資料就有），照接會繞成一個圈，
+            # 續約鏈往上追會追不完、畫面直接卡死。用既有的循環檢查擋掉，擋到就跳過不接。
+            try:
+                _validate_contract_parent(conn, int(me["id"]), int(parent["id"]))
+            except ValueError:
+                skipped.append({"row": item.get("source_row"),
+                                "reason": f"{code} 與 {targets[0]} 的說明互相指向對方，"
+                                          f"接起來會繞成循環，關聯留白請人工判斷"})
+                continue
+            conn.execute(
+                "UPDATE contracts SET parent_contract_id = ?, relation_type = ? WHERE id = ?",
+                (parent["id"], hint, me["id"]))
+            write_audit_log(conn, "contracts", me["id"], "link-relation", me, {
+                "parent_contract_id": parent["id"], "relation_type": hint,
+                "from_note": item.get("progress_note") or item.get("inventory_note")})
+            linked += 1
+
+    # 盤點表寫「原合約維護人：某某」＝那個人離職或換職務，接得上離職交接功能
+    handover = [{"code": i.get("external_code"), "contract_name": i.get("contract_name"),
+                 "previous_owner": i["previous_owner"], "current_owner": i.get("owner")}
+                for i in rows if i.get("previous_owner")]
+    return {"created": created, "updated": updated, "skipped": skipped,
+            "created_count": len(created), "updated_count": len(updated),
+            "skipped_count": len(skipped), "linked_count": linked,
+            "handover_hints": handover}
+
+
+def _relation_hint(note: str) -> str:
+    """從說明文字判斷它跟被提到那份合約是什麼關係。判斷不出來就留空，不瞎猜。
+
+    「一起追蹤」「參考」這種只是提到對方，不是從屬關係——真實資料裡有
+    「115年配合集團會啟動續約 (與EF-20240222-002一起追蹤)」，看到「續約」就接
+    會把兩份平行的合約硬掛成父子，而且兩邊互相指就繞成一個圈。
+    """
+    s = str(note or "")
+    if any(k in s for k in ("一起追蹤", "一併追蹤", "併同追蹤", "參考", "相關合約")):
+        return ""
+    if "整併" in s:
+        return "merge"
+    if "取代" in s or "續約" in s or "新合約" in s:
+        return "renew"
+    if "增購" in s or "增補" in s:
+        return "addon"
+    return ""
 
 
 def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
@@ -3087,13 +3319,31 @@ def list_personnel_master(include_disabled: bool = False) -> dict[str, Any]:
     where = "" if include_disabled else "WHERE status <> 'disabled'"
     with connect() as conn:
         masters = [dict(m) for m in conn.execute(
-            f"SELECT id, name, group_name, status, note FROM personnel_master {where} "
+            f"SELECT id, name, group_name, email, status, note FROM personnel_master {where} "
             "ORDER BY group_name, name").fetchall()]
     groups = sorted({m["group_name"] for m in masters if m["group_name"]})
-    return {"masters": masters, "count": len(masters), "groups": groups}
+    return {"masters": masters, "count": len(masters), "groups": groups,
+            "missing_email": sum(1 for m in masters
+                                 if m["status"] != "disabled" and not str(m["email"] or "").strip()),
+            "missing_group": sum(1 for m in masters
+                                 if m["status"] != "disabled" and not str(m["group_name"] or "").strip())}
 
 
-def create_personnel_master(name: str, note: str = "", group_name: str = "") -> dict[str, Any]:
+def personnel_email(name: str) -> str:
+    """人名 → email。通知的收件人欄位（核銷者、負責人）存的是人名不是帳號，
+    沒有這層對照就寄不出去（助理 2026-08-13 卡在這裡）。"""
+    n = str(name or "").strip()
+    if not n:
+        return ""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT email FROM personnel_master WHERE name = ? AND status <> 'disabled'",
+            (n,)).fetchone()
+    return str(row["email"]).strip() if row and row["email"] else ""
+
+
+def create_personnel_master(name: str, note: str = "", group_name: str = "",
+                            email: str = "") -> dict[str, Any]:
     """主動新增一個人員（給表單下拉選單用）。建立前擋撞名，避免同一人被打成兩種寫法。"""
     n = (name or "").strip()
     if not n:
@@ -3102,8 +3352,9 @@ def create_personnel_master(name: str, note: str = "", group_name: str = "") -> 
         dup = conn.execute("SELECT id FROM personnel_master WHERE name = ?", (n,)).fetchone()
         if dup:
             raise ValueError(f"「{n}」已存在於人員主檔，不能重複新增。")
-        cur = conn.execute("INSERT INTO personnel_master (name, group_name, note) VALUES (?, ?, ?)",
-                           (n, (group_name or "").strip(), note))
+        cur = conn.execute(
+            "INSERT INTO personnel_master (name, group_name, note, email) VALUES (?, ?, ?, ?)",
+            (n, (group_name or "").strip(), note, (email or "").strip()))
         row_id = cur.lastrowid
         row = get_row(conn, "personnel_master", row_id)
         write_audit_log(conn, "personnel_master", row_id, "create", None, row)
@@ -3113,7 +3364,7 @@ def create_personnel_master(name: str, note: str = "", group_name: str = "") -> 
 def update_personnel_master(person_id: int, fields: dict[str, Any]) -> dict[str, Any]:
     """改人員資料（換組、改名、停用/啟用、備註）。人會轉組、會離職，這些都要能改。"""
     allowed = {k: v for k, v in fields.items()
-               if k in ("name", "group_name", "note", "status") and v is not None}
+               if k in ("name", "group_name", "note", "status", "email") and v is not None}
     if not allowed:
         raise ValueError("沒有可更新的欄位。")
     if "name" in allowed:
@@ -3640,8 +3891,13 @@ def suggest_personnel_from_data() -> dict[str, Any]:
             "note": "組別是從專案來源工作表（例：網路組處級專案）推的，推不出來就留空，可事後補。"}
 
 
-def create_personnel_from_data(names: list[str], group_overrides: dict[str, str] | None = None) -> dict[str, Any]:
-    """把選定的名字建進人員主檔。已存在的跳過（冪等），組別可個別覆蓋。"""
+def create_personnel_from_data(names: list[str], group_overrides: dict[str, str] | None = None,
+                               email_overrides: dict[str, str] | None = None) -> dict[str, Any]:
+    """把選定的名字建進人員主檔。已存在的跳過（冪等），組別與 email 可個別填。
+
+    email 一併收：助理 2026-08-13 反映人員＋組別＋EMAIL 沒填好就沒辦法繼續測，
+    建完還要再一個個補 email 等於白做一半。
+    """
     picked = [str(n).strip() for n in (names or []) if str(n).strip()]
     if not picked:
         raise ValueError("沒有選到任何人。")
@@ -3656,14 +3912,15 @@ def create_personnel_from_data(names: list[str], group_overrides: dict[str, str]
                 skipped.append(name)
                 continue
             group = overrides.get(name) or (suggested.get(name, {}) or {}).get("group_name", "")
+            email = (email_overrides or {}).get(name, "").strip()
             # personnel_master 不走 allowed_fields，比照 create_personnel_master 直接寫入
             cur = conn.execute(
-                "INSERT INTO personnel_master (name, group_name, note) VALUES (?, ?, ?)",
-                (name, group, "由既有資料自動補登記"))
+                "INSERT INTO personnel_master (name, group_name, note, email) VALUES (?, ?, ?, ?)",
+                (name, group, "由既有資料自動補登記", email))
             row = get_row(conn, "personnel_master", cur.lastrowid)
             write_audit_log(conn, "personnel_master", cur.lastrowid, "create", None, row)
             existing.add(name)
-            created.append({"name": name, "group_name": group, "id": cur.lastrowid})
+            created.append({"name": name, "group_name": group, "email": email, "id": cur.lastrowid})
     return {"created": created, "skipped": skipped,
             "created_count": len(created), "skipped_count": len(skipped)}
 

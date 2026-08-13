@@ -1873,6 +1873,9 @@ tr.person-off td { opacity: .55; }
   background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
 /* 重新編輯前的舊版費用區段：留著查閱，但視覺上要跟現行版本分得開 */
 .row-archived { opacity:.62; }
+/* 還沒填的 EMAIL 要跳出來：沒填的人通知寄不出去（助理 2026-08-13 卡在這） */
+.cell-input.needs-fill { border-color:var(--partial); background:var(--partial-bg); }
+
 /* 每月支出狀態：預計（淡）與實際（深）疊在同一條，一眼比得出哪個月超支 */
 .ms-bar { position:relative; display:block; width:120px; height:14px; border-radius:4px;
   background:var(--surface-2); border:1px solid var(--line); overflow:hidden; }

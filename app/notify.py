@@ -54,12 +54,20 @@ def _email_map() -> dict[str, str]:
 
 
 def _recipient_for(owner: str, email_map: dict[str, str]) -> str:
-    """決定某負責人的收件 email：個別對照 > 該帳號在系統的 email > catch-all(*)。"""
+    """決定某負責人的收件 email：
+    個別對照 > 該帳號在系統的 email > **人員主檔的 email** > catch-all(*)。
+
+    人員主檔那層是 2026-08-13 補的：核銷者、合約維護人這些欄位存的是人名（林宏喜），
+    不是登入帳號（ap03），前兩層都查不到，通知就靜靜地寄不出去。
+    """
     if owner in email_map:
         return email_map[owner]
     row = store.get_db_user(owner)
     if row and row["email"]:
         return row["email"]
+    by_name = store.personnel_email(owner)
+    if by_name:
+        return by_name
     return email_map.get("*", "")
 
 

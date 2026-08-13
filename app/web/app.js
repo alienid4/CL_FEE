@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.72.0 · 2026-08-12 · 每月支出狀態：過去看預估準不準、未來看要準備多少";
+const BUILD_TAG = "v0.73.0 · 2026-08-13 · 合約盤點表匯入；人員加 EMAIL（通知才寄得出去）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5026,6 +5026,46 @@ async function projXlsx(commit) {
 document.querySelector("#proj-xlsx-preview")?.addEventListener("click", () => projXlsx(false));
 document.querySelector("#proj-xlsx-commit")?.addEventListener("click", () => projXlsx(true));
 
+// 合約盤點表匯入（黃助理 0813）：預覽→正式匯入。以合約編號為識別鍵，重匯會更新不新增。
+async function contractXlsx(commit) {
+  const file = document.querySelector("#contract-xlsx-file")?.files?.[0];
+  const el = document.querySelector("#contract-xlsx-status");
+  const commitBtn = document.querySelector("#contract-xlsx-commit");
+  if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
+  if (commit && !window.confirm("確定正式匯入？同編號的合約會更新、沒見過的會新增。")) return;
+  if (el) el.textContent = commit ? "匯入中…" : "解析中…";
+  try {
+    const res = (await api(`/api/contracts/import-xlsx?commit=${commit}`,
+                           { method: "POST", body: file })).data || {};
+    if (commit) {
+      const bits = [`新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆`];
+      if (res.linked_count) bits.push(`接起 ${res.linked_count} 組續約／整併關係`);
+      if (res.skipped_count) bits.push(`略過 ${res.skipped_count} 筆`);
+      if ((res.handover_hints || []).length) {
+        bits.push(`另有 ${res.handover_hints.length} 筆標了原維護人（離職／異動），`
+          + `可到「人員管理›離職交接」處理`);
+      }
+      if (el) el.textContent = `匯入完成：${bits.join("；")}。`;
+      await refresh();
+    } else {
+      const warn = [];
+      if (res.unconfirmed) warn.push(`其中 ${res.unconfirmed} 筆還沒填「已確認完成」`);
+      if (res.relation_hints) warn.push(`可自動接起 ${res.relation_hints} 組合約關係`);
+      if (res.handover_hints) warn.push(`${res.handover_hints} 筆有原維護人`);
+      if (el) {
+        el.textContent = res.count
+          ? `預覽：共 ${res.count} 筆合約${warn.length ? "（" + warn.join("、") + "）" : ""}`
+          : "共 0 筆——這個檔不像合約盤點表，請確認工作表裡有「合約編號」欄。";
+      }
+      if (commitBtn) commitBtn.disabled = !res.count;
+    }
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+}
+document.querySelector("#contract-xlsx-preview")?.addEventListener("click", () => contractXlsx(false));
+document.querySelector("#contract-xlsx-commit")?.addEventListener("click", () => contractXlsx(true));
+
 // 預算匯入（表單型 xlsx）：作法同專案——預覽→正式匯入→同名更新
 async function budgetXlsx(commit, ids) {
   const q = ids || { file: "#budget-xlsx-file", status: "#budget-xlsx-status", commitBtn: "#budget-xlsx-commit" };
@@ -5499,17 +5539,35 @@ async function loadPersonnelMaster() {
       box.innerHTML = `<p class="muted">還沒有登記過人員。用上面「＋新增人員」逐筆登記，或按「載入示範名單」先放四組各三人試用。</p>`;
       return;
     }
+    // 助理 2026-08-13：人員＋組別＋EMAIL 沒填好就沒辦法繼續測（通知寄不出去）。
+    // 缺什麼直接列在最上面，組別與 email 都改成就地編輯，不用一個一個開編輯框。
+    const gap = (data.missing_email || 0) + (data.missing_group || 0);
+    const gapLine = gap
+      ? `<p class="chip todo">還缺：${data.missing_email ? `<strong>${data.missing_email}</strong> 人沒有 EMAIL` : ""}${
+          data.missing_email && data.missing_group ? "、" : ""}${
+          data.missing_group ? `<strong>${data.missing_group}</strong> 人沒有組別` : ""}
+         —— 沒有 EMAIL 的人，系統通知（催辦、核銷）寄不出去。直接在下面表格填，改完自動存。</p>`
+      : `<p class="chip done">在職人員的組別與 EMAIL 都填好了，通知寄得出去。</p>`;
     // 依組別分段列出，一眼看得出哪組有幾個人
     const groups = [...new Set(masters.map((p) => p.group_name || "（未分組）"))];
-    box.innerHTML = groups.map((g) => {
+    box.innerHTML = gapLine + groups.map((g) => {
       const rows = masters.filter((p) => (p.group_name || "（未分組）") === g);
       return `<div class="person-group">
         <h4>${escapeHtml(g)} <span class="muted">${rows.length} 人</span></h4>
         <div class="grid-scroll"><table class="grid-table">
-          <thead><tr><th>姓名</th><th>組別</th><th>狀態</th><th>備註</th><th class="col-actions">操作</th></tr></thead>
+          <thead><tr><th>姓名</th><th>組別</th><th>EMAIL</th><th>狀態</th><th>備註</th><th class="col-actions">操作</th></tr></thead>
           <tbody>${rows.map((p) => `<tr${p.status === "disabled" ? ' class="person-off"' : ""}>
             <td><strong>${escapeHtml(p.name)}</strong></td>
-            <td>${escapeHtml(valueOrDash(p.group_name))}</td>
+            <td><select class="cell-input" data-person-field="group_name" data-person-id="${p.id}">
+                  <option value="">（未分組）</option>
+                  ${(personnelGroupOptions || []).map((x) =>
+                    `<option value="${escapeHtml(x)}"${x === p.group_name ? " selected" : ""}>${escapeHtml(x)}</option>`).join("")}
+                  ${p.group_name && !(personnelGroupOptions || []).includes(p.group_name)
+                    ? `<option value="${escapeHtml(p.group_name)}" selected>${escapeHtml(p.group_name)}</option>` : ""}
+                </select></td>
+            <td><input class="cell-input${String(p.email || "").trim() ? "" : " needs-fill"}" type="email"
+                  data-person-field="email" data-person-id="${p.id}"
+                  value="${escapeHtml(p.email || "")}" placeholder="還沒填" /></td>
             <td>${p.status === "disabled" ? '<span class="badge neutral">已停用</span>' : '<span class="badge ok">在職</span>'}</td>
             <td class="muted">${escapeHtml(valueOrDash(p.note))}</td>
             <td class="col-actions"><span class="row-actions">
@@ -5535,6 +5593,24 @@ function populatePersonnelGroupSelects() {
     if (prev && [...sel.options].some((o) => o.value === prev)) sel.value = prev;
   }
 }
+
+// 組別／EMAIL 就地改，改完即存（助理要一次填二十幾個人，開編輯框太慢）
+document.querySelector("#personnelmaster-result")?.addEventListener("change", async (event) => {
+  const el = event.target.closest("[data-person-field]");
+  if (!el) return;
+  const field = el.getAttribute("data-person-field");
+  el.disabled = true;
+  try {
+    await api(`/api/personnel-master/${el.getAttribute("data-person-id")}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [field]: el.value }),
+    });
+    await loadPersonnelMaster();
+  } catch (e) {
+    el.disabled = false;
+    window.alert(`儲存失敗：${e.message}`);
+  }
+});
 
 document.querySelector("#personnelmaster-result")?.addEventListener("click", async (event) => {
   const btn = event.target.closest("[data-person-edit],[data-person-toggle],[data-person-del]");
@@ -5928,7 +6004,7 @@ async function openPersonnelSuggest() {
       <form data-suggest-form>
         <div class="grid-scroll"><table class="grid-table">
           <thead><tr><th class="w-seq"><input type="checkbox" data-suggest-all checked title="全選建議的" /></th>
-          <th>姓名</th><th>組別</th><th class="num">出現次數</th><th>出現在</th><th>備註</th></tr></thead>
+          <th>姓名</th><th>組別</th><th>EMAIL</th><th class="num">出現次數</th><th>出現在</th><th>備註</th></tr></thead>
           <tbody>${cands.map((c) => `<tr class="${c.suspect ? "sched-warn" : ""}">
             <td><input type="checkbox" data-suggest-pick="${escapeHtml(c.name)}"${c.recommend ? " checked" : ""} /></td>
             <td><strong>${escapeHtml(c.name)}</strong></td>
@@ -5939,6 +6015,8 @@ async function openPersonnelSuggest() {
                   ${c.group_name && !(personnelGroupOptions || []).includes(c.group_name)
                     ? `<option value="${escapeHtml(c.group_name)}" selected>${escapeHtml(c.group_name)}</option>` : ""}
                 </select></td>
+            <td><input class="cell-input" type="email" data-suggest-email="${escapeHtml(c.name)}"
+                  placeholder="通知要用（可稍後補）" /></td>
             <td class="num">${c.count}</td>
             <td><span class="muted">${escapeHtml((c.from || []).join("、"))}</span></td>
             <td>${c.suspect
@@ -5979,13 +6057,18 @@ document.addEventListener("submit", async (event) => {
     const n = sel.getAttribute("data-suggest-group");
     if (names.includes(n) && sel.value) groups[n] = sel.value;
   }
+  const emails = {};
+  for (const inp of form.querySelectorAll("[data-suggest-email]")) {
+    const n = inp.getAttribute("data-suggest-email");
+    if (names.includes(n) && inp.value.trim()) emails[n] = inp.value.trim();
+  }
   const submit = form.querySelector('button[type="submit"]');
   submit.disabled = true;
   submit.textContent = "建立中…";
   try {
     const r = (await api("/api/personnel-suggest/create", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ names, groups }),
+      body: JSON.stringify({ names, groups, emails }),
     })).data;
     document.querySelector("#personnel-suggest-box").innerHTML =
       `<p class="chip done">已建立 ${r.created_count} 位人員${r.skipped_count ? `（跳過 ${r.skipped_count} 位已存在的）` : ""}。

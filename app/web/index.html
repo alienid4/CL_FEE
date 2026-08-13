@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-72-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-73-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -667,7 +667,14 @@
               <div class="io-subtab-panel" data-io-panel="contract" hidden>
                 <div class="io-card">
                   <h4>合約</h4>
-                  <div class="io-row"><span class="io-label">匯入</span><span class="muted io-hint">合約不做匯入：合約本身是 PDF，細項在公司合約系統裡。這裡只填合約編號，清單上點「🔗 合約系統」就能帶編號過去查（連結網址在系統設定裡填）。</span></div>
+                  <div class="io-row"><span class="io-label">匯入</span>
+                    <span class="io-sub">合約盤點表　<span class="io-file">請選：合約盤點_○○組.xlsx</span></span>
+                    <input type="file" id="contract-xlsx-file" accept=".xlsx" />
+                    <button type="button" id="contract-xlsx-preview" class="secondary btn-sm">預覽</button>
+                    <button type="button" id="contract-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                    <span class="muted" id="contract-xlsx-status" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="io-row"><span class="io-label">說明</span><span class="muted io-hint">以「合約編號」為識別鍵：同編號更新、沒見過的新增，同一份重匯不會長出第二套。合約細項仍在公司合約系統，清單點「🔗 合約系統」帶編號過去查。</span></div>
                   <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/contracts.csv">下載 CSV</button></div>
                 </div>
               </div>
@@ -1190,6 +1197,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-72-0"></script>
+    <script src="/static/app.js?v=v0-73-0"></script>
   </body>
 </html>

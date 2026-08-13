@@ -435,14 +435,16 @@ class PersonnelCreateIn(BaseModel):
     name: str = Field(min_length=1)
     note: str = ""
     group_name: str = ""     # 歸屬組別（主機組/資料庫組/網路組…），案件負責人要能依組別過濾
+    email: str = ""          # 通知寄給誰要靠它
 
 
 class PersonnelPatch(BaseModel):
-    # 人會轉組、會改名、會離職，四個欄位都要能改
+    # 人會轉組、會改名、會離職，這些欄位都要能改
     name: str | None = None
     group_name: str | None = None
     note: str | None = None
     status: str | None = None   # active / disabled（停用＝下拉選不到，但歷史資料不動）
+    email: str | None = None    # 通知要用（核銷者、負責人存的是人名，靠這欄找到信箱）
 
 
 class UnitMergeIn(BaseModel):
@@ -525,9 +527,11 @@ class ProjectPatch(BaseModel):
 
 
 class PersonnelBulkIn(BaseModel):
-    """從既有資料補登記人員：names 是使用者勾選的，groups 可個別覆蓋推測出來的組別。"""
+    """從既有資料補登記人員：names 是使用者勾選的，groups／emails 可個別填。
+    email 一起收——建完還要再一個個補 email 等於白做一半。"""
     names: list[str]
     groups: dict[str, str] = {}
+    emails: dict[str, str] = {}
 
 
 class HandoverIn(BaseModel):
@@ -981,7 +985,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.72.0 · 2026-08-12 · 每月支出狀態（處長要的不是核決門檻，是看每個月支出）：預計應付＋實際已付／待付擺同一張表，過去看預估準不準、未來看要準備多少錢，草稿排程不算"
+BACKEND_BUILD = "v0.73.0 · 2026-08-13 · 合約盤點表匯入（欄名定位、AS400 歸主機組、從說明文字接續約/整併關係、抓原維護人）；人員主檔加 EMAIL，通知改成人名也找得到收件者"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2235,7 +2239,8 @@ def create_app() -> FastAPI:
         # 主動新增乾淨人員（給表單下拉選單用）；建立前擋撞名，避免同一人被打成兩種寫法。
         _require_unit_editor(request)
         try:
-            return ok(create_personnel_master(payload.name, payload.note, payload.group_name))
+            return ok(create_personnel_master(payload.name, payload.note,
+                                              payload.group_name, payload.email))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -2338,7 +2343,8 @@ def create_app() -> FastAPI:
     @app.post("/api/personnel-suggest/create")
     def personnel_suggest_create(payload: PersonnelBulkIn) -> dict[str, Any]:
         try:
-            return ok(store.create_personnel_from_data(payload.names, payload.groups))
+            return ok(store.create_personnel_from_data(
+                payload.names, payload.groups, payload.emails))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -2787,6 +2793,32 @@ def create_app() -> FastAPI:
         if not commit:
             return ok({"preview": True, "count": len(records), "sample": records[:10]})
         return ok({"preview": False, **commit_projects_import(records)})
+
+    @app.post("/api/contracts/import-xlsx")
+    async def import_contracts_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:
+        # 合約盤點表（黃助理 0813）：commit=false 只預覽、true 正式寫入。
+        # 以公司內部合約編號為識別鍵，同編號更新不新增——8/19 盤點完會再匯一次。
+        who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        if who.get("role_code") not in ("manager_assistant", "admin"):
+            raise HTTPException(status_code=403, detail="只有主管/助理可匯入合約。")
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=400, detail="請選擇要上傳的 Excel 檔。")
+        try:
+            parsed = store.parse_contract_inventory_xlsx(data)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認是合約盤點表）：{exc}") from exc
+        rows = parsed["contracts"]
+        if not commit:
+            unconfirmed = sum(1 for r in rows if not r["confirmed"])
+            return ok({
+                "preview": True, "count": len(rows), "sample": rows[:10],
+                "skipped_sheets": parsed["skipped_sheets"],
+                "unconfirmed": unconfirmed,
+                "relation_hints": sum(1 for r in rows if r["related_codes"] and r["relation_hint"]),
+                "handover_hints": sum(1 for r in rows if r["previous_owner"]),
+            })
+        return ok({"preview": False, **store.commit_contract_inventory(rows)})
 
     @app.post("/api/budgets/import-xlsx")
     async def import_budgets_xlsx(request: Request, commit: bool = Query(False), filename: str = Query("")) -> dict[str, Any]:
