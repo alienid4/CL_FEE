@@ -3546,6 +3546,128 @@ def _split_persons(cell: Any) -> list[str]:
     return [p.strip() for p in parts if p.strip()]
 
 
+# 從資料裡自動補登記人員（使用者 2026-08-12：「如果系統有抓到人 可以自動幫我建立人嗎」）。
+# 不能照單全收——實際資料裡就有「蔡維庭 黎世偉 吳季凌 游穗宗」這種四個人塞一格用空白分隔的，
+# 直接建會生出一個名字很長的假人。所以：拆得開的拆開、可疑的標出來、一律先預覽再建。
+_GROUP_HINT = re.compile(r"(主機組|網路組|資料庫組|專案及流程管理組|[一-鿿]{1,6}組)")
+
+
+# 不是人名的字眼：這些是欄位被拿來寫備註留下的（「由網路組協助，待確認負責人」）
+_NOT_A_NAME = ("待確認", "未指派", "未定", "待補", "待定", "協助", "負責人", "組別",
+               "TBD", "tbd", "N/A", "n/a", "無")
+
+
+def _looks_like_person(name: str) -> bool:
+    """像不像一個人的名字。中文姓名通常 2–5 字，超過多半是把欄位當備註在寫。
+
+    只用長度不夠：「由網路組協助，待確認負責人」會被逗號拆成兩段 6 字的片段矇混過關，
+    所以再擋一組明顯不是名字的字眼。判斷錯了也不會出事——只是不預設勾選，人還是能自己勾。
+    """
+    n = str(name or "").strip()
+    if not (2 <= len(n) <= 5):
+        return False
+    return not any(k in n for k in _NOT_A_NAME)
+
+
+def _guess_group(sources: list[str]) -> str:
+    """從專案來源（匯入的工作表名，如「網路組處級專案」）推組別。推不出來就留空，不瞎猜。"""
+    for s in sources:
+        m = _GROUP_HINT.search(str(s or ""))
+        if m:
+            return m.group(1)
+    return ""
+
+
+def suggest_personnel_from_data() -> dict[str, Any]:
+    """掃出資料裡出現過、但還沒登記在人員主檔的人，附推測組別與可疑標記。
+
+    可疑的定義（借用 _clean_owner 同一套判斷）：太長、含標點、或看起來是一格塞多個人。
+    這些不預設勾選，讓人自己看過再決定。
+    """
+    with connect() as conn:
+        existing = {str(r["name"]).strip() for r in conn.execute(
+            "SELECT name FROM personnel_master").fetchall()}
+        tables = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        accounts = {str(r["username"]) for r in conn.execute("SELECT username FROM users").fetchall()}
+        found: dict[str, dict[str, Any]] = {}
+        for table, col, label, kind, _closed in PERSON_FIELDS:
+            if table not in tables or kind == "account":
+                continue                      # 帳號那塊不是人名，不拿來建人員
+            src_col = "source" if table == "projects" else None
+            sql = f"SELECT {col} AS person" + (", source" if src_col else "") + f" FROM {table} " \
+                  f"WHERE COALESCE({col},'') <> ''"
+            for r in conn.execute(sql).fetchall():
+                raw = str(r["person"]).strip()
+                source = str(r["source"]) if src_col else ""
+                # 空白分隔的多人（蔡維庭 黎世偉 吳季凌 游穗宗）拆開，但標記讓人確認
+                spaced = len(raw.split()) > 1 and all(2 <= len(p) <= 4 for p in raw.split())
+                names = raw.split() if spaced else _split_persons(raw)
+                for name in names:
+                    if not name or name in existing or name in accounts:
+                        continue
+                    slot = found.setdefault(name, {
+                        "name": name, "count": 0, "sources": [], "from": set(),
+                        "suspect": "", "raw_samples": set(), "clean_hit": False})
+                    slot["count"] += 1
+                    slot["from"].add(label)
+                    slot["raw_samples"].add(raw)
+                    if source:
+                        slot["sources"].append(source)
+                    if spaced:
+                        slot["suspect"] = "原本一格塞了多個人（用空白分隔），系統拆開了，請確認拆得對不對"
+                    elif not _looks_like_person(name):
+                        slot["suspect"] = "看起來不像人名（太長或含「待確認」這類字眼），可能是誤填"
+                    else:
+                        # 這個人也單獨出現在別的地方＝名字本身沒問題，不該因為某一筆髒資料被連坐
+                        slot["clean_hit"] = True
+    out = []
+    for slot in found.values():
+        # 只要這個人有一次是乾淨地單獨出現，就不算可疑——不然一筆髒資料會連坐到
+        # 好幾個正常的人（實例：「蔡維庭 黎世偉 吳季凌 游穗宗」害游穗宗也被標）
+        suspect = "" if slot["clean_hit"] else slot["suspect"]
+        out.append({
+            "name": slot["name"], "count": slot["count"],
+            "group_name": _guess_group(slot["sources"]),
+            "from": sorted(slot["from"]),
+            "suspect": suspect,
+            "raw_sample": sorted(slot["raw_samples"], key=len)[-1],   # 秀最長的那個，看得出問題在哪
+            "recommend": not suspect,       # 可疑的不預設勾選
+        })
+    out.sort(key=lambda x: (bool(x["suspect"]), -x["count"], x["name"]))
+    return {"candidates": out, "count": len(out),
+            "recommended": sum(1 for x in out if x["recommend"]),
+            "note": "組別是從專案來源工作表（例：網路組處級專案）推的，推不出來就留空，可事後補。"}
+
+
+def create_personnel_from_data(names: list[str], group_overrides: dict[str, str] | None = None) -> dict[str, Any]:
+    """把選定的名字建進人員主檔。已存在的跳過（冪等），組別可個別覆蓋。"""
+    picked = [str(n).strip() for n in (names or []) if str(n).strip()]
+    if not picked:
+        raise ValueError("沒有選到任何人。")
+    suggested = {c["name"]: c for c in suggest_personnel_from_data()["candidates"]}
+    overrides = group_overrides or {}
+    created, skipped = [], []
+    with connect() as conn:
+        existing = {str(r["name"]).strip() for r in conn.execute(
+            "SELECT name FROM personnel_master").fetchall()}
+        for name in picked:
+            if name in existing:
+                skipped.append(name)
+                continue
+            group = overrides.get(name) or (suggested.get(name, {}) or {}).get("group_name", "")
+            # personnel_master 不走 allowed_fields，比照 create_personnel_master 直接寫入
+            cur = conn.execute(
+                "INSERT INTO personnel_master (name, group_name, note) VALUES (?, ?, ?)",
+                (name, group, "由既有資料自動補登記"))
+            row = get_row(conn, "personnel_master", cur.lastrowid)
+            write_audit_log(conn, "personnel_master", cur.lastrowid, "create", None, row)
+            existing.add(name)
+            created.append({"name": name, "group_name": group, "id": cur.lastrowid})
+    return {"created": created, "skipped": skipped,
+            "created_count": len(created), "skipped_count": len(skipped)}
+
+
 def handover_preview(from_name: str, from_username: str = "", include_closed: bool = False) -> dict[str, Any]:
     """交接前先看會動到哪幾筆、哪幾筆不動。按下去才知道動到誰，那是最糟的設計。"""
     w = personnel_workload(from_name, from_username)

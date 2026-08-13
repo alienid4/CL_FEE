@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.70.0 · 2026-08-12 · 人員盤點與離職交接：誰名下有多少東西，一次轉給接手人";
+const BUILD_TAG = "v0.71.0 · 2026-08-12 · 從既有資料一鍵補登記人員（自動推組別，可疑的先標出來）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5826,7 +5826,12 @@ async function loadWorkload() {
       box.innerHTML = `<p class="muted">人員名單是空的，先在上面新增人員。</p>`;
       return;
     }
+    const unreg = data.not_in_master || 0;
     box.innerHTML = `<p class="muted">「還在跑」不含已結案／已停用的；${escapeHtml(data.unassigned_hint || "")}</p>
+      ${unreg ? `<p class="chip todo">有 <strong>${unreg}</strong> 個人出現在資料裡但沒登記在人員主檔
+        —— 沒登記的話，各表單的負責人下拉選不到他們，只能手打。
+        <button type="button" class="btn-sm" id="personnel-suggest-open">從資料補登記</button></p>` : ""}
+      <div id="personnel-suggest-box" class="schedule-panel" hidden></div>
       <div class="grid-scroll"><table class="grid-table">
         <thead><tr><th>姓名</th><th>組別</th><th>登入帳號</th><th class="num">還在跑</th>
         <th class="num">已結案</th><th>分布</th><th class="col-actions">操作</th></tr></thead>
@@ -5848,6 +5853,98 @@ async function loadWorkload() {
     box.innerHTML = `<p class="muted">盤點失敗：${escapeHtml(e.message)}</p>`;
   }
 }
+
+// 從既有資料補登記人員：先列候選讓人看過再建。可疑的（一格塞多人、看起來像備註）不預設勾選。
+async function openPersonnelSuggest() {
+  const box = document.querySelector("#personnel-suggest-box");
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = `<p class="muted">掃描中…</p>`;
+  try {
+    const data = (await api("/api/personnel-suggest")).data || {};
+    const cands = data.candidates || [];
+    if (!cands.length) {
+      box.innerHTML = `<p class="muted">沒有待補登記的人。</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <div class="sched-head">
+        <h3>從既有資料補登記人員<span class="muted">　找到 ${cands.length} 個，建議勾選 ${data.recommended} 個</span></h3>
+        <button type="button" class="secondary btn-sm" data-suggest-close>收合</button>
+      </div>
+      <p class="muted">${escapeHtml(data.note || "")}</p>
+      <form data-suggest-form>
+        <div class="grid-scroll"><table class="grid-table">
+          <thead><tr><th class="w-seq"><input type="checkbox" data-suggest-all checked title="全選建議的" /></th>
+          <th>姓名</th><th>組別</th><th class="num">出現次數</th><th>出現在</th><th>備註</th></tr></thead>
+          <tbody>${cands.map((c) => `<tr class="${c.suspect ? "sched-warn" : ""}">
+            <td><input type="checkbox" data-suggest-pick="${escapeHtml(c.name)}"${c.recommend ? " checked" : ""} /></td>
+            <td><strong>${escapeHtml(c.name)}</strong></td>
+            <td><select data-suggest-group="${escapeHtml(c.name)}" class="cell-input">
+                  <option value="">（未分組）</option>
+                  ${(personnelGroupOptions || []).map((g) =>
+                    `<option value="${escapeHtml(g)}"${g === c.group_name ? " selected" : ""}>${escapeHtml(g)}</option>`).join("")}
+                  ${c.group_name && !(personnelGroupOptions || []).includes(c.group_name)
+                    ? `<option value="${escapeHtml(c.group_name)}" selected>${escapeHtml(c.group_name)}</option>` : ""}
+                </select></td>
+            <td class="num">${c.count}</td>
+            <td><span class="muted">${escapeHtml((c.from || []).join("、"))}</span></td>
+            <td>${c.suspect
+                  ? `<span class="badge danger" title="原始值：${escapeHtml(c.raw_sample)}">${escapeHtml(c.suspect)}</span>`
+                  : '<span class="muted">—</span>'}</td>
+          </tr>`).join("")}</tbody>
+        </table></div>
+        <button type="submit">建立勾選的人員</button>
+      </form>`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (e) {
+    box.innerHTML = `<p class="muted">掃描失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+document.addEventListener("click", (event) => {
+  if (event.target.closest("#personnel-suggest-open")) { openPersonnelSuggest(); return; }
+  if (event.target.closest("[data-suggest-close]")) {
+    document.querySelector("#personnel-suggest-box").hidden = true;
+  }
+});
+
+document.addEventListener("change", (event) => {
+  const all = event.target.closest("[data-suggest-all]");
+  if (!all) return;
+  for (const cb of document.querySelectorAll("[data-suggest-pick]")) cb.checked = all.checked;
+});
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-suggest-form]");
+  if (!form) return;
+  event.preventDefault();
+  const names = [...form.querySelectorAll("[data-suggest-pick]:checked")]
+    .map((cb) => cb.getAttribute("data-suggest-pick"));
+  if (!names.length) { window.alert("至少要勾一個人。"); return; }
+  const groups = {};
+  for (const sel of form.querySelectorAll("[data-suggest-group]")) {
+    const n = sel.getAttribute("data-suggest-group");
+    if (names.includes(n) && sel.value) groups[n] = sel.value;
+  }
+  const submit = form.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  submit.textContent = "建立中…";
+  try {
+    const r = (await api("/api/personnel-suggest/create", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names, groups }),
+    })).data;
+    document.querySelector("#personnel-suggest-box").innerHTML =
+      `<p class="chip done">已建立 ${r.created_count} 位人員${r.skipped_count ? `（跳過 ${r.skipped_count} 位已存在的）` : ""}。
+       各表單的負責人下拉現在選得到他們了。</p>`;
+    await Promise.all([loadPersonnelMaster(), loadWorkload()]);
+  } catch (e) {
+    submit.disabled = false;
+    submit.textContent = "建立勾選的人員";
+    window.alert(`建立失敗：${e.message}`);
+  }
+});
 
 async function openHandover(fromName, fromUsername, includeClosed = false) {
   const box = document.querySelector("#handover-panel");

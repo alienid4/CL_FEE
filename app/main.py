@@ -524,6 +524,12 @@ class ProjectPatch(BaseModel):
     involves_procurement: int | None = None
 
 
+class PersonnelBulkIn(BaseModel):
+    """從既有資料補登記人員：names 是使用者勾選的，groups 可個別覆蓋推測出來的組別。"""
+    names: list[str]
+    groups: dict[str, str] = {}
+
+
 class HandoverIn(BaseModel):
     """離職交接：把某人名下的資料整批轉給接手人。
     案件比對登入帳號、其他模組比對人名，所以兩組都要帶。"""
@@ -975,7 +981,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.70.0 · 2026-08-12 · 人員盤點與離職交接：每個人名下有幾筆一頁看完（案件比帳號、其他比人名，共同負責人也算），交接前先看會動到哪幾筆，已結案的預設不轉、每筆寫稽核"
+BACKEND_BUILD = "v0.71.0 · 2026-08-12 · 從既有資料補登記人員：掃出沒登記的名字、從專案來源工作表推組別，一格塞多人或看起來像備註的先標出來不預設勾選"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2314,6 +2320,18 @@ def create_app() -> FastAPI:
         # 一鍵還原：清掉所有裁決，回到剛匯入的原始狀態（原始資料本就沒動過）
         _require_unit_editor(request)
         return ok(reset_unit_decisions())
+
+    # ---- 從既有資料補登記人員（先預覽再建，可疑的不預設勾選）----
+    @app.get("/api/personnel-suggest")
+    def personnel_suggest() -> dict[str, Any]:
+        return ok(store.suggest_personnel_from_data())
+
+    @app.post("/api/personnel-suggest/create")
+    def personnel_suggest_create(payload: PersonnelBulkIn) -> dict[str, Any]:
+        try:
+            return ok(store.create_personnel_from_data(payload.names, payload.groups))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     # ---- 人員盤點與離職交接 ----
     @app.get("/api/personnel-workload")
