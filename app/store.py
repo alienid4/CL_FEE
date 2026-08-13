@@ -3400,6 +3400,241 @@ NAME_SOURCES: dict[str, list[tuple[str, str]]] = {
 NAME_KIND_LABEL = {"case": "案件名稱", "project": "專案名稱", "vendor": "廠商名稱", "budget": "預算項目"}
 
 
+# ── 人員盤點與離職交接（使用者 2026-08-12）───────────────────────────────
+# 「一個人名下有什麼」不是一個查詢就有答案，因為系統裡有兩種存法：
+#   案件的負責人存**登入帳號**（ap03），其他模組存**人名**（林信成）。
+# 而且人名欄位允許共同負責人（實際資料裡有「陳昱杉/洪似妮」），所以不能只用 = 比對。
+# 盤點盲了，交接就是盲的——先看得到他有什麼，才談得上轉給誰。
+PERSON_FIELDS = [
+    # (表, 欄位, 顯示名稱, 比對方式, 結案狀態)
+    ("cases", "owner", "案件", "account", ("closed", "cancelled", "merged", "rejected", "disabled")),
+    ("projects", "owner", "專案", "name", ("completed", "disabled")),
+    ("contracts", "owner", "合約", "name", ("closed", "disabled")),
+    ("project_items", "owner", "工作項", "name", ("disabled",)),
+    ("project_subitems", "owner", "子項目", "name", ("disabled",)),
+    ("expense_masters", "owner", "費用主檔", "name", ("closed", "disabled")),
+    ("payments", "owner", "付款", "name", ("closed", "disabled")),
+    ("signoffs", "applicant", "簽呈", "name", ("approved", "rejected", "disabled")),
+]
+_NAME_SEPARATORS = ("/", "、", "&", "／", ",", "，")
+
+
+def _name_matches(cell: Any, person: str) -> bool:
+    """欄位值是不是「這個人」。共同負責人（陳昱杉/洪似妮）也要算他一份。"""
+    raw = str(cell or "").strip()
+    if not raw or not person:
+        return False
+    if raw == person:
+        return True
+    parts = [raw]
+    for sep in _NAME_SEPARATORS:
+        parts = [p for chunk in parts for p in chunk.split(sep)]
+    return person in [p.strip() for p in parts if p.strip()]
+
+
+def personnel_workload(person_name: str = "", username: str = "") -> dict[str, Any]:
+    """某個人名下有哪些資料，按模組分「進行中／已結案」。
+
+    兩個 key 都要給才盤得完整：person_name 比人名欄位、username 比案件的帳號欄位。
+    只給其中一個也能跑，但另一半會是 0——回傳裡標出來，不要讓人以為真的沒有。
+    """
+    person_name = str(person_name or "").strip()
+    username = str(username or "").strip()
+    blocks: list[dict[str, Any]] = []
+    with connect() as conn:
+        existing = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, col, label, kind, closed_states in PERSON_FIELDS:
+            if table not in existing:
+                continue
+            key = username if kind == "account" else person_name
+            if not key:
+                continue
+            rows = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {table} WHERE COALESCE({col},'') <> ''").fetchall()]
+            mine = [r for r in rows
+                    if (str(r[col]).strip() == key if kind == "account" else _name_matches(r[col], key))]
+            if not mine:
+                continue
+            active = [r for r in mine if str(r.get("status") or "") not in closed_states]
+            blocks.append({
+                "table": table, "field": col, "label": label, "match_by": kind,
+                "total": len(mine), "active": len(active), "closed": len(mine) - len(active),
+                "sample": [_workload_title(table, r) for r in mine[:5]],
+            })
+    return {
+        "person_name": person_name, "username": username,
+        "blocks": blocks,
+        "total": sum(b["total"] for b in blocks),
+        "active": sum(b["active"] for b in blocks),
+        "closed": sum(b["closed"] for b in blocks),
+        "note": "案件比對登入帳號，其他模組比對人名；共同負責人（A/B）也算他一份。",
+    }
+
+
+def _workload_title(table: str, row: dict[str, Any]) -> str:
+    for key in ("title", "project_name", "contract_name", "item_name", "name",
+                "expense_name", "subject", "settle_no", "payment_month"):
+        if str(row.get(key) or "").strip():
+            return str(row[key]).strip()
+    return f"#{row.get('id')}"
+
+
+def personnel_workload_overview() -> dict[str, Any]:
+    """全部人員的負擔一覽：誰身上有多少東西。交接前先看這張，才知道要找誰接。
+
+    名單來源是「人員主檔 ∪ 資料裡實際出現過的名字」，不是只有主檔——
+    實測這台的主檔只登記 1 個人，但專案負責人有 8 個以上（林義昌、黎世偉/游穗宗…）。
+    只看主檔的話，真正有工作要交接的人全部盤不到，等於這功能白做。
+    共同負責人（A/B）會拆開各算一份。
+
+    一次把資料撈進記憶體分組，不對每個人各掃一次全表（人一多會慢得誇張）。
+    """
+    people: dict[str, dict[str, Any]] = {}
+
+    def slot(name: str) -> dict[str, Any]:
+        return people.setdefault(name, {
+            "name": name, "group_name": "", "status": "", "username": "",
+            "in_master": False, "total": 0, "active": 0, "closed": 0, "blocks": {},
+        })
+
+    with connect() as conn:
+        existing = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        for m in conn.execute(
+                "SELECT name, group_name, status FROM personnel_master").fetchall():
+            s = slot(str(m["name"]).strip())
+            s.update({"group_name": m["group_name"] or "", "status": m["status"] or "",
+                      "in_master": True})
+        by_account = {}
+        for u in conn.execute(
+                "SELECT username, display_name FROM users WHERE COALESCE(display_name,'') <> ''").fetchall():
+            by_account[str(u["username"])] = str(u["display_name"])
+            slot(str(u["display_name"]))["username"] = str(u["username"])
+
+        for table, col, label, kind, closed_states in PERSON_FIELDS:
+            if table not in existing:
+                continue
+            for r in conn.execute(
+                    f"SELECT {col} AS person, status FROM {table} "
+                    f"WHERE COALESCE({col},'') <> ''").fetchall():
+                raw = str(r["person"]).strip()
+                # 案件存的是帳號，換算回人名再併帳；查不到對照就用帳號本身當顯示名
+                names = [by_account.get(raw, raw)] if kind == "account" else _split_persons(raw)
+                closed = str(r["status"] or "") in closed_states
+                for name in names:
+                    s = slot(name)
+                    s["total"] += 1
+                    if closed:
+                        s["closed"] += 1
+                    else:
+                        s["active"] += 1
+                        s["blocks"][label] = s["blocks"].get(label, 0) + 1
+
+    out = sorted(people.values(), key=lambda x: (-x["active"], -x["total"], x["name"]))
+    return {"people": out, "count": len(out),
+            "not_in_master": sum(1 for p in out if not p["in_master"] and p["total"]),
+            "unassigned_hint": "名單同時來自人員主檔與實際資料；標「未登記」的人有資料卻不在主檔，"
+                               "建議補登記。沒有登入帳號的人，案件那一塊會是 0（案件比對的是帳號）。"}
+
+
+def _split_persons(cell: Any) -> list[str]:
+    """把「陳昱杉/洪似妮」拆成兩個人。"""
+    parts = [str(cell or "").strip()]
+    for sep in _NAME_SEPARATORS:
+        parts = [p for chunk in parts for p in chunk.split(sep)]
+    return [p.strip() for p in parts if p.strip()]
+
+
+def handover_preview(from_name: str, from_username: str = "", include_closed: bool = False) -> dict[str, Any]:
+    """交接前先看會動到哪幾筆、哪幾筆不動。按下去才知道動到誰，那是最糟的設計。"""
+    w = personnel_workload(from_name, from_username)
+    will, keep = [], []
+    for b in w["blocks"]:
+        n = b["total"] if include_closed else b["active"]
+        if n:
+            will.append({"label": b["label"], "count": n, "table": b["table"]})
+        skipped = 0 if include_closed else b["closed"]
+        if skipped:
+            keep.append({"label": b["label"], "count": skipped, "table": b["table"]})
+    return {
+        "from_name": from_name, "from_username": from_username,
+        "include_closed": include_closed,
+        "will_transfer": will, "will_keep": keep,
+        "transfer_count": sum(x["count"] for x in will),
+        "keep_count": sum(x["count"] for x in keep),
+        "keep_reason": "已結案／已停用的維持原承辦：那是歷史事實（這案子當初誰做的），"
+                       "而且結案的也不會再產生待辦。要一起轉請勾「連已結案的一起轉」。",
+    }
+
+
+def handover_apply(from_name: str, to_name: str, from_username: str = "", to_username: str = "",
+                   include_closed: bool = False, reason: str = "") -> dict[str, Any]:
+    """把某人名下的資料整批轉給接手人。單一交易：全部成功才算數，中途失敗整批回滾。
+
+    共同負責人只換自己那一份（「陳昱杉/洪似妮」轉走陳昱杉 → 變成「接手人/洪似妮」），
+    不會把另一個人也一起換掉。
+    """
+    from_name, to_name = str(from_name or "").strip(), str(to_name or "").strip()
+    if not from_name or not to_name:
+        raise ValueError("請指定離職者與接手人。")
+    if from_name == to_name:
+        raise ValueError("離職者與接手人是同一個人。")
+    actor = _current_actor.get()
+    moved: list[dict[str, Any]] = []
+    with connect() as conn:
+        existing = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        for table, col, label, kind, closed_states in PERSON_FIELDS:
+            if table not in existing:
+                continue
+            key = from_username if kind == "account" else from_name
+            new_key = to_username if kind == "account" else to_name
+            if not key or not new_key:
+                continue
+            rows = [dict(r) for r in conn.execute(
+                f"SELECT * FROM {table} WHERE COALESCE({col},'') <> ''").fetchall()]
+            count = 0
+            for r in rows:
+                if kind == "account":
+                    if str(r[col]).strip() != key:
+                        continue
+                    new_value = new_key
+                else:
+                    if not _name_matches(r[col], key):
+                        continue
+                    new_value = _replace_person(str(r[col]), key, new_key)
+                if not include_closed and str(r.get("status") or "") in closed_states:
+                    continue
+                before = dict(r)
+                conn.execute(f"UPDATE {table} SET {col} = ? WHERE id = ?", (new_value, r["id"]))
+                after = get_row(conn, table, r["id"])
+                write_audit_log(conn, table, r["id"], "handover", before, {
+                    **dict(after), "handover_from": key, "handover_to": new_key,
+                    "handover_by": actor, "handover_reason": reason})
+                count += 1
+            if count:
+                moved.append({"label": label, "table": table, "count": count})
+    return {"from_name": from_name, "to_name": to_name, "include_closed": include_closed,
+            "moved": moved, "moved_count": sum(m["count"] for m in moved), "actor": actor}
+
+
+def _replace_person(cell: str, old: str, new: str) -> str:
+    """把共同負責人字串裡的某一個人換掉，其他人與原本的分隔符維持不變。"""
+    out, buf, result = [], "", []
+    for ch in cell:
+        if ch in _NAME_SEPARATORS:
+            result.append(buf)
+            result.append(ch)
+            buf = ""
+        else:
+            buf += ch
+    result.append(buf)
+    for token in result:
+        out.append(new if token.strip() == old else token)
+    return "".join(out)
+
+
 # ── 跨模組串接：案件／專案／預算其實在講同一件事，但名字都不一樣 ──────────────
 # 使用者 2026-08-12 舉的實例：
 #   案件「青浦機房搬遷」／專案「青浦機房搬遷專案」／預算「桃園青浦機房」

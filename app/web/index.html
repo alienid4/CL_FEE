@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-69-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-70-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -740,6 +740,14 @@
               </form>
               <div id="personnelmaster-result"></div>
             </div>
+            <div class="unit-master-block">
+              <div class="section-heading compact">
+                <h3>人員盤點與離職交接<span class="help" data-tip="每個人名下有幾筆案件/專案/合約/工作項，一頁看完。要交接時選離職者與接手人，先看會動到哪幾筆再送出；已結案的預設不轉（那是歷史事實）。" role="button" tabindex="0" aria-label="說明">?</span></h3>
+                <button type="button" id="workload-refresh" class="secondary btn-sm">重新盤點</button>
+              </div>
+              <div id="workload-result"></div>
+              <div id="handover-panel" class="schedule-panel" hidden></div>
+            </div>
           </section>
 
           <section class="dashboard-panel module-panel" id="fee-alloc" hidden>
@@ -1171,6 +1179,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-69-0"></script>
+    <script src="/static/app.js?v=v0-70-0"></script>
   </body>
 </html>

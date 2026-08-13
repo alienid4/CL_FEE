@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.69.0 · 2026-08-12 · 跨模組串接：案件／專案／預算名字不同也認得出是同一件事";
+const BUILD_TAG = "v0.70.0 · 2026-08-12 · 人員盤點與離職交接：誰名下有多少東西，一次轉給接手人";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5811,6 +5811,142 @@ function clusterNames(values) {
     return canons.size > 1;
   });
 }
+
+// ── 人員盤點與離職交接（使用者 2026-08-12）──────────────────────────────
+// 先看得到每個人名下有什麼，交接才不是盲的。案件比對登入帳號、其他模組比對人名，
+// 這兩種差異在後端處理，前端只呈現結果。
+async function loadWorkload() {
+  const box = document.querySelector("#workload-result");
+  if (!box) return;
+  box.innerHTML = `<p class="muted">盤點中…</p>`;
+  try {
+    const data = (await api("/api/personnel-workload")).data || {};
+    const people = (data.people || []).filter((p) => p.total > 0 || p.status !== "disabled");
+    if (!people.length) {
+      box.innerHTML = `<p class="muted">人員名單是空的，先在上面新增人員。</p>`;
+      return;
+    }
+    box.innerHTML = `<p class="muted">「還在跑」不含已結案／已停用的；${escapeHtml(data.unassigned_hint || "")}</p>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>姓名</th><th>組別</th><th>登入帳號</th><th class="num">還在跑</th>
+        <th class="num">已結案</th><th>分布</th><th class="col-actions">操作</th></tr></thead>
+        <tbody>${people.map((p) => `<tr>
+          <td><strong>${escapeHtml(p.name)}</strong>${p.status === "disabled" ? ' <span class="badge">已停用</span>' : ""}${
+            p.in_master === false ? ' <span class="badge warn" title="這個人有資料但沒登記在人員主檔，建議補登記">未登記</span>' : ""}</td>
+          <td>${escapeHtml(valueOrDash(p.group_name))}</td>
+          <td>${p.username ? escapeHtml(p.username) : '<span class="muted" title="沒有登入帳號的人，案件那一塊一定是 0">—</span>'}</td>
+          <td class="num"><strong>${p.active}</strong></td>
+          <td class="num muted">${p.closed}</td>
+          <td>${Object.entries(p.blocks || {}).map(([k, v]) =>
+                `<span class="badge">${escapeHtml(k)} ${v}</span>`).join(" ") || '<span class="muted">—</span>'}</td>
+          <td>${p.total
+            ? `<button type="button" class="secondary btn-sm" data-handover="${escapeHtml(p.name)}"
+                 data-username="${escapeHtml(p.username || "")}">離職交接</button>`
+            : '<span class="muted">名下沒有資料</span>'}</td>
+        </tr>`).join("")}</tbody></table></div>`;
+  } catch (e) {
+    box.innerHTML = `<p class="muted">盤點失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function openHandover(fromName, fromUsername, includeClosed = false) {
+  const box = document.querySelector("#handover-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.dataset.from = fromName;
+  box.dataset.username = fromUsername || "";
+  box.innerHTML = `<p class="muted">計算中…</p>`;
+  try {
+    const pv = (await api(`/api/handover/preview?from_name=${encodeURIComponent(fromName)}`
+      + `&from_username=${encodeURIComponent(fromUsername || "")}`
+      + `&include_closed=${includeClosed ? "true" : "false"}`)).data;
+    const people = ((await api("/api/personnel-workload")).data.people || [])
+      .filter((p) => p.name !== fromName && p.status !== "disabled");
+    const list = (rows) => rows.length
+      ? rows.map((r) => `<span class="badge">${escapeHtml(r.label)} ${r.count}</span>`).join(" ")
+      : '<span class="muted">無</span>';
+    box.innerHTML = `
+      <div class="sched-head">
+        <h3>離職交接：${escapeHtml(fromName)}${fromUsername ? `（${escapeHtml(fromUsername)}）` : ""}</h3>
+        <button type="button" class="secondary btn-sm" data-handover-close>收合</button>
+      </div>
+      <p><strong>會轉走 ${pv.transfer_count} 筆</strong>：${list(pv.will_transfer)}</p>
+      <p><strong>維持原承辦 ${pv.keep_count} 筆</strong>：${list(pv.will_keep)}</p>
+      <p class="muted">${escapeHtml(pv.keep_reason || "")}</p>
+      <form class="resource-form" data-handover-form>
+        <select data-handover-to required>
+          <option value="">選接手人 *</option>
+          ${people.map((p) => `<option value="${escapeHtml(p.name)}" data-username="${escapeHtml(p.username || "")}">
+            ${escapeHtml(p.name)}${p.group_name ? `（${escapeHtml(p.group_name)}）` : ""}｜目前 ${p.active} 筆</option>`).join("")}
+        </select>
+        <input data-handover-reason placeholder="交接原因（例：林信成 8/31 離職）" />
+        <label class="check-inline">
+          <input type="checkbox" data-handover-closed${includeClosed ? " checked" : ""} />
+          連已結案的一起轉
+        </label>
+        <button type="submit"${pv.transfer_count ? "" : " disabled"}>確認交接（${pv.transfer_count} 筆）</button>
+      </form>`;
+    box.scrollIntoView({ block: "nearest" });
+  } catch (e) {
+    box.innerHTML = `<p class="muted">交接預覽失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+document.addEventListener("click", async (event) => {
+  const btn = event.target.closest("[data-handover]");
+  if (btn) {
+    await openHandover(btn.getAttribute("data-handover"), btn.getAttribute("data-username"));
+    return;
+  }
+  if (event.target.closest("[data-handover-close]")) {
+    document.querySelector("#handover-panel").hidden = true;
+    return;
+  }
+  if (event.target.closest("#workload-refresh")) loadWorkload();
+  // 進人員管理才盤點：這是全表掃描，沒必要每次登入都跑一遍
+  if (event.target.closest('[data-open-panel="personnel-admin"]')) setTimeout(loadWorkload, 200);
+});
+
+// 勾「連已結案的一起轉」→ 重新算會動到幾筆（數字要當場變，不能等送出才知道）
+document.addEventListener("change", (event) => {
+  const cb = event.target.closest("[data-handover-closed]");
+  if (!cb) return;
+  const box = document.querySelector("#handover-panel");
+  openHandover(box.dataset.from, box.dataset.username, cb.checked);
+});
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-handover-form]");
+  if (!form) return;
+  event.preventDefault();
+  const box = document.querySelector("#handover-panel");
+  const sel = form.querySelector("[data-handover-to]");
+  const toName = sel.value;
+  const toUsername = sel.selectedOptions[0]?.getAttribute("data-username") || "";
+  const includeClosed = form.querySelector("[data-handover-closed]").checked;
+  if (!window.confirm(`把 ${box.dataset.from} 名下的資料轉給 ${toName}？\n每一筆都會留下稽核紀錄，事後查得到。`)) return;
+  const submit = form.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  submit.textContent = "交接中…";
+  try {
+    const r = (await api("/api/handover/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from_name: box.dataset.from, from_username: box.dataset.username,
+        to_name: toName, to_username: toUsername,
+        include_closed: includeClosed,
+        reason: form.querySelector("[data-handover-reason]").value,
+      }),
+    })).data;
+    box.innerHTML = `<p class="chip done">已把 ${escapeHtml(box.dataset.from)} 名下 ${r.moved_count} 筆轉給 ${escapeHtml(toName)}
+      （${r.moved.map((m) => `${escapeHtml(m.label)} ${m.count}`).join("、")}）。每一筆都留了稽核紀錄。</p>`;
+    await Promise.all([loadWorkload(), loadResource("project"), loadResource("contract"), loadCases()]);
+  } catch (e) {
+    submit.disabled = false;
+    submit.textContent = "確認交接";
+    window.alert(`交接失敗：${e.message}`);
+  }
+});
 
 // 跨模組串接：案件／專案／預算名字不同但在講同一件事（青浦機房搬遷／青浦機房搬遷專案／桃園青浦機房）。
 // 比對在後端做（純字串，不連網、不用 AI），這裡只負責把候選列出來讓人裁決。

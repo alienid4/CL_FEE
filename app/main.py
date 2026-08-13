@@ -524,6 +524,17 @@ class ProjectPatch(BaseModel):
     involves_procurement: int | None = None
 
 
+class HandoverIn(BaseModel):
+    """離職交接：把某人名下的資料整批轉給接手人。
+    案件比對登入帳號、其他模組比對人名，所以兩組都要帶。"""
+    from_name: str = Field(min_length=1)
+    to_name: str = Field(min_length=1)
+    from_username: str = ""
+    to_username: str = ""
+    include_closed: bool = False      # 預設不轉已結案的：那是歷史事實
+    reason: str = ""
+
+
 class CrossLinkIn(BaseModel):
     """跨模組歸戶：把某筆專案／預算掛到指定案件底下（人裁決後才送）。"""
     kind: str            # project / budget
@@ -964,7 +975,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.69.0 · 2026-08-12 · 跨模組串接：案件／專案／預算名字不同但在講同一件事（青浦機房搬遷／青浦機房搬遷專案／桃園青浦機房），用最長共同片段找候選、由人裁決歸戶。純字串比對，不連網不用 AI"
+BACKEND_BUILD = "v0.70.0 · 2026-08-12 · 人員盤點與離職交接：每個人名下有幾筆一頁看完（案件比帳號、其他比人名，共同負責人也算），交接前先看會動到哪幾筆，已結案的預設不轉、每筆寫稽核"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2303,6 +2314,31 @@ def create_app() -> FastAPI:
         # 一鍵還原：清掉所有裁決，回到剛匯入的原始狀態（原始資料本就沒動過）
         _require_unit_editor(request)
         return ok(reset_unit_decisions())
+
+    # ---- 人員盤點與離職交接 ----
+    @app.get("/api/personnel-workload")
+    def personnel_workload_overview() -> dict[str, Any]:
+        # 全部人員的負擔一覽：誰身上有多少東西（交接前先看這張才知道要找誰接）
+        return ok(store.personnel_workload_overview())
+
+    @app.get("/api/personnel-workload/detail")
+    def personnel_workload_detail(name: str = Query(""), username: str = Query("")) -> dict[str, Any]:
+        return ok(store.personnel_workload(name, username))
+
+    @app.get("/api/handover/preview")
+    def handover_preview(from_name: str = Query(...), from_username: str = Query(""),
+                         include_closed: bool = Query(False)) -> dict[str, Any]:
+        # 先看會動到哪幾筆、哪幾筆不動——按下去才知道動到誰是最糟的設計
+        return ok(store.handover_preview(from_name, from_username, include_closed))
+
+    @app.post("/api/handover/apply")
+    def handover_apply(payload: HandoverIn) -> dict[str, Any]:
+        try:
+            return ok(store.handover_apply(
+                payload.from_name, payload.to_name, payload.from_username,
+                payload.to_username, payload.include_closed, payload.reason))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     # ---- 跨模組串接：案件／專案／預算名字不同但在講同一件事 ----
     # 純字串比對（不連網、不用 AI），只提候選，歸不歸戶由人決定。
