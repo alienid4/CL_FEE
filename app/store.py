@@ -4539,6 +4539,95 @@ def monthly_spending_summary() -> list[dict[str, Any]]:
         return conn.execute(sql, params).fetchall()
 
 
+def monthly_spending_status(months_back: int = 6, months_ahead: int = 6,
+                            group_name: str = "") -> dict[str, Any]:
+    """處長要的「每月支出狀態」（使用者 2026-08-12：不是核決門檻，是要看每個月支出）。
+
+    既有的月度支出只算 payments（實際核銷），等於只看得到已經發生的錢。
+    處長要掌握的是「這個月還要付多少、下個月要準備多少」，所以三個數字一起給：
+      預計應付＝費用排程（第二層）＋合約付款排程；實際已付＝已結案的核銷；
+      待付＝已登錄但還沒付掉的核銷。
+    過去月份看「預估準不準」，未來月份看「要準備多少錢」。
+
+    group_name：處長看全部，但要拆組別時用得到（經案件的組別過濾）。
+    """
+    today = date.today()
+    base = today.year * 12 + (today.month - 1)
+    span = [f"{(base + d) // 12:04d}-{(base + d) % 12 + 1:02d}"
+            for d in range(-months_back, months_ahead + 1)]
+    rows = {m: {"month": m, "planned": 0.0, "paid": 0.0, "unpaid": 0.0,
+                "planned_count": 0, "paid_count": 0} for m in span}
+    gfilter = str(group_name or "").strip()
+
+    with connect() as conn:
+        tables = {r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+
+        def in_group(case_id: Any) -> bool:
+            if not gfilter:
+                return True
+            if not case_id:
+                return False
+            r = conn.execute("SELECT group_name FROM cases WHERE id = ?", (case_id,)).fetchone()
+            return bool(r) and str(r["group_name"] or "") == gfilter
+
+        # 預計：費用模組第二層的排程（已確認的才算——草稿還在喬，不能拿來當資金預估）
+        if "expense_schedules" in tables:
+            for r in conn.execute(
+                    "SELECT s.expense_month AS m, s.planned_amount AS amt, e.case_id AS case_id "
+                    "FROM expense_schedules s "
+                    "JOIN expense_sections sec ON sec.id = s.section_id "
+                    "JOIN expense_masters e ON e.id = sec.expense_id "
+                    "WHERE sec.status = 'confirmed' AND COALESCE(sec.archived,0) = 0").fetchall():
+                m = str(r["m"] or "")[:7]
+                if m in rows and in_group(r["case_id"]):
+                    rows[m]["planned"] += float(r["amt"] or 0)
+                    rows[m]["planned_count"] += 1
+
+        # 預計：既有的合約付款排程（§8 那套，還沒轉到費用模組的合約走這裡）
+        if "payment_schedules" in tables:
+            for r in conn.execute(
+                    "SELECT due_date, planned_amount AS amt, case_id FROM payment_schedules "
+                    "WHERE COALESCE(status,'') <> 'paid'").fetchall():
+                m = str(r["due_date"] or "")[:7]
+                if m in rows and in_group(r["case_id"]):
+                    rows[m]["planned"] += float(r["amt"] or 0)
+                    rows[m]["planned_count"] += 1
+
+        # 實際：核銷。closed＝已付，其餘＝登錄了還沒付
+        for r in conn.execute(
+                "SELECT p.payment_month AS m, p.payment_amount AS amt, p.status AS st, "
+                "       c.case_id AS case_id "
+                "FROM payments p LEFT JOIN contracts c ON c.id = p.contract_id").fetchall():
+            m = str(r["m"] or "")[:7]
+            if m not in rows or not in_group(r["case_id"]):
+                continue
+            amt = float(r["amt"] or 0)
+            if str(r["st"] or "") == "closed":
+                rows[m]["paid"] += amt
+                rows[m]["paid_count"] += 1
+            else:
+                rows[m]["unpaid"] += amt
+
+    this_month = today.strftime("%Y-%m")
+    out = []
+    for m in span:
+        d = rows[m]
+        d["diff"] = round(d["paid"] + d["unpaid"] - d["planned"], 2)   # 實際 vs 預計
+        d["is_past"] = m < this_month
+        d["is_current"] = m == this_month
+        for k in ("planned", "paid", "unpaid"):
+            d[k] = round(d[k], 2)
+        out.append(d)
+    return {
+        "months": out, "this_month": this_month, "group_name": gfilter,
+        "ahead_total": round(sum(d["planned"] for d in out if not d["is_past"] and not d["is_current"]), 2),
+        "current": next((d for d in out if d["is_current"]), None),
+        "note": "預計＝已確認的費用排程＋未付的合約付款排程；實際＝核銷（已付／待付）。"
+                "草稿狀態的排程不列入，那還在喬，不能當資金預估。",
+    }
+
+
 def unit_budget_vs_actual(fiscal_year: int | None = None) -> dict[str, Any]:
     """單位別「預算 vs 實付」彙總（給主管看整體錢花在哪、超支在哪）。
 

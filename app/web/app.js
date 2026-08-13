@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.71.0 · 2026-08-12 · 從既有資料一鍵補登記人員（自動推組別，可疑的先標出來）";
+const BUILD_TAG = "v0.72.0 · 2026-08-12 · 每月支出狀態：過去看預估準不準、未來看要準備多少";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -4735,7 +4735,14 @@ async function refresh() {
     loadManagerFocus(), loadTodoCards(), loadCaseProgress(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
     loadSignoffOptions(), loadPurchaseOptions(), loadParentContractOptions(),
+    loadMonthlyStatus(),
   ]);
+  // 組別下拉沿用人員組別那份選項（處長預設看全部，要拆組別時才用）
+  const msGroup = document.querySelector("#monthly-status-group");
+  if (msGroup && msGroup.options.length <= 1) {
+    msGroup.innerHTML = `<option value="">全部組別</option>`
+      + (personnelGroupOptions || []).map((g) => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  }
   // 費用主檔的清單與「關聯合約」下拉都要等合約載完才畫得出來（合約編號要從快取查）
   await Promise.all([loadExpenses(), loadExpenseContractOptions()]);
 }
@@ -5811,6 +5818,51 @@ function clusterNames(values) {
     return canons.size > 1;
   });
 }
+
+// ── 每月支出狀態（使用者 2026-08-12：處長不要核決門檻，他要看每個月支出）──────
+// 既有的「月度支出彙總」只算已登錄的核銷＝只看得到已經發生的錢。處長要掌握的是
+// 「這個月還要付多少、下個月要準備多少」，所以預計與實際擺在同一張表比對。
+async function loadMonthlyStatus() {
+  const box = document.querySelector("#monthly-status-box");
+  if (!box) return;
+  const group = document.querySelector("#monthly-status-group")?.value || "";
+  box.innerHTML = `<p class="muted">計算中…</p>`;
+  try {
+    const d = (await api(`/api/reports/monthly-status?group_name=${encodeURIComponent(group)}`)).data;
+    const rows = d.months || [];
+    const peak = Math.max(1, ...rows.map((r) => Math.max(r.planned, r.paid + r.unpaid)));
+    box.innerHTML = `
+      <p class="muted">${escapeHtml(d.note || "")}</p>
+      <p>未來要準備的錢合計 <strong>${money(d.ahead_total)}</strong> 元</p>
+      <div class="grid-scroll"><table class="grid-table">
+        <thead><tr><th>月份</th><th class="num">預計應付</th><th class="num">實際已付</th>
+        <th class="num">待付</th><th class="num">差異</th><th>相對規模</th></tr></thead>
+        <tbody>${rows.map((r) => {
+          const actual = r.paid + r.unpaid;
+          const tag = r.is_current ? ' <span class="badge">本月</span>'
+                    : r.is_past ? "" : ' <span class="muted">未到期</span>';
+          // 過去月份才談「準不準」；未來月份還沒發生，差異沒有意義
+          const diff = r.is_past && r.planned
+            ? `<span class="${r.diff > 0 ? "owe" : "paid"}">${r.diff > 0 ? "超出" : "低於"} ${money(Math.abs(r.diff))}</span>`
+            : '<span class="muted">—</span>';
+          return `<tr class="${r.is_current ? "sched-paid" : ""}">
+            <td>${escapeHtml(r.month)}${tag}</td>
+            <td class="num">${r.planned ? money(r.planned) : '<span class="muted">—</span>'}</td>
+            <td class="num">${r.paid ? money(r.paid) : '<span class="muted">—</span>'}</td>
+            <td class="num">${r.unpaid ? `<b class="owe">${money(r.unpaid)}</b>` : '<span class="muted">—</span>'}</td>
+            <td class="num">${diff}</td>
+            <td><span class="ms-bar" title="預計 ${money(r.planned)}／實際 ${money(actual)}">
+              <i class="ms-plan" style="width:${Math.round(r.planned / peak * 100)}%"></i>
+              <i class="ms-actual" style="width:${Math.round(actual / peak * 100)}%"></i>
+            </span></td></tr>`;
+        }).join("")}</tbody>
+      </table></div>`;
+  } catch (e) {
+    box.innerHTML = `<p class="muted">載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+document.querySelector("#monthly-status-group")?.addEventListener("change", loadMonthlyStatus);
 
 // ── 人員盤點與離職交接（使用者 2026-08-12）──────────────────────────────
 // 先看得到每個人名下有什麼，交接才不是盲的。案件比對登入帳號、其他模組比對人名，

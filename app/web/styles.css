@@ -1873,6 +1873,13 @@ tr.person-off td { opacity: .55; }
   background:var(--accent-weak); border:1px solid var(--accent); color:var(--ink-2); white-space:nowrap; }
 /* 重新編輯前的舊版費用區段：留著查閱，但視覺上要跟現行版本分得開 */
 .row-archived { opacity:.62; }
+/* 每月支出狀態：預計（淡）與實際（深）疊在同一條，一眼比得出哪個月超支 */
+.ms-bar { position:relative; display:block; width:120px; height:14px; border-radius:4px;
+  background:var(--surface-2); border:1px solid var(--line); overflow:hidden; }
+.ms-bar > i { position:absolute; left:0; display:block; border-radius:4px; }
+.ms-plan { top:0; height:6px; background:var(--todo); opacity:.65; }
+.ms-actual { bottom:0; height:6px; background:var(--accent); }
+
 /* 補登記人員時，可疑的那幾列（一格塞多人、看起來像備註）要一眼認得出來 */
 tr.sched-warn { background:var(--partial-bg); }
 

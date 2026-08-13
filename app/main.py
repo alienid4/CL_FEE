@@ -981,7 +981,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.71.0 · 2026-08-12 · 從既有資料補登記人員：掃出沒登記的名字、從專案來源工作表推組別，一格塞多人或看起來像備註的先標出來不預設勾選"
+BACKEND_BUILD = "v0.72.0 · 2026-08-12 · 每月支出狀態（處長要的不是核決門檻，是看每個月支出）：預計應付＋實際已付／待付擺同一張表，過去看預估準不準、未來看要準備多少錢，草稿排程不算"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2320,6 +2320,15 @@ def create_app() -> FastAPI:
         # 一鍵還原：清掉所有裁決，回到剛匯入的原始狀態（原始資料本就沒動過）
         _require_unit_editor(request)
         return ok(reset_unit_decisions())
+
+    @app.get("/api/reports/monthly-status")
+    def monthly_spending_status(
+        months_back: int = Query(6, ge=1, le=24),
+        months_ahead: int = Query(6, ge=0, le=24),
+        group_name: str = Query(""),
+    ) -> dict[str, Any]:
+        # 處長要的每月支出狀態：過去看預估準不準、未來看要準備多少錢
+        return ok(store.monthly_spending_status(months_back, months_ahead, group_name))
 
     # ---- 從既有資料補登記人員（先預覽再建，可疑的不預設勾選）----
     @app.get("/api/personnel-suggest")
