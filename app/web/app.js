@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.73.0 · 2026-08-13 · 合約盤點表匯入；人員加 EMAIL（通知才寄得出去）";
+const BUILD_TAG = "v0.74.0 · 2026-08-13 · 案件移除預算金額欄位；修預算名目下拉選過後選項消失的 bug";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -4305,7 +4305,6 @@ async function loadCioDrill(caseId) {
         <button type="button" class="secondary" id="cio-drill-close">收起</button>
       </div>
       <div class="metrics">
-        ${metric("案件金額", `${money(c.amount)} 元`)}
         ${metric("承辦", escapeHtml(c.owner || "未指派"))}
         ${metric("狀態", escapeHtml(labelStatus(c.status || "")))}
         ${metric("付款合計", `${money((d.totals || {}).payment_amount)} 元`)}
@@ -4360,7 +4359,7 @@ async function loadPendingApprovals() {
         .map((c) => `
           <li data-case-id="${c.id}">
             <strong>${escapeHtml(c.case_code)}　${escapeHtml(c.title)}</strong>
-            <small>承辦：${escapeHtml(c.owner || "未指派")}｜建立者：${escapeHtml(valueOrDash(c.created_by))}｜金額：${money(c.amount)} 元</small>
+            <small>承辦：${escapeHtml(c.owner || "未指派")}｜建立者：${escapeHtml(valueOrDash(c.created_by))}</small>
             <button type="button" data-action="approve-pending">核准</button>
           </li>`)
         .join("")
@@ -4814,7 +4813,6 @@ function startEdit(id) {
   form.elements.case_code.value = item.case_code;
   form.elements.title.value = item.title;
   form.elements.owner.value = item.owner || "";
-  form.elements.amount.value = item.amount || 0;
   form.elements.status.value = item.status || "draft";
   // 助理回饋後的欄位組合：備註/下一步/日期已從表單移除，這裡用 optional chaining 保護，
   // 舊資料的值仍留在 DB（沒有被清掉），只是畫面不再顯示。
@@ -4952,7 +4950,6 @@ form.addEventListener("submit", async (event) => {
   const data = Object.fromEntries(new FormData(form).entries());
   const id = data.id;
   delete data.id;
-  data.amount = Number(data.amount || 0);
   // 案件編號改由系統產生：留空就別送（新增時後端自動配，編輯時不動原本的號）
   if (!String(data.case_code || "").trim()) delete data.case_code;
   await api(id ? `/api/cases/${id}` : "/api/cases", {
@@ -7084,14 +7081,37 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   }
   for (const r of wizardForm.querySelectorAll('[name="budget_type"]')) r.addEventListener("change", refreshBudgetItems);
 
+  // Bug 修復（第三次回饋）：datalist 選定名目後 input.value 等於該選項全文，瀏覽器再開下拉時
+  // 只會顯示「前綴符合目前輸入值」的選項，等於自己一個以外的全被濾掉，使用者看起來像選項消失、
+  // 選錯了也換不了。對策：聚焦/點擊時先清空目前值讓下拉顯示全部選項，沒有重新選過就在失焦時還原。
+  {
+    const budgetItemEl = wizardForm.querySelector('[name="budget_item"][list="opt-budget-items"]');
+    if (budgetItemEl) {
+      const showFullList = () => {
+        if (budgetItemEl.value) {
+          budgetItemEl.dataset.prevValue = budgetItemEl.value;
+          budgetItemEl.value = "";
+        }
+      };
+      budgetItemEl.addEventListener("focus", showFullList);
+      budgetItemEl.addEventListener("mousedown", showFullList);
+      budgetItemEl.addEventListener("blur", () => {
+        if (!budgetItemEl.value && budgetItemEl.dataset.prevValue) {
+          budgetItemEl.value = budgetItemEl.dataset.prevValue;
+        }
+        delete budgetItemEl.dataset.prevValue;
+      });
+    }
+  }
+
   wizardForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const statusEl = document.querySelector("#wizard-status");
     const resultEl = document.querySelector("#wizard-result");
-    const c = readStep("case", ["title", "owner", "amount", "group_name", "expense_kind", "budget_item", "source", "description"]);
+    const c = readStep("case", ["title", "owner", "group_name", "expense_kind", "budget_item", "source", "description"]);
     const body = {
       case: {
-        title: c.title, owner: c.owner, amount: num(c.amount),
+        title: c.title, owner: c.owner,
         group_name: c.group_name, expense_kind: c.expense_kind, budget_item: c.budget_item,
         source: c.source, description: c.description,
         // 預算內/外是 radio，readStep 只讀得到第一個，改用 checked 判斷
