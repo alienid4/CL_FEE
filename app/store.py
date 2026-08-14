@@ -437,6 +437,20 @@ CREATE TABLE IF NOT EXISTS project_subitems (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- WBS 展延紀錄（第三次回饋 8.4「申請展延日期」）：工作項逾期需展延結束日時，
+-- 保留原日期及展延歷程，不直接覆蓋——跟 §10 合約調整（contract_adjustments）同一個 pattern。
+-- project_items.end_date 永遠是「現在的結束日」，「什麼時候、為什麼、從哪天展延到哪天」查這張表。
+CREATE TABLE IF NOT EXISTS project_item_extensions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    old_end_date TEXT NOT NULL DEFAULT '',
+    new_end_date TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS budget_allocations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     budget_id INTEGER NOT NULL,
@@ -1543,6 +1557,7 @@ def allowed_fields() -> dict[str, set[str]]:
                               "percent", "due_date", "status", "note"},
         "contract_adjustments": {"contract_id", "effective_date", "old_amount", "new_amount",
                                  "delta", "reason", "note", "created_by"},
+        "project_item_extensions": {"item_id", "old_end_date", "new_end_date", "reason", "note", "created_by"},
         "documents": {"file_name", "document_type", "source_note", "status", "case_id", "contract_id"},
         "budgets": {"budget_code", "category", "unit_name", "fiscal_year", "amount", "status", "case_id", "note",
                     "remainder_unit_code", "alloc_method", "alloc_category_kind", "alloc_category",
@@ -2810,6 +2825,52 @@ def _recompute_project_rollup(conn: sqlite3.Connection, project_id: int) -> dict
     if any(str(before.get(k)) != str(after.get(k)) for k in fields):
         write_audit_log(conn, "projects", project_id, "update", before, after)
     return after
+
+
+# ── WBS 展延（第三次回饋 8.4）：工作項逾期需展延結束日時留下歷史，不直接覆蓋（比照 §10 合約調整）──
+def list_project_item_extensions(item_id: int) -> list[dict[str, Any]]:
+    """某工作項的展延歷史，新的在前。"""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM project_item_extensions WHERE item_id = ? ORDER BY id DESC",
+            (item_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def add_project_item_extension(item_id: int, new_end_date: str, reason: str = "", note: str = "") -> dict[str, Any]:
+    """記一筆展延：舊結束日自動取工作項現值，更新成展延後的新結束日並重判燈號。
+    工作項 end_date 永遠是「現在的結束日」，「什麼時候、為什麼、從哪天展延到哪天」查這張表。
+    展延紀錄不提供刪除（稽核用）——填錯就再展延一次回去，兩筆都留著才看得出經過。"""
+    new_end_date = str(new_end_date or "").strip()
+    if not new_end_date:
+        raise ValueError("請填展延後的結束日。")
+    with connect() as conn:
+        item = conn.execute("SELECT * FROM project_items WHERE id = ?", (item_id,)).fetchone()
+        if item is None:
+            raise ValueError(f"工作項 ID {item_id} 不存在。")
+        old_end_date = str(item["end_date"] or "").strip()
+        if new_end_date == old_end_date:
+            raise ValueError("展延後的結束日與現值相同，沒有東西要記錄。")
+        progress = wbs_item_progress(item["sub_total"], item["sub_done"], item["exec_status"])
+        rag_manual = int(item["rag_manual"] or 0) == 1
+        rag = normalize_wbs_rag(item["rag"]) if rag_manual else wbs_auto_rag(progress, item["start_date"], new_end_date)
+        if rag in ("red", "yellow") and not str(item["risk_note"] or "").strip():
+            raise ValueError(f"燈號是「{WBS_RAG_LABEL[rag]}」時，關鍵風險點必填（要先在工作項填清楚卡在哪，再展延）。")
+        row = _insert_row(conn, "project_item_extensions", {
+            "item_id": item_id,
+            "old_end_date": old_end_date,
+            "new_end_date": new_end_date,
+            "reason": str(reason or "").strip(),
+            "note": str(note or "").strip(),
+            "created_by": _current_actor.get(),
+        })
+        before = dict(item)
+        conn.execute("UPDATE project_items SET end_date = ?, rag = ? WHERE id = ?", (new_end_date, rag, item_id))
+        after = get_row(conn, "project_items", item_id)
+        write_audit_log(conn, "project_items", item_id, "update", before, after)
+    recompute_project_rollup(item["project_id"])
+    return row
 
 
 def next_project_item_seq(project_id: int) -> int:
@@ -6666,7 +6727,7 @@ def update_settlement_progress(settlement_id: int, progress: str | None = None,
 # 標準採購流程的工作項（黃助理 0803 附件二第三點，另一位助理 0807 的流程圖也是同一份）。
 # 助理原話：「系統不預先限制 WBS 工作項目名稱，上述僅為建議的標準工作項目」——
 # 所以做成後台可維護的清單，承辦仍可自己增刪，這裡只是「勾了涉及請購或合約就先幫你排好」。
-STANDARD_WBS_ITEMS = ["需求確認", "廠商報價", "上簽申請與核准", "議價", "合約簽訂", "執行／建置", "驗收"]
+STANDARD_WBS_ITEMS = ["需求確認", "廠商報價", "上簽申請與核准", "議價", "合約簽訂", "執行／建置", "驗收", "結案"]
 
 
 def standard_wbs_items() -> list[str]:

@@ -294,6 +294,13 @@ class AdjustmentIn(BaseModel):
     note: str = ""
 
 
+class ProjectItemExtensionIn(BaseModel):
+    # WBS 展延（第三次回饋 8.4）：只需給展延後的結束日，舊值由系統取工作項現值
+    new_end_date: str
+    reason: str = ""
+    note: str = ""
+
+
 class ScheduleGenerateIn(BaseModel):
     method: str  # fixed / installment / periodic / milestone
     count: int = 1                      # 期數（installment/periodic）
@@ -795,12 +802,18 @@ class CaseWizardCaseIn(BaseModel):
 
 
 class CaseWizardProjectIn(BaseModel):
-    """新案申請的②專案：核心欄位而已，WBS 細項另外在專案模組維護。"""
+    """新案申請的②專案：可直接完整建立 Project（第三次回饋 8.2）——
+    涉及請購或合約時系統會在建立後自動排標準 WBS 工作項；不涉及的，
+    承辦建完案再到「專案」模組自行建立所需工作項（同一筆持續維護）。"""
     project_name: str = Field(min_length=1)
     level: str = ""                # 公司級/處級/部級
     owner: str = ""                # 預設帶案件負責人，仍可改
     vendor_name: str = ""
     cross_company: str = ""        # 是否為集團/跨子公司合作：是/否
+    start_date: str = ""
+    end_date: str = ""
+    # 助理 0803：涉及請購或合約 → 建立時自動排標準採購流程的工作項（見 case_wizard()）
+    involves_procurement: int = 0
 
 
 class CaseWizardBudgetIn(BaseModel):
@@ -985,7 +998,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.74.0 · 2026-08-13 · 案件移除預算金額欄位（金額改由合約/費用管理）；修預算名目下拉選過後選項消失的 bug"
+BACKEND_BUILD = "v0.75.0 · 2026-08-14 · 新案申請②專案可完整建立 WBS（涉及請購/合約自動排標準流程含結案）；WBS 展延留歷程"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1800,6 +1813,12 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except sqlite3.IntegrityError as exc:
             raise HTTPException(status_code=422, detail=_friendly_wizard_integrity_error(exc, payload)) from exc
+        # 助理 0803：涉及請購或合約 → 建立後自動排標準採購流程的工作項（第三次回饋 8.2/8.3）。
+        # 跟 create_project 同一個做法：先建 project 主檔（含在上面的單一交易），
+        # 標準 WBS 用另一條連線補排——這條連線必須等上面的交易 commit 完才看得到剛建的 project。
+        if result.get("project") and int((payload.project.involves_procurement if payload.project else 0) or 0) == 1:
+            applied = store.apply_standard_wbs(result["project"]["id"], result["project"]["owner"])
+            result["project"]["standard_wbs"] = applied
         return ok(result)
 
     @app.get("/api/cases")
@@ -2717,6 +2736,20 @@ def create_app() -> FastAPI:
         result = handle_change("project_items", item_id, data)
         store.recompute_project_rollup(existing["project_id"])
         return result
+
+    # ── WBS 展延（第三次回饋 8.4）：留歷史、不蓋掉原結束日，跟 §10 合約調整同一個做法 ──
+    @app.get("/api/project-items/{item_id}/extensions")
+    def list_item_extensions(item_id: int) -> dict[str, Any]:
+        return ok(store.list_project_item_extensions(item_id))
+
+    @app.post("/api/project-items/{item_id}/extensions", status_code=201)
+    def add_item_extension(item_id: int, payload: ProjectItemExtensionIn) -> dict[str, Any]:
+        try:
+            store.add_project_item_extension(
+                item_id, payload.new_end_date, reason=payload.reason, note=payload.note)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return list_item_extensions(item_id)
 
     @app.post("/api/project-items/{item_id}/disable")
     def disable_project_item(item_id: int) -> dict[str, Any]:

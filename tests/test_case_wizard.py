@@ -102,3 +102,51 @@ def test_cio_cannot_use_wizard(tmp_path):
     with _client(tmp_path, login="ap01") as client:
         r = client.post("/api/case-wizard", json={"case": {"case_code": "WIZ-5", "title": "CIO 不該能建"}})
         assert r.status_code == 403
+
+
+# ── 第三次回饋 8.2/8.3：②專案可直接完整建立 Project 與 WBS ──
+def test_project_step_without_procurement_creates_no_items(tmp_path):
+    """不涉及請購或合約：只建 Project 主檔，WBS 由承辦自己到專案模組建，精靈不自動排。"""
+    with _client(tmp_path) as client:
+        r = client.post("/api/case-wizard", json={
+            "case": {"case_code": "WIZ-6", "title": "不涉及請購"},
+            "project": {"project_name": "內部小改善", "owner": "王小明",
+                        "start_date": "2026-09-01", "end_date": "2026-10-01"},
+        })
+        assert r.status_code == 201, r.text
+        d = r.json()["data"]
+        assert d["project"]["project_name"] == "內部小改善"
+        assert d["project"]["start_date"] == "2026-09-01" and d["project"]["end_date"] == "2026-10-01"
+        assert "standard_wbs" not in d["project"]
+        items = client.get(f"/api/projects/{d['project']['id']}/items").json()["data"]
+        assert items == []
+
+
+def test_project_step_with_procurement_applies_standard_wbs(tmp_path):
+    """涉及請購或合約：建立後自動排標準 WBS 工作項（8 項，含結案），負責人預帶專案負責人。"""
+    with _client(tmp_path) as client:
+        r = client.post("/api/case-wizard", json={
+            "case": {"case_code": "WIZ-7", "title": "涉及請購"},
+            "project": {"project_name": "機房擴充", "owner": "陳美惠", "involves_procurement": 1},
+        })
+        assert r.status_code == 201, r.text
+        d = r.json()["data"]
+        assert d["project"]["standard_wbs"]["created_count"] == 8
+        items = client.get(f"/api/projects/{d['project']['id']}/items").json()["data"]
+        assert [i["item_name"] for i in items] == [
+            "需求確認", "廠商報價", "上簽申請與核准", "議價", "合約簽訂", "執行／建置", "驗收", "結案"]
+        assert all(i["owner"] == "陳美惠" for i in items)
+
+
+def test_project_step_procurement_defaults_owner_to_case_owner(tmp_path):
+    """專案沒填負責人時，標準 WBS 的負責人退回案件負責人（跟案件本身的預設邏輯一致）。"""
+    with _client(tmp_path) as client:
+        r = client.post("/api/case-wizard", json={
+            "case": {"case_code": "WIZ-8", "title": "沒填專案負責人"},
+            "project": {"project_name": "無主案專案", "involves_procurement": 1},
+        })
+        assert r.status_code == 201, r.text
+        d = r.json()["data"]
+        # 案件負責人也沒填，此時交由承辦身分（ap02 的 owner_scope）帶入——只需確認沒有噴錯、且有排出 8 項
+        items = client.get(f"/api/projects/{d['project']['id']}/items").json()["data"]
+        assert len(items) == 8

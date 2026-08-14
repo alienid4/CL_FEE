@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.74.0 · 2026-08-13 · 案件移除預算金額欄位；修預算名目下拉選過後選項消失的 bug";
+const BUILD_TAG = "v0.75.0 · 2026-08-14 · 新案申請②專案可完整建立 WBS；WBS 展延留歷程";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -3386,7 +3386,8 @@ function renderItemsSection(projectId, items) {
           return `<td${attrs}>${pfCellHtml(c.key, it)}</td>`;
         }).join("");
         const ops = editable
-          ? `<button type="button" class="danger btn-sm" data-item-del="${it.id}">刪除</button>`
+          ? `<button type="button" class="btn-sm" data-item-extend="${it.id}" title="展延結束日（保留原日期與展延歷程）">展延</button>`
+            + ` <button type="button" class="danger btn-sm" data-item-del="${it.id}">刪除</button>`
           : "—";
         return `<tr data-item-id="${it.id}">${cells}<td class="col-actions">${ops}</td></tr>`;
       }).join("")
@@ -3401,8 +3402,70 @@ function renderItemsSection(projectId, items) {
       </table>
     </div>
     <div id="pf-subitems" class="schedule-panel" hidden></div>
+    <div id="pf-extend-panel" class="schedule-panel" hidden></div>
     <datalist id="pf-item-personnel-list">${personnelDatalistOptions()}</datalist>`;
 }
+
+// ── WBS 展延（第三次回饋 8.4）：跟 §10 合約調整同一套 UI pattern——現值＋歷程，不覆蓋原日期 ──
+async function loadItemExtensions(itemId) {
+  const box = document.querySelector("#pf-extend-panel");
+  if (!box) return;
+  box.hidden = false;
+  box.dataset.itemId = itemId;
+  box.innerHTML = `<p class="muted">載入展延紀錄…</p>`;
+  try {
+    const items = (await api(`/api/project-items/${itemId}/extensions`)).data || [];
+    const it = (pfItemsCache || []).find((x) => String(x.id) === String(itemId)) || {};
+    box.innerHTML = renderExtendPanel(itemId, it, items);
+  } catch (e) {
+    box.innerHTML = `<p class="error">展延紀錄載入失敗：${escapeHtml(e.message)}</p>`;
+  }
+}
+
+function renderExtendPanel(itemId, it, items) {
+  const editable = canEditPortfolio();
+  const current = it.end_date || "";
+
+  const rows = items.length ? items.map((a) => `<tr>`
+      + `<td>${escapeHtml(valueOrDash(a.old_end_date))} → ${escapeHtml(valueOrDash(a.new_end_date))}</td>`
+      + `<td>${escapeHtml(valueOrDash(a.reason))}</td>`
+      + `<td class="muted">${escapeHtml(valueOrDash(a.created_by))}</td>`
+      + `<td class="muted">${escapeHtml(valueOrDash(a.created_at))}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="muted">還沒展延過——結束日就是原訂日期。</td></tr>`;
+
+  const form = editable ? `
+    <div class="adj-form">
+      <label>展延後結束日 <input type="date" data-ext-date value="${escapeHtml(current)}"></label>
+      <label class="adj-reason">原因 <input type="text" data-ext-reason placeholder="如：廠商延遲交貨 / 驗收條件未到位"></label>
+      <button type="button" class="btn-sm" data-ext-add="${itemId}">申請展延</button>
+    </div>
+    <p class="muted adj-hint">燈號是「有延遲風險」或「已延遲」時，關鍵風險點要先在工作項那格填清楚，才能送出展延。</p>` : "";
+
+  return `<div class="sched-head"><strong>展延歷程</strong>　<span class="muted">${escapeHtml(it.item_name || "")}　原訂結束日 ${escapeHtml(valueOrDash(current))}</span>`
+    + `<button type="button" class="btn-sm secondary sched-close" data-ext-close>收起</button></div>`
+    + `<table class="grid-table sched-table"><thead><tr><th>結束日變動</th><th>原因</th><th>記錄者</th><th>時間</th></tr></thead><tbody>${rows}</tbody></table>`
+    + form;
+}
+
+document.addEventListener("click", async (event) => {
+  const box = document.querySelector("#pf-extend-panel");
+  if (!box) return;
+  if (event.target.closest("[data-ext-close]") && box.contains(event.target)) { box.hidden = true; return; }
+  const addBtn = event.target.closest("[data-ext-add]");
+  if (!addBtn || !box.contains(addBtn)) return;
+  const itemId = box.dataset.itemId;
+  const dateEl = box.querySelector("[data-ext-date]");
+  const newEndDate = dateEl.value;
+  if (!newEndDate) { window.alert("請先填展延後的結束日。"); return; }
+  try {
+    await api(`/api/project-items/${itemId}/extensions`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_end_date: newEndDate, reason: box.querySelector("[data-ext-reason]").value || "" }),
+    });
+    await reloadPfItems();
+    await loadItemExtensions(itemId);
+  } catch (e) { window.alert(e.message); }
+});
 
 // ── 子項目：工作項再往下一層（使用者 2026-08-12「子項總數怎不能繼續追下去」）──
 // 拆開之後「子項總數／已完成／完成度／燈號」都由這裡算，工作項那兩欄不再手填。
@@ -3600,6 +3663,8 @@ document.querySelector("#pf-view")?.addEventListener("click", async (event) => {
   }
   const add = event.target.closest("[data-item-add]");
   const del = event.target.closest("[data-item-del]");
+  const extend = event.target.closest("[data-item-extend]");
+  if (extend) { await loadItemExtensions(extend.getAttribute("data-item-extend")); return; }
   // 新增＝直接在表格多一列（帶預設名），再自動聚焦「工作主項目」讓使用者當場 inline 改，不開表單
   if (add) {
     const pid = Number(add.getAttribute("data-item-add"));
@@ -7119,9 +7184,12 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
       },
     };
     if (wizardForm.querySelector('[data-wizard-toggle="project"]').checked) {
-      const p = readStep("project", ["project_name", "level", "owner", "vendor_name", "cross_company"]);
+      const p = readStep("project", ["project_name", "level", "owner", "vendor_name", "cross_company", "start_date", "end_date"]);
+      const involvesProcurement = stepScope("project")?.querySelector('[name="involves_procurement"]')?.checked ? 1 : 0;
       body.project = { project_name: p.project_name, level: p.level, owner: p.owner,
-                       vendor_name: p.vendor_name, cross_company: p.cross_company };
+                       vendor_name: p.vendor_name, cross_company: p.cross_company,
+                       start_date: p.start_date, end_date: p.end_date,
+                       involves_procurement: involvesProcurement };
     }
     if (wizardForm.querySelector('[data-wizard-toggle="purchase"]').checked) {
       const p = readStep("purchase", ["purchase_code", "item_name", "vendor_name", "quantity", "amount", "note"]);
@@ -7138,7 +7206,12 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
       const created = (await api("/api/case-wizard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).data || {};
       if (statusEl) statusEl.textContent = "全部建立成功！";
       const lines = [`案件 ${escapeHtml(created.case.case_code)}（${escapeHtml(caseTempNumber(created.case) || "暫時號")}，核准後才配正式案號）`];
-      if (created.project) lines.push(`專案 ${escapeHtml(created.project.project_name)}`);
+      if (created.project) {
+        const wbs = created.project.standard_wbs;
+        const wbsNote = wbs ? `　已自動排 ${wbs.created_count} 項標準 WBS 工作項` : "";
+        lines.push(`專案 ${escapeHtml(created.project.project_name)}${wbsNote}　`
+          + `<button type="button" class="link-btn" data-goto-wbs="${created.project.id}">前往填寫／調整 WBS →</button>`);
+      }
       if (created.contract) lines.push(`合約 ${escapeHtml(created.contract.contract_code)}`);
       if (created.purchase) lines.push(`費用 ${escapeHtml(created.purchase.purchase_code)}`);
       if (resultEl) resultEl.innerHTML = `<div class="callout">${lines.join("<br/>")}</div>`;
@@ -7148,6 +7221,11 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
     } catch (error) {
       if (statusEl) statusEl.textContent = `失敗：${error.message}`;
     }
+  });
+
+  document.querySelector("#wizard-result")?.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-goto-wbs]");
+    if (btn) openProjectItem(btn.getAttribute("data-goto-wbs"));
   });
 })();
 
