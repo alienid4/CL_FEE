@@ -3468,9 +3468,18 @@ def parse_personnel_xlsx(data: bytes) -> list[dict[str, Any]]:
     def norm(v: Any) -> str:
         return " ".join(str(v).split()) if v is not None else ""
 
-    NAME_KEYS = {"姓名", "名字", "人員姓名", "員工姓名"}
-    GROUP_KEYS = {"部門", "組別", "所屬組別", "歸屬組別", "單位"}
-    EMAIL_KEYS = {"email", "e-mail", "信箱", "電子郵件", "電子信箱", "郵件"}
+    # 用「包含」比對，不是完全相等——真實表頭常見「中文姓名」「測試Email」這種帶字首/字尾的
+    # 寫法，完全相等會整份被判定成「沒有姓名欄」而跳過整張工作表（實際踩過的真實案例）。
+    NAME_KEYS = ("姓名", "名字")
+    GROUP_KEYS = ("部門", "組別", "單位")
+    EMAIL_KEYS = ("email", "e-mail", "信箱", "郵件")
+
+    def find_col(cells: list[tuple[str, int]], keys: tuple[str, ...]) -> int | None:
+        for key in keys:
+            for text, j in cells:
+                if key in text:
+                    return j
+        return None
 
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     out: list[dict[str, Any]] = []
@@ -3481,18 +3490,12 @@ def parse_personnel_xlsx(data: bytes) -> list[dict[str, Any]]:
             col_map: dict[str, int] | None = None
             header_idx = -1
             for i, row in enumerate(rows[:20]):
-                cells: dict[str, int] = {}
-                for j, c in enumerate(row):
-                    if c is None:
-                        continue
-                    k = norm(c)
-                    cells[k] = j
-                    cells[k.lower()] = j
-                name_col = next((cells[k] for k in NAME_KEYS if k in cells), None)
+                cells = [(norm(c).lower(), j) for j, c in enumerate(row) if c is not None]
+                name_col = find_col(cells, NAME_KEYS)
                 if name_col is None:
                     continue
-                group_col = next((cells[k] for k in GROUP_KEYS if k in cells), None)
-                email_col = next((cells[k] for k in EMAIL_KEYS if k in cells), None)
+                group_col = find_col(cells, GROUP_KEYS)
+                email_col = find_col(cells, EMAIL_KEYS)
                 col_map = {"name": name_col, "group": group_col, "email": email_col}
                 header_idx = i
                 break

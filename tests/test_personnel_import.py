@@ -45,6 +45,28 @@ def test_parse_recognizes_alternate_header_names():
     assert records == [{"name": "李四", "group_name": "資料庫組", "email": "li@co.com"}]
 
 
+def test_parse_recognizes_headers_with_extra_prefix_suffix():
+    """真實案例踩過：表頭是「中文姓名」「測試Email」這種帶字首/字尾的寫法，
+    完全相等比對會整份判定成「沒有姓名欄」而跳過整張工作表。"""
+    from app.store import parse_personnel_xlsx
+
+    # 姓名欄在第三欄、Email 在第四欄——欄位順序跟預設範例不同也要抓得到
+    import io
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["序號", "組別", "中文姓名", "測試Email"])
+    ws.append([1, "資料庫組", "林柏安", "yun.huang@cathaysec.com.tw"])
+    ws.append([2, "主機組", "李承恩", "allielu@cathaysec.com.tw"])
+    bio = io.BytesIO()
+    wb.save(bio)
+    records = parse_personnel_xlsx(bio.getvalue())
+    assert records == [
+        {"name": "林柏安", "group_name": "資料庫組", "email": "yun.huang@cathaysec.com.tw"},
+        {"name": "李承恩", "group_name": "主機組", "email": "allielu@cathaysec.com.tw"},
+    ]
+
+
 def test_parse_skips_blank_name_rows():
     from app.store import parse_personnel_xlsx
 

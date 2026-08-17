@@ -1003,7 +1003,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.77.0 · 2026-08-17 · 人員名單 Excel 匯入（姓名/部門/Email，同姓名更新不重複）"
+BACKEND_BUILD = "v0.77.1 · 2026-08-17 · 修人員匯入抓不到「中文姓名」「測試Email」這類帶字首字尾的表頭"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
