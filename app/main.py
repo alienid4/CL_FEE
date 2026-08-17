@@ -301,6 +301,11 @@ class ProjectItemExtensionIn(BaseModel):
     note: str = ""
 
 
+class ClearAllIn(BaseModel):
+    # 清空業務資料：確認字串必須完全等於「ClearALL」（大小寫一致），不對就整個動作不執行
+    confirm: str
+
+
 class ScheduleGenerateIn(BaseModel):
     method: str  # fixed / installment / periodic / milestone
     count: int = 1                      # 期數（installment/periodic）
@@ -998,7 +1003,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.75.0 · 2026-08-14 · 新案申請②專案可完整建立 WBS（涉及請購/合約自動排標準流程含結案）；WBS 展延留歷程"
+BACKEND_BUILD = "v0.76.0 · 2026-08-17 · 新增清空業務資料功能（保留部門/人員/帳號/設定，清空前自動備份，需打 ClearALL 確認）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -1566,6 +1571,15 @@ def create_app() -> FastAPI:
         if not get_settings().allow_db_reset:
             raise HTTPException(status_code=403, detail="資料庫重置功能未開啟（.env 設 ALLOW_DB_RESET=1 才能用）。")
         return ok(reset_database())
+
+    # 清空業務資料（單機各自使用，保留部門/人員/帳號/設定）：不需要 .env 開關，
+    # 靠打字「ClearALL」（大小寫一致）當確認閘門；/api/admin/ 底下的路徑本來就限 admin 角色。
+    @app.post("/api/admin/clear-all")
+    def admin_clear_all(payload: ClearAllIn) -> dict[str, Any]:
+        try:
+            return ok(store.clear_business_data(payload.confirm))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # ---- 帳號與權限管理（內建帳號唯讀，DB 帳號可增/改/停用/刪）----
     @app.get("/api/admin/users")

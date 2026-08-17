@@ -5743,6 +5743,54 @@ def reset_database() -> dict[str, Any]:
     return {"reset": True, "tables_cleared": len(tables), "backup_path": backup_path}
 
 
+# 清空業務資料（保留部門/人員/帳號/設定）：跟 reset_database 同一個 pattern，
+# 差別是留白名單（單機各自獨立使用，組織與人員通常設定過一次不想每次重打），
+# 且用打字「ClearALL」（大小寫一致）當確認，不需要另外開 .env 開關。
+CLEAR_ALL_KEEP_TABLES = {
+    "settings", "users", "personnel_master",
+    "unit_master", "unit_aliases", "unit_decisions",
+    "name_master", "name_aliases", "name_decisions",
+}
+
+
+def clear_business_data(confirm: str) -> dict[str, Any]:
+    """清空所有業務資料（案件/合約/預算/專案/簽呈/費用/付款/文件…），保留部門與人員主檔、
+    帳號、系統設定。清空前自動備份整個資料庫到 data/clear_backups/。
+    確認字串必須完全等於「ClearALL」（大小寫一致），不對就整個動作不執行、不留痕跡。"""
+    if confirm != "ClearALL":
+        raise ValueError("確認字串不對，請完整輸入「ClearALL」（大小寫需一致）。")
+    settings = get_settings()
+    db_path = Path(settings.database_path)
+    backup_path = ""
+    if db_path.exists():
+        backup_dir = db_path.parent / "clear_backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        dest = backup_dir / f"{db_path.stem}_before_clear_{stamp}.db"
+        backup_database(str(dest))
+        backup_path = str(dest)
+
+    with connect() as conn:
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()]
+        cleared = [t for t in tables if t not in CLEAR_ALL_KEEP_TABLES]
+        for t in cleared:
+            conn.execute(f"DELETE FROM {t}")
+        has_seq = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'"
+        ).fetchone()
+        if has_seq:
+            for t in cleared:
+                # 只歸零被清空的表：部門/人員/帳號的流水號要留著，不能因為清業務資料被打亂
+                conn.execute("DELETE FROM sqlite_sequence WHERE name = ?", (t,))
+        # 這筆稽核紀錄要在清空之後才寫，才不會被自己這次清空動作清掉
+        write_audit_log(conn, "system", 0, "clear-all",
+                         None, {"cleared_tables": cleared, "backup_path": backup_path})
+    return {"cleared_tables": cleared, "cleared_count": len(cleared),
+            "kept_tables": sorted(CLEAR_ALL_KEEP_TABLES), "backup_path": backup_path}
+
+
 def read_setting(key: str, default: str = "") -> str:
     with connect() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()

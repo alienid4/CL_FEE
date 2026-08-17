@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.75.0 · 2026-08-14 · 新案申請②專案可完整建立 WBS；WBS 展延留歷程";
+const BUILD_TAG = "v0.76.0 · 2026-08-17 · 新增清空業務資料功能（保留部門/人員，需打 ClearALL 確認）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5869,6 +5869,24 @@ document.querySelector("#admin-db-reset")?.addEventListener("click", async () =>
     await refresh();
   } catch (error) {
     window.alert(`重置失敗：${error.message}`);
+  }
+});
+
+// 清空業務資料（保留部門/人員/帳號/設定）：單機各自使用，不用開 .env 開關，
+// 靠打字「ClearALL」（大小寫一致）當確認閘門；後端會先自動備份整個資料庫才清空。
+document.querySelector("#admin-clear-all")?.addEventListener("click", async () => {
+  if (!window.confirm("清空業務資料：會清掉案件/合約/預算/專案/簽呈/費用/付款/文件…所有業務資料。\n會保留部門、人員主檔、帳號與系統設定；會自動先備份整個資料庫到 data/clear_backups/ 才清空。確定要繼續嗎？")) return;
+  const typed = window.prompt('請輸入「ClearALL」以確認執行（大小寫需一致，防止手滑）：');
+  if (typed !== "ClearALL") { window.alert("已取消（輸入不符）。"); return; }
+  try {
+    const r = (await api("/api/admin/clear-all", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: typed }),
+    })).data || {};
+    window.alert(`已清空 ${r.cleared_count} 張表（保留部門/人員/帳號/設定）。備份存在：${r.backup_path || "（原本沒有 db 檔可備份）"}`);
+    await refresh();
+  } catch (error) {
+    window.alert(`清空失敗：${error.message}`);
   }
 });
 
