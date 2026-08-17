@@ -615,6 +615,7 @@
               <button class="subtab" type="button" data-io-tab="purchase">費用</button>
               <button class="subtab" type="button" data-io-tab="document">文件</button>
               <button class="subtab" type="button" data-io-tab="payment">付款</button>
+              <button class="subtab" type="button" data-io-tab="personnel">人員</button>
             </div>
             <div class="io-modules">
               <div class="io-subtab-panel active" data-io-panel="case">
@@ -701,6 +702,19 @@
                 <div class="io-card">
                   <h4>付款（核銷）</h4>
                   <div class="io-row"><span class="io-label">匯出</span><button type="button" class="secondary btn-sm" data-export="/api/payments.csv">下載 CSV</button></div>
+                </div>
+              </div>
+              <div class="io-subtab-panel" data-io-panel="personnel" hidden>
+                <div class="io-card">
+                  <h4>人員</h4>
+                  <div class="io-row"><span class="io-label">匯入</span>
+                    <span class="io-sub">人員名單　<span class="io-file">欄位需含「姓名」，部門／Email 可選</span></span>
+                    <input type="file" id="personnel-xlsx-file" accept=".xlsx" />
+                    <button type="button" id="personnel-xlsx-preview" class="secondary btn-sm">預覽</button>
+                    <button type="button" id="personnel-xlsx-commit" class="btn-sm" disabled>正式匯入</button>
+                    <span class="muted" id="personnel-xlsx-status" role="status" aria-live="polite"></span>
+                  </div>
+                  <div class="io-row"><span class="io-label">說明</span><span class="muted io-hint">以「姓名」為識別鍵：同姓名更新（部門/Email 留空的欄位不覆蓋既有值）、沒見過的新增，重匯不會長出重複。</span></div>
                 </div>
               </div>
             </div>
@@ -1203,6 +1217,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-76-0"></script>
+    <script src="/static/app.js?v=v0-77-0"></script>
   </body>
 </html>

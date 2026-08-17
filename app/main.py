@@ -1003,7 +1003,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.76.0 · 2026-08-17 · 新增清空業務資料功能（保留部門/人員/帳號/設定，清空前自動備份，需打 ClearALL 確認）"
+BACKEND_BUILD = "v0.77.0 · 2026-08-17 · 人員名單 Excel 匯入（姓名/部門/Email，同姓名更新不重複）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2866,6 +2866,27 @@ def create_app() -> FastAPI:
                 "handover_hints": sum(1 for r in rows if r["previous_owner"]),
             })
         return ok({"preview": False, **store.commit_contract_inventory(rows)})
+
+    @app.post("/api/personnel-master/import-xlsx")
+    async def import_personnel_xlsx(request: Request, commit: bool = Query(False)) -> dict[str, Any]:
+        # 人員名單（姓名/部門/Email）：commit=false 只預覽、true 正式寫入。
+        # 以姓名為識別鍵，同姓名更新（空欄不覆蓋既有值）、沒見過的新增，重匯安全。
+        who = get_account(_verify_session(request.cookies.get(AUTH_COOKIE_NAME, "")) or "") or {}
+        if who.get("role_code") not in ("manager_assistant", "admin"):
+            raise HTTPException(status_code=403, detail="只有主管/助理可匯入人員名單。")
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=400, detail="請選擇要上傳的 Excel 檔。")
+        try:
+            records = store.parse_personnel_xlsx(data)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail=f"Excel 解析失敗（請確認欄位有「姓名」）：{exc}") from exc
+        if not commit:
+            missing_email = sum(1 for r in records if not r["email"])
+            missing_group = sum(1 for r in records if not r["group_name"])
+            return ok({"preview": True, "count": len(records), "sample": records[:10],
+                       "missing_email": missing_email, "missing_group": missing_group})
+        return ok({"preview": False, **store.commit_personnel_import(records)})
 
     @app.post("/api/budgets/import-xlsx")
     async def import_budgets_xlsx(request: Request, commit: bool = Query(False), filename: str = Query("")) -> dict[str, Any]:

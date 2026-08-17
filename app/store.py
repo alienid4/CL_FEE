@@ -3458,6 +3458,93 @@ def delete_personnel_master(person_id: int) -> None:
         write_audit_log(conn, "personnel_master", person_id, "delete", before, None)
 
 
+# ── 人員名單匯入：一列一人，Excel 欄名可能是「姓名/部門/Email」等常見寫法，用認標籤定位 ──
+def parse_personnel_xlsx(data: bytes) -> list[dict[str, Any]]:
+    """解析人員名單 .xlsx：抓「姓名」欄所在的表頭列，同列找部門/Email 欄，逐列讀到姓名空白為止。
+    找不到姓名欄的工作表整張跳過（不是這種格式的表，例如說明頁）。"""
+    import io
+    import openpyxl
+
+    def norm(v: Any) -> str:
+        return " ".join(str(v).split()) if v is not None else ""
+
+    NAME_KEYS = {"姓名", "名字", "人員姓名", "員工姓名"}
+    GROUP_KEYS = {"部門", "組別", "所屬組別", "歸屬組別", "單位"}
+    EMAIL_KEYS = {"email", "e-mail", "信箱", "電子郵件", "電子信箱", "郵件"}
+
+    wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[dict[str, Any]] = []
+    try:
+        for sheet in wb.sheetnames:
+            ws = wb[sheet]
+            rows = list(ws.iter_rows(values_only=True))
+            col_map: dict[str, int] | None = None
+            header_idx = -1
+            for i, row in enumerate(rows[:20]):
+                cells: dict[str, int] = {}
+                for j, c in enumerate(row):
+                    if c is None:
+                        continue
+                    k = norm(c)
+                    cells[k] = j
+                    cells[k.lower()] = j
+                name_col = next((cells[k] for k in NAME_KEYS if k in cells), None)
+                if name_col is None:
+                    continue
+                group_col = next((cells[k] for k in GROUP_KEYS if k in cells), None)
+                email_col = next((cells[k] for k in EMAIL_KEYS if k in cells), None)
+                col_map = {"name": name_col, "group": group_col, "email": email_col}
+                header_idx = i
+                break
+            if col_map is None:
+                continue
+            for row in rows[header_idx + 1:]:
+                if col_map["name"] >= len(row):
+                    continue
+                name = norm(row[col_map["name"]])
+                if not name:
+                    continue
+                group_name = (norm(row[col_map["group"]])
+                              if col_map["group"] is not None and col_map["group"] < len(row) else "")
+                email = (norm(row[col_map["email"]])
+                         if col_map["email"] is not None and col_map["email"] < len(row) else "")
+                out.append({"name": name, "group_name": group_name, "email": email})
+    finally:
+        wb.close()
+    return out
+
+
+def commit_personnel_import(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """姓名為識別鍵：既有的人只更新有給值的欄位（部門/Email 留空的欄位不覆蓋，
+    避免這次補的檔案沒填組別，反而把上次填好的組別洗掉）；沒見過的姓名新增。
+    重複匯入同一份檔案是安全的——不會長出重複的人。"""
+    with connect() as conn:
+        existing = {r["name"]: r["id"] for r in conn.execute(
+            "SELECT id, name FROM personnel_master").fetchall()}
+    created: list[str] = []
+    updated: list[str] = []
+    skipped: list[str] = []
+    for rec in records:
+        name = str(rec.get("name") or "").strip()
+        if not name:
+            continue
+        fields = {k: v for k, v in
+                  {"group_name": rec.get("group_name"), "email": rec.get("email")}.items() if v}
+        if name in existing:
+            if fields:
+                update_personnel_master(existing[name], fields)
+                updated.append(name)
+            else:
+                skipped.append(name)
+        else:
+            row = create_personnel_master(name, group_name=rec.get("group_name", ""),
+                                          email=rec.get("email", ""))
+            existing[name] = row["id"]
+            created.append(name)
+    return {"created_count": len(created), "updated_count": len(updated), "skipped_count": len(skipped),
+            "created": created, "updated": updated}
+
+
 # 示範名單：四組各三人，讓下拉選單一開始就有東西可選（真名單由後台自行維護／匯入）。
 # note 一律標「示範資料」，之後要清掉一眼就分得出來。
 DEMO_PERSONNEL = {

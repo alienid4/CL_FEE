@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.76.0 · 2026-08-17 · 新增清空業務資料功能（保留部門/人員，需打 ClearALL 確認）";
+const BUILD_TAG = "v0.77.0 · 2026-08-17 · 人員名單 Excel 匯入（姓名/部門/Email）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -5127,6 +5127,38 @@ async function contractXlsx(commit) {
 }
 document.querySelector("#contract-xlsx-preview")?.addEventListener("click", () => contractXlsx(false));
 document.querySelector("#contract-xlsx-commit")?.addEventListener("click", () => contractXlsx(true));
+
+// 人員名單匯入：預覽→正式匯入。以姓名為識別鍵，重匯會更新（空欄不覆蓋）不新增重複。
+async function personnelXlsx(commit) {
+  const file = document.querySelector("#personnel-xlsx-file")?.files?.[0];
+  const el = document.querySelector("#personnel-xlsx-status");
+  const commitBtn = document.querySelector("#personnel-xlsx-commit");
+  if (!file) { if (el) el.textContent = "請先選一個 .xlsx 檔"; return; }
+  if (commit && !window.confirm("確定正式匯入？同姓名的人員會更新（空欄不覆蓋既有值）、沒見過的會新增。")) return;
+  if (el) el.textContent = commit ? "匯入中…" : "解析中…";
+  try {
+    const res = (await api(`/api/personnel-master/import-xlsx?commit=${commit}`,
+                           { method: "POST", body: file })).data || {};
+    if (commit) {
+      if (el) el.textContent = `匯入完成：新增 ${res.created_count} 筆、更新 ${res.updated_count} 筆、略過 ${res.skipped_count} 筆（沒有新資訊可更新）。`;
+      await refresh();
+    } else {
+      const warn = [];
+      if (res.missing_email) warn.push(`${res.missing_email} 筆沒有 Email`);
+      if (res.missing_group) warn.push(`${res.missing_group} 筆沒有部門`);
+      if (el) {
+        el.textContent = res.count
+          ? `預覽：共 ${res.count} 筆${warn.length ? "（" + warn.join("、") + "）" : ""}`
+          : "共 0 筆——請確認工作表裡有「姓名」欄。";
+      }
+      if (commitBtn) commitBtn.disabled = !res.count;
+    }
+  } catch (error) {
+    if (el) el.textContent = `失敗：${error.message}`;
+  }
+}
+document.querySelector("#personnel-xlsx-preview")?.addEventListener("click", () => personnelXlsx(false));
+document.querySelector("#personnel-xlsx-commit")?.addEventListener("click", () => personnelXlsx(true));
 
 // 預算匯入（表單型 xlsx）：作法同專案——預覽→正式匯入→同名更新
 async function budgetXlsx(commit, ids) {
