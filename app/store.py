@@ -5881,6 +5881,30 @@ def clear_business_data(confirm: str) -> dict[str, Any]:
             "kept_tables": sorted(CLEAR_ALL_KEEP_TABLES), "backup_path": backup_path}
 
 
+# 助理第三次回饋 §6：同一 Case 已填過的廠商，其他相關模組應該能選既有的，不用每次重打，
+# 也不強制覆寫（同一案可能真的有多個廠商，例如硬體一家、維護服務另一家）。
+def list_case_vendors(case_id: int) -> list[str]:
+    """這個 Case 底下（合約／專案／費用／單筆費用）已經填過的廠商名稱，去重、依最近建立排序。"""
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT vendor_name, created_at FROM contracts WHERE case_id = ? AND vendor_name <> '' "
+            "UNION ALL "
+            "SELECT vendor_name, created_at FROM projects WHERE case_id = ? AND vendor_name <> '' "
+            "UNION ALL "
+            "SELECT vendor_name, created_at FROM purchases WHERE case_id = ? AND vendor_name <> '' "
+            "UNION ALL "
+            "SELECT vendor_name, created_at FROM expense_masters WHERE case_id = ? AND vendor_name <> '' "
+            "ORDER BY created_at DESC",
+            (case_id, case_id, case_id, case_id),
+        ).fetchall()
+    seen: list[str] = []
+    for r in rows:
+        v = str(r["vendor_name"]).strip()
+        if v and v not in seen:
+            seen.append(v)
+    return seen
+
+
 def read_setting(key: str, default: str = "") -> str:
     with connect() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()

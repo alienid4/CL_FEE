@@ -384,29 +384,39 @@
               <form id="wizard-form" class="wizard-form">
                 <fieldset class="wizard-step" data-wizard-step="case">
                   <legend>① 案件（必填）</legend>
-                  <input name="title" placeholder="案件名稱 *" required />
-                  <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">組別 *</option></select>
-                  <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）負責人 *</option></select>
-                  <div class="wizard-radio" role="radiogroup" aria-label="預算內或預算外">
-                    <label><input type="radio" name="budget_type" value="in_budget" required /> 預算內</label>
-                    <label><input type="radio" name="budget_type" value="out_budget" /> 預算外</label>
+                  <div class="wizard-subgroup">
+                    <p class="wizard-subhead">案件基本資料</p>
+                    <input name="title" placeholder="案件名稱 *" required />
+                    <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">組別 *</option></select>
+                    <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）負責人 *</option></select>
+                    <select name="source" required title="案件來源">
+                      <option value="">案件來源 *</option>
+                      <option value="主管關注">主管關注</option>
+                      <option value="董總關注">董總關注</option>
+                      <option value="資安或稽核追蹤">資安或稽核追蹤</option>
+                      <option value="精進會議">精進會議</option>
+                      <option value="其他">其他</option>
+                    </select>
                   </div>
-                  <select name="expense_kind" required title="預算類別">
-                    <option value="">預算類別 *</option>
-                    <option value="expense">費用</option>
-                    <option value="capex">資本支出</option>
-                  </select>
-                  <input name="budget_item" placeholder="預算名目 *" list="opt-budget-items" required />
-                  <datalist id="opt-budget-items"></datalist>
-                  <select name="source" required title="案件來源">
-                    <option value="">案件來源 *</option>
-                    <option value="主管關注">主管關注</option>
-                    <option value="董總關注">董總關注</option>
-                    <option value="資安或稽核追蹤">資安或稽核追蹤</option>
-                    <option value="精進會議">精進會議</option>
-                    <option value="其他">其他</option>
-                  </select>
-                  <textarea name="description" placeholder="案件說明 *" rows="2" required></textarea>
+                  <div class="wizard-subgroup">
+                    <p class="wizard-subhead">預算資訊</p>
+                    <div class="wizard-radio" role="radiogroup" aria-label="預算內或預算外（必填）">
+                      <span class="wizard-radio-label">預算內／預算外 *</span>
+                      <label><input type="radio" name="budget_type" value="in_budget" required /> 預算內</label>
+                      <label><input type="radio" name="budget_type" value="out_budget" /> 預算外</label>
+                    </div>
+                    <select name="expense_kind" required title="預算類別">
+                      <option value="">預算類別 *</option>
+                      <option value="expense">費用</option>
+                      <option value="capex">資本支出</option>
+                    </select>
+                    <input name="budget_item" placeholder="預算名目 *" list="opt-budget-items" required />
+                    <datalist id="opt-budget-items"></datalist>
+                  </div>
+                  <div class="wizard-subgroup wizard-subgroup-full">
+                    <p class="wizard-subhead">案件說明</p>
+                    <textarea name="description" placeholder="案件說明 *" rows="2" required></textarea>
+                  </div>
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="project">
@@ -441,7 +451,8 @@
                     <input name="contract_name" placeholder="合約名稱 *" />
                     <input name="vendor_name" placeholder="廠商" />
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-                    <input name="end_date" placeholder="到期日" type="date" />
+                    <input name="start_date" placeholder="合約起日" type="date" />
+                    <input name="end_date" placeholder="合約迄日" type="date" />
                   </div>
                 </fieldset>
 
@@ -960,7 +971,7 @@
             <input name="id" type="hidden" />
             <input name="contract_code" placeholder="合約編號" required />
             <input name="contract_name" placeholder="合約名稱" required />
-            <input name="vendor_name" placeholder="廠商" />
+            <input name="vendor_name" placeholder="廠商" list="case-vendor-options" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <select name="purchase_id" class="purchase-picker" title="關聯費用（此合約源自哪筆費用申請）"><option value="">（不關聯費用）</option></select>
@@ -997,6 +1008,7 @@
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
           </form>
+          <datalist id="case-vendor-options"></datalist>
           <div id="contracts" class="list compact-list"></div>
           <div id="contract-schedule-panel" class="schedule-panel" hidden></div>
           <div id="contract-adjust-panel" class="schedule-panel" hidden></div>
@@ -1168,7 +1180,7 @@
               <option value="">（無合約費用）</option>
             </select>
             <input name="expense_name" placeholder="費用／合約名稱 *" required />
-            <input name="vendor_name" placeholder="廠商名稱" />
+            <input name="vendor_name" placeholder="廠商名稱" list="case-vendor-options" />
             <input name="vendor_tax_id" placeholder="廠商統一編號（8 碼）" inputmode="numeric" pattern="\d{8}" />
             <input name="start_date" placeholder="合約起日" type="date" title="無合約時停用，不得輸入" />
             <input name="end_date" placeholder="合約迄日" type="date" title="無合約時停用，不得輸入" />
@@ -1197,7 +1209,7 @@
             <input name="id" type="hidden" />
             <input name="purchase_code" placeholder="費用編號" required />
             <input name="item_name" placeholder="品項" required />
-            <input name="vendor_name" placeholder="廠商" />
+            <input name="vendor_name" placeholder="廠商" list="case-vendor-options" />
             <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
             <input name="amount" placeholder="金額" type="number" min="0" step="1" />
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
@@ -1217,6 +1229,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-77-1"></script>
+    <script src="/static/app.js?v=v0-78-0"></script>
   </body>
 </html>

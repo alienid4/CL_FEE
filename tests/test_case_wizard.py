@@ -105,6 +105,19 @@ def test_cio_cannot_use_wizard(tmp_path):
 
 
 # ── 第三次回饋 8.2/8.3：②專案可直接完整建立 Project 與 WBS ──
+def test_contract_step_accepts_start_and_end_date(tmp_path):
+    """助理第三次回饋 §7：合約區塊要有起日與迄日兩個欄位，分開儲存。"""
+    with _client(tmp_path) as client:
+        r = client.post("/api/case-wizard", json={
+            "case": {"case_code": "WIZ-9", "title": "合約起訖日測試"},
+            "contract": {"contract_code": "K-WIZ-9", "contract_name": "測試合約",
+                        "start_date": "2026-01-01", "end_date": "2026-12-31"},
+        })
+        assert r.status_code == 201, r.text
+        d = r.json()["data"]["contract"]
+        assert d["start_date"] == "2026-01-01" and d["end_date"] == "2026-12-31"
+
+
 def test_project_step_without_procurement_creates_no_items(tmp_path):
     """不涉及請購或合約：只建 Project 主檔，WBS 由承辦自己到專案模組建，精靈不自動排。"""
     with _client(tmp_path) as client:

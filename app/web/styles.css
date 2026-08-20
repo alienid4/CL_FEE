@@ -1224,6 +1224,16 @@ input:focus, select:focus, textarea:focus {
 .wizard-step-body { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .wizard-step-body input { flex: 1 1 160px; min-width: 140px; }
 
+/* ①案件步驟依「案件基本資料／預算資訊／案件說明」分區塊，相關欄位排在一起
+   （助理第三次回饋：欄位排列較分散，難以辨識欄位關聯與填寫順序） */
+.wizard-subgroup { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.wizard-subgroup:first-of-type { margin-top: 8px; padding-top: 0; border-top: none; }
+.wizard-subgroup input, .wizard-subgroup select { flex: 1 1 160px; min-width: 140px; }
+.wizard-subgroup-full textarea { flex: 1 1 100%; width: 100%; }
+.wizard-subhead { flex: 1 1 100%; margin: 0; font-size: .78rem; font-weight: 700; color: var(--ink-2); letter-spacing: .02em; }
+.wizard-radio { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.wizard-radio-label { font-size: .88rem; color: var(--ink-2); }
+
 /* 表格 */
 .table-shell { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: auto; }
 table { border-collapse: collapse; width: 100%; }

@@ -852,6 +852,7 @@ class CaseWizardContractIn(BaseModel):
     contract_name: str = Field(min_length=1)
     vendor_name: str = ""
     amount: float | None = 0
+    start_date: str = ""
     end_date: str = ""
 
     @field_validator("amount")
@@ -1003,7 +1004,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.77.1 · 2026-08-17 · 修人員匯入抓不到「中文姓名」「測試Email」這類帶字首字尾的表頭"
+BACKEND_BUILD = "v0.78.0 · 2026-08-17 · 必填欄位加*／案件三區塊重排／合約起訖日／廠商跨模組帶入建議"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2021,6 +2022,12 @@ def create_app() -> FastAPI:
             return ok(case_360(case_id))
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/cases/{case_id}/vendors")
+    def case_vendors(case_id: int) -> dict[str, Any]:
+        # 助理第三次回饋 §6：同一 Case 已填過的廠商，其他模組要能選既有的，不強制覆寫——
+        # 所以只回清單供前端當 datalist 建議選項，不自動決定要用哪一筆。
+        return ok(store.list_case_vendors(case_id))
 
     @app.post("/api/contracts", status_code=201)
     def create_contract(payload: ContractIn) -> dict[str, Any]:

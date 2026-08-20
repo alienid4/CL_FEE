@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.77.1 · 2026-08-17 · 修人員匯入表頭辨識（中文姓名/測試Email 這類寫法）";
+const BUILD_TAG = "v0.78.0 · 2026-08-17 · 必填欄位加*／案件三區塊重排／合約起訖日／廠商跨模組帶入建議";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -2819,6 +2819,20 @@ document.addEventListener("change", (event) => {
   if (!nameEl || nameEl.value.trim()) return;  // 已經有值就不覆蓋，避免蓋掉使用者已填的
   const c = caseOptionsCache.find((x) => String(x.id) === String(picker.value));
   if (c && c.title) nameEl.value = c.title;
+});
+
+// 廠商清單（助理第三次回饋 §6）：換了案件就重抓這個 Case 已經填過的廠商，灌進共用 datalist——
+// 只是「建議選項」，使用者仍可自己打新的，不強制覆寫任何欄位。
+document.addEventListener("change", async (event) => {
+  const picker = event.target.closest(".case-picker");
+  if (!picker) return;
+  const list = document.querySelector("#case-vendor-options");
+  if (!list) return;
+  if (!picker.value) { list.innerHTML = ""; return; }
+  try {
+    const vendors = (await api(`/api/cases/${picker.value}/vendors`)).data || [];
+    list.innerHTML = vendors.map((v) => `<option value="${escapeHtml(v)}"></option>`).join("");
+  } catch (_e) { /* 廠商建議清單抓不到不影響表單本身，安靜失敗即可 */ }
 });
 
 // 換案件或改合約性質 → 重新判斷「增購／附屬」能不能選、原合約要不要自動帶
@@ -7161,6 +7175,16 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
           const caseOwner = stepScope("case")?.querySelector('[name="owner"]');
           if (projOwner && !projOwner.value && caseOwner && caseOwner.value) projOwner.value = caseOwner.value;
         }
+        // 廠商沿用（助理第三次回饋 §6）：這個精靈頁面一次填多個步驟，同一個 Case 十之八九是
+        // 同一家廠商，別的步驟已經填過就直接帶過來（欄位仍是空的才帶，不覆蓋使用者已填的）。
+        const vendorEl = stepScope(step)?.querySelector('[name="vendor_name"]');
+        if (vendorEl && !vendorEl.value.trim()) {
+          for (const otherStep of ["project", "contract", "purchase"]) {
+            if (otherStep === step) continue;
+            const otherVendor = stepScope(otherStep)?.querySelector('[name="vendor_name"]');
+            if (otherVendor && otherVendor.value.trim()) { vendorEl.value = otherVendor.value.trim(); break; }
+          }
+        }
       }
     });
   }
@@ -7246,8 +7270,8 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
       body.purchase = { purchase_code: p.purchase_code, item_name: p.item_name, vendor_name: p.vendor_name, quantity: num(p.quantity), amount: num(p.amount), note: p.note };
     }
     if (contractToggle.checked) {
-      const k = readStep("contract", ["contract_code", "contract_name", "vendor_name", "amount", "end_date"]);
-      body.contract = { contract_code: k.contract_code, contract_name: k.contract_name, vendor_name: k.vendor_name, amount: num(k.amount), end_date: k.end_date };
+      const k = readStep("contract", ["contract_code", "contract_name", "vendor_name", "amount", "start_date", "end_date"]);
+      body.contract = { contract_code: k.contract_code, contract_name: k.contract_name, vendor_name: k.vendor_name, amount: num(k.amount), start_date: k.start_date, end_date: k.end_date };
     }
 
     if (statusEl) statusEl.textContent = "送出中…";
