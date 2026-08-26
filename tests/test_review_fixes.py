@@ -54,7 +54,12 @@ def test_E_overspent_flag(tmp_path):
 
 def test_B_orphan_payments(tmp_path):
     with _client(tmp_path) as client:
+        # 第四輪回饋 AC-01 之後，合約建立時沒給 case_id 會自動配一個同名案件（不再是孤兒）；
+        # 「未歸戶付款」現在是抓「合約曾經掛過 Case、後來被清空關聯」這種資料整合問題，
+        # 用既有的「PATCH case_id=None 可清空外鍵」機制模擬（見 test_c1_review_findings.py）。
         ct = client.post("/api/contracts", json={"contract_code": "ORPH-K", "contract_name": "無案合約"}).json()["data"]
+        assert ct["case_id"] is not None  # 建立當下已自動配案，不再是孤兒
+        client.patch(f"/api/contracts/{ct['id']}", json={"case_id": None})
         client.post("/api/payments", json={"contract_id": ct["id"], "payment_month": _nm(), "payment_amount": 500, "status": "pending"})
         orphans = client.get("/api/reports/orphan-payments").json()["data"]
         assert any(o["contract_code"] == "ORPH-K" for o in orphans)

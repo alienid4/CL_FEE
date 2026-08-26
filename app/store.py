@@ -1196,11 +1196,24 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
     if not fields:
         raise ValueError("No valid fields supplied.")
     validate_status_fields(table, fields)
-    if table in ("budgets", "projects") and not fields.get("case_id"):
+    if table in ("budgets", "projects", "contracts", "purchases", "expense_masters") and not fields.get("case_id"):
         # 案件自動生成：使用者拍板「不需要案件，是系統要幫我建出一個案件」——
-        # 建預算/專案時沒指定案件，就用這筆自己的名稱/代碼幫它配一個同名案件。
-        name = fields.get("project_name") if table == "projects" else fields.get("budget_code")
-        code_hint = fields.get("project_code") if table == "projects" else fields.get("budget_code")
+        # 建預算/專案/合約/費用時沒指定案件，就用這筆自己的名稱/代碼幫它配一個同名案件。
+        # 第四輪回饋 AC-01：不得建立無 Case 歸屬的子模組資料，這裡照既有 budgets/projects
+        # 的做法延伸到 contracts/purchases/expense_masters，維持「使用者感覺不到案件這層」
+        # 的既有體驗，而不是額外跳出來強迫選案件。
+        name_field = {
+            "projects": "project_name", "budgets": "budget_code",
+            "contracts": "contract_name", "purchases": "item_name",
+            "expense_masters": "expense_name",
+        }[table]
+        code_field = {
+            "projects": "project_code", "budgets": "budget_code",
+            "contracts": "contract_code", "purchases": "purchase_code",
+            "expense_masters": None,
+        }[table]
+        name = fields.get(name_field)
+        code_hint = fields.get(code_field) if code_field else None
         owner_hint = fields.get("owner") if table == "projects" else None
         cid = _ensure_case_for(conn, name, code_hint, fields.get("fiscal_year"), owner_hint)
         if cid:
