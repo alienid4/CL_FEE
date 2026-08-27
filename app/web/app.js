@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.79.0 · 2026-08-27 · 費用限同案合約/固定Label/合約簽呈欄位/預算改唯讀（AC-10、AC-04、AC-05、AC-02、AC-12）";
+const BUILD_TAG = "v0.80.0 · 2026-08-27 · Case詳細頁卡片化/系統ID弱化/Migration Case Key（AC-09、AC-11、AC-07）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -204,10 +204,10 @@ const resourceConfig = {
     canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
-      { label: "系統識別碼", cell: (i) => `<strong>${escapeHtml(valueOrDash(i.system_code))}</strong>${relationTag(i)}` },
+      { label: "系統識別碼", cell: (i) => `<span class="sys-code">${escapeHtml(valueOrDash(i.system_code))}</span>${relationTag(i)}` },
       { label: "合約編號", cell: (i) => `${escapeHtml(i.contract_code)}${contractSystemLink(i.external_code)}` },
       { label: "到期警示", cell: (i) => expiryLightCell(i) },
-      { label: "合約名稱", cell: (i) => escapeHtml(i.contract_name) },
+      { label: "合約名稱", cell: (i) => `<strong>${escapeHtml(i.contract_name)}</strong>` },
       { label: "類型", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.contract_type))}</span>` },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
@@ -318,7 +318,7 @@ const resourceConfig = {
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.signoff, i.case_id) },
       { label: "簽呈號碼", cell: (i) => `<strong>${escapeHtml(i.signoff_code)}</strong>` },
-      { label: "主旨", cell: (i) => escapeHtml(i.subject) },
+      { label: "主旨", cell: (i) => `<strong>${escapeHtml(i.subject)}</strong>` },
       { label: "附件", cell: (i) => attachmentLink(i.attachment_ref) },
       { label: "簽核日", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.sign_date))}</span>` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
@@ -333,7 +333,7 @@ const resourceConfig = {
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.purchase, i.case_id) },
       { label: "費用編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
-      { label: "品項", cell: (i) => escapeHtml(i.item_name) },
+      { label: "品項", cell: (i) => `<strong>${escapeHtml(i.item_name)}</strong>` },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
       { label: "數量", cls: "num", cell: (i) => `${Number(i.quantity || 0)}` },
       { label: "金額", cls: "num", cell: (i) => `${money(i.amount)} 元` },
@@ -392,10 +392,11 @@ function caseNumber(c) {
 function caseTempNumber(c) {
   return (c && c.fiscal_year && c.temp_seq) ? `TMP${c.fiscal_year}${String(c.temp_seq).padStart(4, "0")}` : "";
 }
+// AC-11：系統自動配發的編號是給勾稽用的，不是業務人員要看的重點，版面上不該比業務名稱／狀態搶眼
 function systemCodeCell(prefix, caseId) {
   const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
   const n = caseNumber(c);
-  if (n) return `<strong>${escapeHtml(prefix + n)}</strong>`;
+  if (n) return `<span class="sys-code">${escapeHtml(prefix + n)}</span>`;
   const tmp = caseTempNumber(c);
   if (tmp) return `<span class="temp-code" title="案件尚未核准，這是暫時號；核准後才會配正式編號">${escapeHtml(tmp)}</span>`;
   return `<span class="muted" title="尚未關聯案件，無系統編號">—</span>`;
@@ -2941,13 +2942,13 @@ async function loadCaseTrace(caseId) {
           ${chip("付款", n(d.payments), t.payment_amount)}
         </div>
         <div class="trace-lists">
-          <div><h4>預算</h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
-          <div><h4>專案</h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
-          <div><h4>簽呈</h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
-          <div><h4>費用</h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯費用")}</ul></div>
-          <div><h4>合約</h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)}${contractSystemLink(k.contract_code)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
+          <div class="trace-card"><h4>預算 <span class="trace-card-count">${n(d.budgets)}</span></h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
+          <div class="trace-card"><h4>專案 <span class="trace-card-count">${n(d.projects)}</span></h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
+          <div class="trace-card"><h4>簽呈 <span class="trace-card-count">${n(d.signoffs)}</span></h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
+          <div class="trace-card"><h4>費用 <span class="trace-card-count">${n(d.purchases)}</span></h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯費用")}</ul></div>
+          <div class="trace-card"><h4>合約 <span class="trace-card-count">${n(d.contracts)}</span></h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)}${contractSystemLink(k.contract_code)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
             + traceContractMoney(k), "無關聯合約")}</ul></div>
-          <div><h4>付款</h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
+          <div class="trace-card"><h4>付款 <span class="trace-card-count">${n(d.payments)}</span></h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
       </div>`;
     box.scrollIntoView({ block: "nearest" });

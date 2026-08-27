@@ -753,6 +753,9 @@ def initialize_database() -> None:
         # Excel 來源勾稽：記匯入來源檔＋原始列號，清單顯示 📎 讓人回 Excel 核對
         ensure_column(conn, "cases", "source_file", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "cases", "source_row", "INTEGER NOT NULL DEFAULT 0")
+        # AC-07：Migration Case Key——業務端整理舊資料對照表時自己配的關聯鍵，
+        # 同一把 Key 匯進來的預算/專案/合約一律歸同一個 Case，不靠名稱猜。
+        ensure_column(conn, "cases", "migration_key", "TEXT NOT NULL DEFAULT ''")
         # 付款(核銷)：對齊真實費用整合表欄位
         for col in ("item", "settle_no", "ref_no", "period", "billing_period",
                     "settled_by", "vendor", "approval_level", "owner", "owner_email"):
@@ -1158,6 +1161,26 @@ def _ensure_case_for(
     else:
         new_case = _insert_row(conn, "cases", payload)
     return new_case["id"]
+
+
+def _ensure_case_for_migration(
+    conn: sqlite3.Connection, migration_key: str | None, name: str | None, code_hint: str | None,
+    fiscal_year: str | None, owner_display_name: str | None = None, established: bool = False,
+) -> int | None:
+    """AC-07：Migration Case Key。舊資料匯入前，業務端會自己整理一份對照表，把同一件業務事項
+    在預算／專案／合約各自的匯入檔案裡標上同一把 Key——不同檔案、名稱可能取得不一樣，但 Key 一樣
+    就是同一個 Case。有填 Key 時優先照 Key 找既有案件；找不到才照既有「同名自動配案」
+    （_ensure_case_for）退回配對，並把這把 Key 記在新配到的案件上，供同批後續資料接上同一個案件。
+    沒填 Key 的資料完全比照原本行為，不受影響。"""
+    key = str(migration_key or "").strip()
+    if key:
+        row = conn.execute("SELECT id FROM cases WHERE migration_key = ?", (key,)).fetchone()
+        if row:
+            return row["id"]
+    cid = _ensure_case_for(conn, name, code_hint, fiscal_year, owner_display_name, established=established)
+    if cid and key:
+        conn.execute("UPDATE cases SET migration_key = ? WHERE id = ? AND migration_key = ''", (key, cid))
+    return cid
 
 
 def _established_case_fields(conn: sqlite3.Connection, fiscal_year: Any) -> dict[str, Any]:
@@ -2173,6 +2196,7 @@ _CONTRACT_COL_MAP = {
     "廠商統編或ID": "vendor_tax_id",
     "合約開始日": "start_date",
     "合約到期日": "end_date",
+    "案件關聯鍵": "migration_case_key",     # AC-07：選填，跨檔案關聯同一個業務事項用
 }
 # 組別正規化：H 欄有「AS400」，那是系統名不是組別（使用者 2026-08-13 裁決：歸主機組）
 _GROUP_ALIAS = {"AS400": "主機組"}
@@ -2230,6 +2254,7 @@ def parse_contract_inventory_xlsx(data: bytes) -> dict[str, Any]:
                     "inventory_note": val("inventory_note"),
                     "content_note": val("content_note"),
                     "confirmed": str(val("confirmed")).lower() in ("true", "v", "y", "yes", "是"),
+                    "migration_case_key": val("migration_case_key"),
                 }
                 # 盤點表寫的「原合約維護人：張根榮」＝離職或職務異動，接得上交接功能
                 prev = _PREV_OWNER_RE.search(item["inventory_note"])
@@ -2308,6 +2333,12 @@ def commit_contract_inventory(rows: list[dict[str, Any]]) -> dict[str, Any]:
             # 盤點表沒有本系統的合約編號，用公司的號當 contract_code；沒有編號就用名稱
             fields["contract_code"] = code or name
             fields.update(_next_contract_system_code(conn, fields))
+            # AC-01／AC-07：盤點表匯入之前完全沒有配案邏輯，新增合約永遠是孤兒；
+            # 現在跟預算/專案匯入一樣，有 Case Key 就照 Key 配、沒有就照合約名稱同名配案。
+            cid = _ensure_case_for_migration(conn, item.get("migration_case_key"), name, code,
+                                             None, established=True)
+            if cid:
+                fields["case_id"] = cid
             columns = ", ".join(fields)
             cur = conn.execute(
                 f"INSERT INTO contracts ({columns}) VALUES ({', '.join('?' * len(fields))})",
@@ -2420,6 +2451,7 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
             act_i = find(lambda h: "實際" in h, 0, split)
             rag_i = find(lambda h: "燈號" in h, 0, split)          # 總進度燈號（專案層級那個）
             lvl_i = find(lambda h: h == "分類", 0, split)          # 只有 AI 表有
+            key_i = find(lambda h: "案件關聯鍵" in h, 0, split)    # AC-07：選填，跨檔案關聯同一個業務事項用
             start_i = find(lambda h: "開始" in h, split)
             end_i = find(lambda h: "結束" in h, split)
             owner_i = find(lambda h: "負責人" in h, split)
@@ -2493,6 +2525,7 @@ def parse_projects_xlsx(data: bytes) -> list[dict[str, Any]]:
                         "owner": _clean_owner(cell(r, owner_i)),
                         "start_date": _norm_date(cell(r, start_i)),
                         "end_date": _norm_date(cell(r, end_i)),
+                        "migration_case_key": txt(r, key_i),
                         "items": [],
                     }
                     first = build_item(r, 1)
@@ -2548,8 +2581,9 @@ def commit_projects_import(records: list[dict[str, Any]]) -> dict[str, Any]:
                 updated.append(name)
             else:
                 if not fields.get("case_id"):
-                    cid = _ensure_case_for(
-                        conn, fields.get("project_name"), fields.get("project_code"), fields.get("fiscal_year"),
+                    cid = _ensure_case_for_migration(
+                        conn, rec.get("migration_case_key"),
+                        fields.get("project_name"), fields.get("project_code"), fields.get("fiscal_year"),
                         fields.get("owner"), established=True,
                     )
                     if cid:
@@ -2909,7 +2943,7 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
     def norm(v: Any) -> str:
         return " ".join(str(v).split()) if v is not None else ""
 
-    label_map = {"預算項目": "category", "填寫部門": "unit_name"}
+    label_map = {"預算項目": "category", "填寫部門": "unit_name", "案件關聯鍵": "migration_case_key"}
     wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     out: list[dict[str, Any]] = []
     try:
@@ -3027,6 +3061,7 @@ def parse_budget_xlsx(data: bytes) -> list[dict[str, Any]]:
                 "amount": amount,
                 "periods": periods_out,
                 "allocations": allocations,
+                "migration_case_key": fields.get("migration_case_key", ""),   # AC-07
             })
     finally:
         wb.close()
@@ -3062,7 +3097,8 @@ def commit_budgets_import(records: list[dict[str, Any]], source_file: str = "") 
                 updated.append(code)
             else:
                 if not fields.get("case_id"):
-                    cid = _ensure_case_for(conn, fields.get("budget_code"), fields.get("budget_code"),
+                    cid = _ensure_case_for_migration(conn, rec.get("migration_case_key"),
+                                           fields.get("budget_code"), fields.get("budget_code"),
                                            fields.get("fiscal_year"), established=True)
                     if cid:
                         fields["case_id"] = cid

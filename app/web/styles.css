@@ -1648,6 +1648,10 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .trace-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .trace-lists h4 { font-size: .85rem; margin: 0 0 4px; }
 .trace-lists .note-list li { grid-template-columns: 1fr; }
+/* AC-09：每個模組區塊改成卡片（筆數＋清單），不再是無邊框的裸清單 */
+.trace-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
+.trace-card h4 { display: flex; align-items: center; gap: 6px; }
+.trace-card-count { font-size: .74rem; font-weight: 700; color: var(--accent-2); background: var(--accent-weak); border-radius: 999px; padding: 1px 8px; }
 
 /* 手動新增 toggle：小按鈕、不撐滿（crud-zone 是 grid，預設會被拉寬） */
 .form-toggle { justify-self: start; width: auto; }
@@ -1845,6 +1849,8 @@ tr.person-off td { opacity: .55; }
 
 /* 需求書 §4 審核關卡：暫時號、退件/駁回原因、併案挑選面板 */
 .temp-code { background: var(--surface-2); border: 1px dashed var(--line); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* AC-11：系統自動配發的勾稽碼，弱化顯示（不加粗、不搶業務名稱的版面） */
+.sys-code { color: var(--ink-3); font-size: .82rem; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
 .review-note { margin-top: 3px; font-size: .72rem; color: var(--ink-3); max-width: 14rem;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .merge-picker-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.35);
