@@ -204,6 +204,9 @@ class ContractIn(BaseModel):
     progress_note: str = ""
     end_reason: str = ""         # merged 已整併 / not_renew 不續約 → 燈號轉灰
     project_id: int | None = None
+    # AC-05：核准簽／核銷簽兩個簽呈編號，跟系統自己配發的 Contract ID 是兩回事，非必填
+    signoff_ref: str = ""        # 核准簽呈編號
+    signoff_no: str = ""         # 核銷簽呈編號
 
     @field_validator("amount")
     @classmethod
@@ -237,6 +240,8 @@ class ContractPatch(BaseModel):
     progress_note: str | None = None
     end_reason: str | None = None
     project_id: int | None = None
+    signoff_ref: str | None = None
+    signoff_no: str | None = None
 
 
 class PaymentIn(BaseModel):
@@ -1004,7 +1009,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.78.1 · 2026-08-27 · 合約/費用/單筆費用建立時沒給案件會自動配案（AC-01，不再允許孤兒子模組資料）"
+BACKEND_BUILD = "v0.79.0 · 2026-08-27 · 第四輪回饋二：費用限同案合約/固定Label/合約簽呈欄位/預算改唯讀（AC-10、AC-04、AC-05、AC-02、AC-12）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。

@@ -185,6 +185,22 @@ def test_舊資料庫重開就自動補識別碼(tmp_path):
         assert codes["B4"].startswith("CT") and codes["B4A"] == codes["B4"] + "A01"
 
 
+def test_核准簽核銷簽呈編號可選填且跟系統識別碼是兩回事(tmp_path):
+    """第四輪回饋 AC-05：合約要能記「核准簽」「核銷簽」兩個簽呈編號，非必填、
+    跟系統自動配發的 Contract ID（system_code）不是同一件事。"""
+    with _client(tmp_path) as client:
+        no_signoff = _contract(client, contract_code="S1").json()["data"]
+        assert no_signoff["signoff_ref"] == "" and no_signoff["signoff_no"] == ""  # 非必填，留空存得進去
+
+        c = _contract(client, contract_code="S2", signoff_ref="APR-2026-001", signoff_no="SETL-2026-088").json()["data"]
+        assert c["signoff_ref"] == "APR-2026-001"
+        assert c["signoff_no"] == "SETL-2026-088"
+        assert c["signoff_ref"] != c["system_code"] and c["signoff_no"] != c["system_code"]
+
+        updated = client.patch(f"/api/contracts/{c['id']}", json={"signoff_no": "SETL-2026-099"}).json()["data"]
+        assert updated["signoff_no"] == "SETL-2026-099" and updated["signoff_ref"] == "APR-2026-001"
+
+
 def test_對應專案由系統自動關聯(tmp_path):
     with _client(tmp_path) as client:
         c = _case(client, "有專案的案子")

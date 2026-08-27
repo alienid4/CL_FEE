@@ -1215,6 +1215,15 @@ input:focus, select:focus, textarea:focus {
 .resource-form, #case-form, .import-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .resource-form input, .resource-form select, #case-form input, #case-form select { flex: 1 1 160px; min-width: 140px; }
 
+/* AC-04：固定 label 取代純 placeholder（字打進去提示就消失，看不出這欄是什麼、是否必填） */
+.field-label {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  flex: 1 1 160px; min-width: 140px; font-size: .74rem; color: var(--ink-2); font-weight: 600;
+}
+.field-label.full { flex: 1 1 100%; }
+.field-label .req { color: var(--danger); margin-left: 2px; }
+.field-label input, .field-label select, .field-label textarea { width: 100%; font-size: .92rem; color: var(--ink); font-weight: 400; }
+
 /* 一條龍新案精靈：每步一個 fieldset，legend 上放checkbox當「跳過此步」開關 */
 .wizard-form { display: flex; flex-direction: column; gap: 12px; }
 .wizard-step { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px 14px; }

@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.78.1 · 2026-08-27 · 合約/費用/單筆費用建立時沒給案件會自動配案（AC-01）";
+const BUILD_TAG = "v0.79.0 · 2026-08-27 · 費用限同案合約/固定Label/合約簽呈欄位/預算改唯讀（AC-10、AC-04、AC-05、AC-02、AC-12）";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -198,7 +198,8 @@ const resourceConfig = {
     api: "/api/contracts",
     fields: ["contract_code", "contract_name", "vendor_name", "amount", "case_id", "purchase_id", "status", "end_date",
              "contract_type", "start_date", "warranty_end_date", "maintenance_end_date", "relation_type", "parent_contract_id",
-             "vendor_tax_id", "owner", "group_name", "locations", "external_code", "progress_note", "end_reason"],
+             "vendor_tax_id", "owner", "group_name", "locations", "external_code", "progress_note", "end_reason",
+             "signoff_ref", "signoff_no"],
     numberFields: ["amount", "case_id", "purchase_id", "parent_contract_id"],
     canDisable: true,
     columns: [
@@ -257,6 +258,9 @@ const resourceConfig = {
   budget: {
     plural: "budgets", idAttr: "budget-id", idField: "budgetId", api: "/api/budgets",
     navCount: "nav-count-budgets", navLabel: "預算",
+    // AC-02/AC-12：獨立的預算模組頁面改成查詢導向，清單不給編輯/停用/刪除；
+    // 案件詳細頁「＋新增（帶入本案）」走的是另一條路徑（trace 面板直接開表單），不受此限制。
+    readOnly: true,
     fields: ["budget_code", "category", "unit_name", "expense_detail", "fill_dept", "estimator",
              "fiscal_year", "amount", "status", "case_id", "note",
              "alloc_method", "alloc_category_kind", "alloc_category"],
@@ -1426,6 +1430,10 @@ async function syncExpenseContractFields() {
 
 document.addEventListener("change", (event) => {
   if (event.target.closest(".expense-contract-picker")) syncExpenseContractFields();
+  if (event.target.matches("#expense-form .case-picker")) {
+    loadExpenseContractOptions();
+    syncExpenseContractFields();
+  }
 });
 
 function startExpenseEdit(id) {
@@ -1438,8 +1446,9 @@ function startExpenseEdit(id) {
                    "total_amount", "signoff_ref", "signoff_none_reason", "owner", "note"]) {
     if (form.elements[f]) form.elements[f].value = item[f] ?? "";
   }
-  form.elements.contract_id.value = item.contract_id || "";
   form.elements.case_id.value = item.case_id || "";
+  loadExpenseContractOptions();          // AC-10：合約下拉先依這筆的案件重新過濾，再帶入原本選的合約
+  form.elements.contract_id.value = item.contract_id || "";
   const modes = String(item.modes || "").split(",");
   for (const m of EXPENSE_MODES) {
     if (form.elements[`mode_${m.key}`]) form.elements[`mode_${m.key}`].checked = modes.includes(m.key);
@@ -1495,14 +1504,19 @@ document.addEventListener("click", (event) => {
   for (const el of document.querySelectorAll("[data-exp-only]")) el.hidden = which !== "schedule";
 });
 
-async function loadExpenseContractOptions() {
+// AC-10：選了案件之後，合約下拉只能選同一個 Case 底下的合約，避免掛錯合約
+function loadExpenseContractOptions() {
   const sel = document.querySelector(".expense-contract-picker");
   if (!sel) return;
+  const form = sel.closest("form");
+  const caseId = form?.elements.case_id?.value || "";
   const cur = sel.value;
+  const pool = (resourceCaches.contract || [])
+    .filter((k) => !caseId || String(k.case_id || "") === String(caseId));
   sel.innerHTML = `<option value="">（無合約費用）</option>`
-    + (resourceCaches.contract || []).map((k) =>
+    + pool.map((k) =>
         `<option value="${k.id}">${escapeHtml(k.contract_code)}｜${escapeHtml(k.contract_name || "")}</option>`).join("");
-  if (cur) sel.value = cur;
+  if (cur && pool.some((k) => String(k.id) === String(cur))) sel.value = cur;
 }
 
 // ── §8 付款排程面板：預計付款排程 vs 實際核銷，一頁看「還欠多少」 ──
@@ -3086,6 +3100,7 @@ const ICON_TRACE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" 
 
 // 編輯／停用／刪除＝一排圖示鈕（一鍵，不用點兩次）；hover 顯示文字
 function renderRowMenu(config, item) {
+  if (config.readOnly) return `<span class="muted">唯讀</span>`;
   const disableButton = config.canDisable
     ? `<button type="button" class="icon-btn" data-action="disable" data-resource-id="${item.id}" title="停用" aria-label="停用">${ICON_DISABLE}</button>`
     : "";

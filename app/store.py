@@ -796,6 +796,9 @@ def initialize_database() -> None:
         # 備註是助理 0803 附件一就列的欄位（合約主檔最後一項），先前漏加；
         # source_file/source_row 讓匯入進來的合約指得回盤點表的哪一列（比照案件匯入）
         ensure_column(conn, "contracts", "note", "TEXT NOT NULL DEFAULT ''")
+        # AC-05：核准簽／核銷簽兩個簽呈編號，跟系統自己配發的 Contract ID（system_code）是兩回事，非必填
+        ensure_column(conn, "contracts", "signoff_ref", "TEXT NOT NULL DEFAULT ''")       # 核准簽呈編號
+        ensure_column(conn, "contracts", "signoff_no", "TEXT NOT NULL DEFAULT ''")        # 核銷簽呈編號
         ensure_column(conn, "contracts", "source_file", "TEXT NOT NULL DEFAULT ''")
         ensure_column(conn, "contracts", "source_row", "INTEGER NOT NULL DEFAULT 0")
         _fill_missing_contract_system_codes(conn)
@@ -1561,6 +1564,7 @@ def allowed_fields() -> dict[str, set[str]]:
                       "warranty_end_date", "maintenance_end_date",
                       "vendor_tax_id", "owner", "group_name", "locations", "external_code",
                       "progress_note", "end_reason", "project_id",
+                      "signoff_ref", "signoff_no",
                       "note", "source_file", "source_row"},
         "payments": {"contract_id", "payment_month", "payment_amount", "invoice_status", "status",
                      "item", "settle_no", "ref_no", "period", "billing_period", "settled_by",

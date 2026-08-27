@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-73-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-79-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -386,7 +386,7 @@
                   <legend>① 案件（必填）</legend>
                   <div class="wizard-subgroup">
                     <p class="wizard-subhead">案件基本資料</p>
-                    <input name="title" placeholder="案件名稱 *" required />
+                    <label class="field-label">案件名稱<span class="req">*</span><input name="title" placeholder="案件名稱" required /></label>
                     <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">組別 *</option></select>
                     <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）負責人 *</option></select>
                     <select name="source" required title="案件來源">
@@ -410,19 +410,19 @@
                       <option value="expense">費用</option>
                       <option value="capex">資本支出</option>
                     </select>
-                    <input name="budget_item" placeholder="預算名目 *" list="opt-budget-items" required />
+                    <label class="field-label">預算名目<span class="req">*</span><input name="budget_item" placeholder="預算名目" list="opt-budget-items" required /></label>
                     <datalist id="opt-budget-items"></datalist>
                   </div>
                   <div class="wizard-subgroup wizard-subgroup-full">
                     <p class="wizard-subhead">案件說明</p>
-                    <textarea name="description" placeholder="案件說明 *" rows="2" required></textarea>
+                    <label class="field-label full">案件說明<span class="req">*</span><textarea name="description" placeholder="案件說明" rows="2" required></textarea></label>
                   </div>
                 </fieldset>
 
                 <fieldset class="wizard-step" data-wizard-step="project">
                   <legend><label><input type="checkbox" data-wizard-toggle="project" /> ② 是否涉及專案？若是，請勾選並填寫專案及 WBS 資料</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <input name="project_name" placeholder="中文專案名稱 *" />
+                    <label class="field-label">中文專案名稱<span class="req">*</span><input name="project_name" placeholder="中文專案名稱" /></label>
                     <select name="level" title="專案等級">
                       <option value="">專案等級</option>
                       <option value="公司級">公司級</option>
@@ -447,8 +447,8 @@
                 <fieldset class="wizard-step" data-wizard-step="contract">
                   <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ③ 是否涉及合約？若是，請勾選並填寫合約資料</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <input name="contract_code" placeholder="合約編號 *" />
-                    <input name="contract_name" placeholder="合約名稱 *" />
+                    <label class="field-label">合約編號<span class="req">*</span><input name="contract_code" placeholder="合約編號" /></label>
+                    <label class="field-label">合約名稱<span class="req">*</span><input name="contract_name" placeholder="合約名稱" /></label>
                     <input name="vendor_name" placeholder="廠商" />
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
                     <input name="start_date" placeholder="合約起日" type="date" />
@@ -459,8 +459,8 @@
                 <fieldset class="wizard-step" data-wizard-step="purchase">
                   <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ④ 是否涉及費用（例行性費用／無合約費用）？若是，請勾選並填寫</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <input name="purchase_code" placeholder="費用編號 *" />
-                    <input name="item_name" placeholder="費用項目 *" />
+                    <label class="field-label">費用編號<span class="req">*</span><input name="purchase_code" placeholder="費用編號" /></label>
+                    <label class="field-label">費用項目<span class="req">*</span><input name="item_name" placeholder="費用項目" /></label>
                     <input name="vendor_name" placeholder="廠商" />
                     <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
@@ -586,8 +586,8 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">預算</p>
+                <p class="muted">預算資料僅供查詢，不開放在此新增／修改／刪除。如需新增請走「案件申請」自動配案，需要調整既有資料請走「資料管理 → 匯入／匯出」重新匯入。</p>
               </div>
-              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="budget-form">＋ 新增</button>
             </div>
           </section>
 
@@ -752,7 +752,7 @@
               </div>
               <form id="unit-create-form" class="resource-form">
                 <input name="canonical_code" placeholder="單位代號（選填）" />
-                <input name="canonical_name" placeholder="單位名稱 *" required />
+                <label class="field-label">單位名稱<span class="req">*</span><input name="canonical_name" placeholder="單位名稱" required /></label>
                 <input name="note" placeholder="備註" />
                 <button type="submit">＋ 新增單位</button>
                 <span class="muted" id="unit-create-status" role="status" aria-live="polite"></span>
@@ -781,7 +781,7 @@
                 <h3>人員名單</h3>
               </div>
               <form id="personnel-create-form" class="resource-form">
-                <input name="name" placeholder="人員姓名 *" required />
+                <label class="field-label">人員姓名<span class="req">*</span><input name="name" placeholder="人員姓名" required /></label>
                 <select name="group_name" class="person-group-select" title="歸屬組別"><option value="">（未分組）</option></select>
                 <input name="note" placeholder="備註" />
                 <button type="submit">＋ 新增人員</button>
@@ -931,7 +931,7 @@
           <form id="case-form" hidden>
             <input name="id" type="hidden" />
             <input name="case_code" placeholder="案件編號（系統產生，可不填）" />
-            <input name="title" placeholder="案件名稱 *" required />
+            <label class="field-label">案件名稱<span class="req">*</span><input name="title" placeholder="案件名稱" required /></label>
             <select name="group_name" class="person-group-select" title="組別"><option value="">組別</option></select>
             <select name="owner" class="personnel-select" data-placeholder="負責人"><option value="">（未選擇）負責人</option></select>
             <select name="budget_type" title="預算內／預算外">
@@ -1004,6 +1004,8 @@
               <option value="not_renew">不續約</option>
             </select>
             <input name="progress_note" placeholder="合約進度說明（黃燈／紅燈必填）" title="距到期 3 個月內或已到期時必填：續約、整併、不續約或目前處理到哪" />
+            <input name="signoff_ref" placeholder="核准簽呈編號（iFlow，選填）" title="跟合約編號是兩回事，這是走簽核系統時的簽呈編號" />
+            <input name="signoff_no" placeholder="核銷簽呈編號（iFlow，選填）" title="核銷／請款時的簽呈編號，跟核准簽呈編號可能不同" />
             <p class="form-hint muted" data-addon-hint role="status" aria-live="polite"></p>
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
@@ -1179,7 +1181,7 @@
             <select name="contract_id" class="expense-contract-picker" title="關聯合約；選「無合約」就是例行性費用">
               <option value="">（無合約費用）</option>
             </select>
-            <input name="expense_name" placeholder="費用／合約名稱 *" required />
+            <label class="field-label">費用／合約名稱<span class="req">*</span><input name="expense_name" placeholder="費用／合約名稱" required /></label>
             <input name="vendor_name" placeholder="廠商名稱" list="case-vendor-options" />
             <input name="vendor_tax_id" placeholder="廠商統一編號（8 碼）" inputmode="numeric" pattern="\d{8}" />
             <input name="start_date" placeholder="合約起日" type="date" title="無合約時停用，不得輸入" />
@@ -1229,6 +1231,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-78-1"></script>
+    <script src="/static/app.js?v=v0-79-0"></script>
   </body>
 </html>
