@@ -1580,7 +1580,7 @@ def allowed_fields() -> dict[str, set[str]]:
         "cases": {"case_code", "title", "owner", "status", "amount", "risk_level", "note", "next_step", "due_date", "created_by", "fiscal_year", "seq", "source_file", "source_row",
                   "temp_seq", "review_note", "merged_into_case_id",
                   "group_name", "budget_type", "expense_kind", "budget_item", "source", "description",
-                  "reopened_by", "reopened_at", "reopen_reason", "status_note"},
+                  "reopened_by", "reopened_at", "reopen_reason", "status_note", "migration_key"},
         "contracts": {"contract_code", "contract_name", "vendor_name", "amount", "status", "case_id", "purchase_id", "end_date",
                       "payment_method", "installments",
                       "start_date", "contract_type", "parent_contract_id", "relation_type",

@@ -1009,7 +1009,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.80.0 · 2026-08-27 · 第四輪回饋收尾：Case詳細頁卡片化/系統ID弱化/Migration Case Key（AC-09、AC-11、AC-07）"
+BACKEND_BUILD = "v0.80.1 · 2026-08-27 · 示範資料新增 Migration Case Key 演練（不同名的預算/專案/合約靠Key接同一案件）"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。

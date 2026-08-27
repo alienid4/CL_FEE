@@ -70,6 +70,60 @@ _DOCUMENTS = [
       "source_note": "［測試資料］", "status": "active"}, 0, 0),  # case_idx, contract_idx
 ]
 
+# AC-07 示範：Migration Case Key。案件先建好、帶上這把 Key；預算/專案/合約
+# 三筆分別用「匯入」路徑進去（不直接指定 case_id），名稱刻意跟案名/彼此都不同，
+# 全靠同一把 Key 自動接回這個案件，讓使用者在案件詳細頁看得到三個模組同框。
+_MIGRATION_DEMO_KEY = DEMO_PREFIX + "MIG-01"
+_MIGRATION_CASE_TITLE = "［測試］機房搬遷案（Migration Case Key 示範）"
+
+_MIGRATION_BUDGET = {
+    "budget_code": DEMO_PREFIX + "BUD-MIG",
+    "category": "［測試］機房搬遷相關費用",
+    "unit_name": "資訊管理處",
+    "expense_detail": "機房搬遷雜項支出",
+    "estimator": "林○○",
+    "fiscal_year": "115",
+    "amount": 300000,
+    "periods": [],
+    "allocations": [],
+    "migration_case_key": _MIGRATION_DEMO_KEY,
+}
+
+_MIGRATION_PROJECT = {
+    "project_code": DEMO_PREFIX + "PRJ-MIG",
+    "project_name": _MIGRATION_CASE_TITLE + "工程專案",
+    "source": "DEMO",
+    "necessity": "必要",
+    "progress_planned": 20.0,
+    "progress": 10.0,
+    "rag_status": "",
+    "level": "處級",
+    "owner": "ap03",
+    "start_date": _offset_date(-30),
+    "end_date": _offset_date(60),
+    "migration_case_key": _MIGRATION_DEMO_KEY,
+    "items": [],
+}
+
+_MIGRATION_CONTRACT = {
+    "source_sheet": "DEMO", "source_row": 1,
+    "external_code": DEMO_PREFIX + "K-MIG",
+    "contract_name": _MIGRATION_CASE_TITLE + "工程合約",
+    "vendor_name": "示範廠商丙",
+    "vendor_tax_id": "",
+    "owner": "ap03",
+    "group_name": "主機組",
+    "start_date": _offset_date(-30),
+    "end_date": _offset_date(300),
+    "progress_note": "",
+    "inventory_status": "", "inventory_note": "", "content_note": "",
+    "confirmed": True,
+    "previous_owner": "",
+    "related_codes": [],
+    "relation_hint": "",
+    "migration_case_key": _MIGRATION_DEMO_KEY,
+}
+
 
 def clear_demo_data() -> dict[str, int]:
     """只刪帶 DEMO- 標記的列，依外鍵順序，回傳各表刪除筆數。"""
@@ -95,6 +149,12 @@ def clear_demo_data() -> dict[str, int]:
         removed["budget_allocations"] = cur.rowcount
         cur = conn.execute("DELETE FROM budgets WHERE budget_code LIKE ?", (DEMO_PREFIX + "%",))
         removed["budgets"] = cur.rowcount
+        cur = conn.execute(
+            "DELETE FROM project_items WHERE project_id IN "
+            "(SELECT id FROM projects WHERE project_code LIKE ?)", (DEMO_PREFIX + "%",))
+        removed["project_items"] = cur.rowcount
+        cur = conn.execute("DELETE FROM projects WHERE project_code LIKE ?", (DEMO_PREFIX + "%",))
+        removed["projects"] = cur.rowcount
         cur = conn.execute("DELETE FROM cases WHERE case_code LIKE ?", (DEMO_PREFIX + "%",))
         removed["cases"] = cur.rowcount
     return removed
@@ -135,6 +195,22 @@ def load_demo_data() -> dict[str, int]:
             "contract_id": contract_ids[contract_idx],
         })
 
+    # AC-07 示範：Migration Case Key。案件先建好、帶上這把 Key；底下預算/專案/合約
+    # 各自走「匯入」路徑進去（不直接指定 case_id、名稱也刻意取得完全不一樣），
+    # 全靠同一把 Key 自動接回這個案件——載入後點進案件詳細頁就看得到三個模組同框。
+    store.insert_row("cases", {
+        "case_code": DEMO_PREFIX + "C-MIG",
+        "title": _MIGRATION_CASE_TITLE,
+        "status": "approved",
+        "owner": "ap03",
+        "note": "示範資料，可一鍵清除；示範 Migration Case Key（AC-07）——" +
+                "底下預算/專案/合約名稱刻意跟案名不同，全靠 Key 接起來，不是靠同名。",
+        "migration_key": _MIGRATION_DEMO_KEY,
+    })
+    store.commit_budgets_import([_MIGRATION_BUDGET])
+    store.commit_projects_import([_MIGRATION_PROJECT])
+    store.commit_contract_inventory([_MIGRATION_CONTRACT])
+
     # L3 年度費用比較示範（比照真實 Excel：114 空、115 有值、116 續增）
     bud_id = store.insert_row("budgets", {
         "budget_code": DEMO_PREFIX + "BUD-ANNUAL",
@@ -165,12 +241,13 @@ def load_demo_data() -> dict[str, int]:
                 (bud_id, uc, un, amt, round(amt / 878616 * 100, 2)))
 
     return {
-        "cases": len(_CASES),
-        "contracts": len(_CONTRACTS),
-        "payments": len(_PAYMENTS) + 1,  # 含動態的下月付款
+        "cases": len(_CASES) + 1,          # 含 Migration Case Key 示範案件
+        "contracts": len(_CONTRACTS) + 1,  # 含示範合約
+        "payments": len(_PAYMENTS) + 1,    # 含動態的下月付款
         "documents": len(_DOCUMENTS),
-        "budgets": 1,
+        "budgets": 2,                      # 年度費用示範 + Migration 示範
         "budget_periods": len(_periods),
+        "projects": 1,                     # Migration Case Key 示範專案
     }
 
 

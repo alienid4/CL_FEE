@@ -18,7 +18,7 @@ def test_load_then_clear(tmp_path):
     with _client(tmp_path) as client:
         r = client.post("/api/dev-console/demo-data/load")
         assert r.status_code == 200, r.text
-        assert r.json()["data"]["cases"] == 3
+        assert r.json()["data"]["cases"] == 4  # 含 Migration Case Key 示範案件（AC-07）
 
         cases = client.get("/api/cases").json()["data"]
         assert any(c["case_code"] == "DEMO-C01" for c in cases)
@@ -43,7 +43,7 @@ def test_load_is_idempotent(tmp_path):
         client.post("/api/dev-console/demo-data/load")
         client.post("/api/dev-console/demo-data/load")
         demo_cases = [c for c in client.get("/api/cases").json()["data"] if c["case_code"].startswith("DEMO-")]
-        assert len(demo_cases) == 3  # 重複載入不會變 6
+        assert len(demo_cases) == 4  # 重複載入不會翻倍變 8
 
 
 def test_clear_never_touches_real_data(tmp_path):
