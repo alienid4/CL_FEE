@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-80-0" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-82-1" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -387,29 +387,40 @@
                   <div class="wizard-subgroup">
                     <p class="wizard-subhead">案件基本資料</p>
                     <label class="field-label">案件名稱<span class="req">*</span><input name="title" placeholder="案件名稱" required /></label>
-                    <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">組別 *</option></select>
-                    <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）負責人 *</option></select>
-                    <select name="source" required title="案件來源">
-                      <option value="">案件來源 *</option>
-                      <option value="主管關注">主管關注</option>
-                      <option value="董總關注">董總關注</option>
-                      <option value="資安或稽核追蹤">資安或稽核追蹤</option>
-                      <option value="精進會議">精進會議</option>
-                      <option value="其他">其他</option>
-                    </select>
+                    <label class="field-label">組別<span class="req">*</span>
+                      <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">（未選擇）</option></select>
+                    </label>
+                    <label class="field-label">負責人<span class="req">*</span>
+                      <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）</option></select>
+                    </label>
+                    <label class="field-label">案件來源<span class="req">*</span>
+                      <select name="source" required title="案件來源">
+                        <option value="">（未選擇）</option>
+                        <option value="主管關注">主管關注</option>
+                        <option value="董總關注">董總關注</option>
+                        <option value="資安或稽核追蹤">資安或稽核追蹤</option>
+                        <option value="精進會議">精進會議</option>
+                        <option value="其他">其他</option>
+                      </select>
+                    </label>
                   </div>
                   <div class="wizard-subgroup">
                     <p class="wizard-subhead">預算資訊</p>
-                    <div class="wizard-radio" role="radiogroup" aria-label="預算內或預算外（必填）">
-                      <span class="wizard-radio-label">預算內／預算外 *</span>
-                      <label><input type="radio" name="budget_type" value="in_budget" required /> 預算內</label>
-                      <label><input type="radio" name="budget_type" value="out_budget" /> 預算外</label>
+                    <!-- 標籤在上、選項在下，跟旁邊的 .field-label 欄位對齊；
+                         原本標籤跟兩個圓鈕擠在同一列，跟其他欄位的排法不一樣 -->
+                    <div class="field-label">預算內／預算外<span class="req">*</span>
+                      <div class="wizard-radio" role="radiogroup" aria-label="預算內或預算外（必填）">
+                        <label><input type="radio" name="budget_type" value="in_budget" required /> 預算內</label>
+                        <label><input type="radio" name="budget_type" value="out_budget" /> 預算外</label>
+                      </div>
                     </div>
-                    <select name="expense_kind" required title="預算類別">
-                      <option value="">預算類別 *</option>
-                      <option value="expense">費用</option>
-                      <option value="capex">資本支出</option>
-                    </select>
+                    <label class="field-label">預算類別<span class="req">*</span>
+                      <select name="expense_kind" required title="預算類別">
+                        <option value="">（未選擇）</option>
+                        <option value="expense">費用</option>
+                        <option value="capex">資本支出</option>
+                      </select>
+                    </label>
                     <label class="field-label">預算名目<span class="req">*</span><input name="budget_item" placeholder="預算名目" list="opt-budget-items" required /></label>
                     <datalist id="opt-budget-items"></datalist>
                   </div>
@@ -586,8 +597,13 @@
             <div class="dashboard-head">
               <div>
                 <p class="breadcrumb">預算</p>
-                <p class="muted">預算資料僅供查詢，不開放在此新增／修改／刪除。如需新增請走「案件申請」自動配案，需要調整既有資料請走「資料管理 → 匯入／匯出」重新匯入。</p>
               </div>
+              <!-- v0.79.0 依第四輪回饋 AC-02/AC-12 把這裡改成唯讀，v0.81.0 回退。
+                   原因：文件說「預算改查詢導向」的前提是「預算一律從既有系統匯入、不在這裡維護」，
+                   但助理 2026-08-28 明講要先人工一筆一筆建、匯入先停。前提不成立，
+                   而且當時留的兩條替代路徑其實都不通（精靈沒有預算步驟、匯入正是要停的），
+                   等於預算完全無法建立。 -->
+              <button type="button" class="secondary btn-sm form-toggle" data-form-toggle="budget-form">＋ 新增</button>
             </div>
           </section>
 
@@ -967,45 +983,69 @@
         </section>
 
         <section class="panel crud-zone module-extra" data-module-parent="contracts-module" hidden>
+          <!-- 24 個欄位全部平鋪時，使用者找不到相關欄位在哪（助理反映「欄位排列分散」）。
+               依填寫時的思考順序分五組：這是什麼約 → 跟誰簽誰負責 → 什麼時候 →
+               掛在哪個案件 → 外部編號與目前進度。比照案件精靈①已經在用的分區塊做法。 -->
           <form id="contract-form" class="resource-form" hidden>
             <input name="id" type="hidden" />
-            <input name="contract_code" placeholder="合約編號" required />
-            <input name="contract_name" placeholder="合約名稱" required />
-            <input name="vendor_name" placeholder="廠商" list="case-vendor-options" />
-            <input name="amount" placeholder="金額" type="number" min="0" step="1" />
-            <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
-            <select name="purchase_id" class="purchase-picker" title="關聯費用（此合約源自哪筆費用申請）"><option value="">（不關聯費用）</option></select>
-            <select name="status">
-              <option value="active">有效</option>
-              <option value="reviewing">審核中</option>
-              <option value="closed">已結案</option>
-              <option value="disabled">已停用</option>
-            </select>
-            <select name="contract_type" class="contract-type-picker" title="合約類型"><option value="">（未分類）合約類型</option></select>
-            <input name="start_date" placeholder="起始日" type="date" title="合約起始日（付款排程的起始月會自動帶它）" />
-            <input name="end_date" placeholder="到期日" type="date" />
-            <input name="warranty_end_date" placeholder="保固到期" type="date" title="保固到期日（常晚於合約到期日）" />
-            <input name="maintenance_end_date" placeholder="維護到期" type="date" title="維護服務到期日" />
-            <select name="relation_type" class="contract-nature-picker" title="合約性質：跟舊約的關係（跟上面的「合約類型」不同，那是買什麼）">
-              <option value="">新購（全新合約）</option>
-              <option value="renew">續約自…</option>
-              <option value="addon">增購／附屬自…</option>
-              <option value="merge">整併自…</option>
-            </select>
-            <select name="parent_contract_id" class="parent-contract-picker" title="原合約（續約/增購/整併的那份舊約），限同一案件底下"><option value="">（無來源合約）</option></select>
-            <input name="vendor_tax_id" placeholder="廠商統一編號（8 碼數字）" inputmode="numeric" pattern="\d{8}" title="8 碼數字" />
-            <select name="owner" class="personnel-select" data-placeholder="合約負責人" title="合約負責人（人員主檔的名單）"></select>
-            <select name="group_name" class="person-group-select" title="組別"><option value="">（未分組）</option></select>
-            <select name="locations" class="contract-location-picker" multiple size="3" title="地點／機房，可複選（按住 Ctrl 多選）"></select>
-            <input name="external_code" placeholder="公司內部合約系統編號" title="公司既有合約系統裡的編號，跟本系統的識別碼不同；填了清單才會出現「🔗 合約系統」連結" />
-            <select name="end_reason" title="提前結束的原因，選了到期警示轉灰燈（不再催到期）">
-              <option value="">（仍在存續）</option>
-              <option value="merged">已整併</option>
-              <option value="not_renew">不續約</option>
-            </select>
-            <input name="progress_note" placeholder="合約進度說明（黃燈／紅燈必填）" title="距到期 3 個月內或已到期時必填：續約、整併、不續約或目前處理到哪" />
-            <input name="signoff_ref" placeholder="核准簽呈編號（iFlow，選填）" title="跟合約編號是兩回事，這是走簽核系統時的簽呈編號" />
-            <input name="signoff_no" placeholder="核銷簽呈編號（iFlow，選填）" title="核銷／請款時的簽呈編號，跟核准簽呈編號可能不同" />
+
+            <div class="form-group">
+              <p class="form-group-head">合約基本資料</p>
+              <label class="field-label">合約編號<span class="req">*</span><input name="contract_code" placeholder="合約編號" required /></label>
+              <label class="field-label">合約名稱<span class="req">*</span><input name="contract_name" placeholder="合約名稱" required /></label>
+              <select name="contract_type" class="contract-type-picker" title="合約類型"><option value="">（未分類）合約類型</option></select>
+              <input name="amount" placeholder="金額" type="number" min="0" step="1" />
+              <select name="status">
+                <option value="active">有效</option>
+                <option value="reviewing">審核中</option>
+                <option value="closed">已結案</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <p class="form-group-head">廠商與負責人</p>
+              <input name="vendor_name" placeholder="廠商" list="case-vendor-options" />
+              <input name="vendor_tax_id" placeholder="廠商統一編號（8 碼數字）" inputmode="numeric" pattern="\d{8}" title="8 碼數字" />
+              <select name="owner" class="personnel-select" data-placeholder="合約負責人" title="合約負責人（人員主檔的名單）"></select>
+              <select name="group_name" class="person-group-select" title="組別"><option value="">（未分組）</option></select>
+              <select name="locations" class="contract-location-picker" multiple size="3" title="地點／機房，可複選（按住 Ctrl 多選）"></select>
+            </div>
+
+            <div class="form-group">
+              <p class="form-group-head">合約期間</p>
+              <input name="start_date" placeholder="起始日" type="date" title="合約起始日（付款排程的起始月會自動帶它）" />
+              <input name="end_date" placeholder="到期日" type="date" />
+              <input name="warranty_end_date" placeholder="保固到期" type="date" title="保固到期日（常晚於合約到期日）" />
+              <input name="maintenance_end_date" placeholder="維護到期" type="date" title="維護服務到期日" />
+            </div>
+
+            <div class="form-group">
+              <p class="form-group-head">案件與合約關聯</p>
+              <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
+              <select name="purchase_id" class="purchase-picker" title="關聯費用（此合約源自哪筆費用申請）"><option value="">（不關聯費用）</option></select>
+              <select name="relation_type" class="contract-nature-picker" title="合約性質：跟舊約的關係（跟上面的「合約類型」不同，那是買什麼）">
+                <option value="">新購（全新合約）</option>
+                <option value="renew">續約自…</option>
+                <option value="addon">增購／附屬自…</option>
+                <option value="merge">整併自…</option>
+              </select>
+              <select name="parent_contract_id" class="parent-contract-picker" title="原合約（續約/增購/整併的那份舊約），限同一案件底下"><option value="">（無來源合約）</option></select>
+            </div>
+
+            <div class="form-group">
+              <p class="form-group-head">外部編號與目前進度</p>
+              <input name="external_code" placeholder="公司內部合約系統編號" title="公司既有合約系統裡的編號，跟本系統的識別碼不同；填了清單才會出現「🔗 合約系統」連結" />
+              <input name="signoff_ref" placeholder="核准簽呈編號（iFlow，選填）" title="跟合約編號是兩回事，這是走簽核系統時的簽呈編號" />
+              <input name="signoff_no" placeholder="核銷簽呈編號（iFlow，選填）" title="核銷／請款時的簽呈編號，跟核准簽呈編號可能不同" />
+              <select name="end_reason" title="提前結束的原因，選了到期警示轉灰燈（不再催到期）">
+                <option value="">（仍在存續）</option>
+                <option value="merged">已整併</option>
+                <option value="not_renew">不續約</option>
+              </select>
+              <input name="progress_note" placeholder="合約進度說明（黃燈／紅燈必填）" title="距到期 3 個月內或已到期時必填：續約、整併、不續約或目前處理到哪" />
+            </div>
+
             <p class="form-hint muted" data-addon-hint role="status" aria-live="polite"></p>
             <button type="submit">儲存</button>
             <button type="button" class="secondary" data-cancel hidden>取消</button>
@@ -1231,6 +1271,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-80-1"></script>
+    <script src="/static/app.js?v=v0-82-1"></script>
   </body>
 </html>

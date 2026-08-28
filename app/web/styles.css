@@ -1215,14 +1215,44 @@ input:focus, select:focus, textarea:focus {
 .resource-form, #case-form, .import-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .resource-form input, .resource-form select, #case-form input, #case-form select { flex: 1 1 160px; min-width: 140px; }
 
-/* AC-04：固定 label 取代純 placeholder（字打進去提示就消失，看不出這欄是什麼、是否必填） */
+/* 長表單分組：合約有 24 個欄位，全部平鋪時找不到相關欄位在哪。
+   比照 .wizard-subgroup（案件精靈①已在用），但適用於一般 .resource-form。 */
+.form-group {
+  flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line);
+}
+.form-group:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+.form-group > input, .form-group > select, .form-group > textarea { flex: 1 1 160px; min-width: 140px; }
+.form-group-head {
+  flex: 1 1 100%; margin: 0; font-size: .78rem; font-weight: 700;
+  color: var(--ink-2); letter-spacing: .02em;
+}
+
+/* AC-04：固定 label 取代純 placeholder（字打進去提示就消失，看不出這欄是什麼、是否必填）
+   ⚠ 這裡刻意用 display:block 而不是 flex-direction:column。用直向 flex 會踩到兩個雷
+   （v0.79.0 實際發生過，欄位高度爆成 160px 才發現）：
+   1. 外層 .wizard-subgroup / .resource-form 有 `input { flex: 1 1 160px }`，那條會選到這裡面的
+      input；在直向 flex 容器裡 flex-basis 是套在「高度」上，欄位就變成 160px 高。
+   2. 直向排列會讓「標籤文字」跟「*」各佔一行，星號自己掉下去。
+   block 排版下標籤文字與星號自然同一行，輸入框自己一行，兩個雷都不存在。 */
 .field-label {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  display: block;
   flex: 1 1 160px; min-width: 140px; font-size: .74rem; color: var(--ink-2); font-weight: 600;
 }
 .field-label.full { flex: 1 1 100%; }
 .field-label .req { color: var(--danger); margin-left: 2px; }
-.field-label input, .field-label select, .field-label textarea { width: 100%; font-size: .92rem; color: var(--ink); font-weight: 400; }
+.field-label > input, .field-label > select, .field-label > textarea {
+  display: block; width: 100%; margin-top: 3px;
+  flex: none; min-width: 0;          /* 擋掉外層那條 flex:1 1 160px，見上面說明 */
+  font-size: .92rem; color: var(--ink); font-weight: 400;
+}
+
+/* 勾選框／單選鈕不該吃「欄位寬 160px」那條規則——它們只需要自己那一顆的寬度。
+   吃到的話整組會被撐開，圓圈跟文字之間拉出一大段空白（v0.79.0 實際發生過）。 */
+.wizard-radio input, .check-inline input, .mode-picker input,
+.wizard-subgroup label input[type="radio"], .wizard-subgroup label input[type="checkbox"] {
+  flex: none; min-width: 0; width: auto;
+}
 
 /* 一條龍新案精靈：每步一個 fieldset，legend 上放checkbox當「跳過此步」開關 */
 .wizard-form { display: flex; flex-direction: column; gap: 12px; }
@@ -1240,7 +1270,8 @@ input:focus, select:focus, textarea:focus {
 .wizard-subgroup input, .wizard-subgroup select { flex: 1 1 160px; min-width: 140px; }
 .wizard-subgroup-full textarea { flex: 1 1 100%; width: 100%; }
 .wizard-subhead { flex: 1 1 100%; margin: 0; font-size: .78rem; font-weight: 700; color: var(--ink-2); letter-spacing: .02em; }
-.wizard-radio { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.wizard-radio { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 3px; }
+.wizard-radio label { display: inline-flex; align-items: center; gap: 5px; font-size: .92rem; color: var(--ink); font-weight: 400; }
 .wizard-radio-label { font-size: .88rem; color: var(--ink-2); }
 
 /* 表格 */
@@ -1652,6 +1683,12 @@ details.row-menu[open] > summary { border-color: var(--accent); color: var(--acc
 .trace-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
 .trace-card h4 { display: flex; align-items: center; gap: 6px; }
 .trace-card-count { font-size: .74rem; font-weight: 700; color: var(--accent-2); background: var(--accent-weak); border-radius: 999px; padding: 1px 8px; }
+/* 從進度列點某一站進來時，把那張卡片標出來，不然使用者要自己在六張卡裡找 */
+.trace-card-focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+/* 進度列的階段點可以點：給游標與 hover 提示，不然看不出來能按 */
+.case-step { cursor: pointer; border-radius: 6px; padding: 2px 4px; }
+.case-step:hover { background: var(--surface-2); }
+.case-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* 手動新增 toggle：小按鈕、不撐滿（crud-zone 是 grid，預設會被拉寬） */
 .form-toggle { justify-self: start; width: auto; }

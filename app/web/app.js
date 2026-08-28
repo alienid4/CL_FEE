@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.80.1 · 2026-08-27 · 示範資料新增 Migration Case Key 演練";
+const BUILD_TAG = "v0.82.1 · 2026-08-28 · 修好固定Label造成的版面破圖、精靈①欄位全數補標籤";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -258,9 +258,6 @@ const resourceConfig = {
   budget: {
     plural: "budgets", idAttr: "budget-id", idField: "budgetId", api: "/api/budgets",
     navCount: "nav-count-budgets", navLabel: "預算",
-    // AC-02/AC-12：獨立的預算模組頁面改成查詢導向，清單不給編輯/停用/刪除；
-    // 案件詳細頁「＋新增（帶入本案）」走的是另一條路徑（trace 面板直接開表單），不受此限制。
-    readOnly: true,
     fields: ["budget_code", "category", "unit_name", "expense_detail", "fill_dept", "estimator",
              "fiscal_year", "amount", "status", "case_id", "note",
              "alloc_method", "alloc_category_kind", "alloc_category"],
@@ -391,6 +388,24 @@ function caseNumber(c) {
 // 主管 2026-08-03 交代：系統配的號一律純英數，不用連字號／底線／中文，所以是 TMP20260001。
 function caseTempNumber(c) {
   return (c && c.fiscal_year && c.temp_seq) ? `TMP${c.fiscal_year}${String(c.temp_seq).padStart(4, "0")}` : "";
+}
+// 使用者 2026-08-28 拍板：核准前不顯示任何編號，只顯示狀態，核准後才浮現正式案號。
+// 原因是 TMP20260037 這種號碼卡在案名前面，對業務端是看不懂的亂碼，還壓過真正要看的案名。
+// 暫時號沒有廢除（後端照配、稽核查得到、審核佇列那欄仍刻意顯示），只是不在一般清單搶版面。
+// 用格式判斷而不是查案件狀態：進度列表這類 API 回的欄位不一定帶得到 status。
+const TEMP_CODE_RE = /^TMP\d+$/;
+function isTempCaseCode(code) {
+  return TEMP_CODE_RE.test(String(code || ""));
+}
+// 各種「案號」欄共用：核准後給正式案號；核准前若只有暫時號就留白，
+// 但匯入帶進來的真實舊編號要照顯示（那不是系統配的暫時號）。
+function caseNumberCell(item) {
+  const n = caseNumber(item);
+  if (n) return `<strong>${escapeHtml(n)}</strong>`;
+  if (isTempCaseCode(item.case_code)) {
+    return `<span class="muted" title="尚未核准，核准後才配正式案號">—</span>`;
+  }
+  return `<strong>${escapeHtml(item.case_code || "—")}</strong>`;
 }
 // AC-11：系統自動配發的編號是給勾稽用的，不是業務人員要看的重點，版面上不該比業務名稱／狀態搶眼
 function systemCodeCell(prefix, caseId) {
@@ -629,12 +644,16 @@ function urgencyText(days) {
 function renderProgressRow(it) {
   const dots = (it.stages || []).map((s) => {
     const rag = STAGE_TONE_TO_RAG[s.tone] || s.tone;   // 後端舊名 → 統一語意
-    return `<span class="case-step ${rag}" title="${escapeHtml(s.label)}：${RAG_LABEL[rag] || s.tone}${s.days != null ? "（" + urgencyText(s.days) + "）" : ""}">`
+    // data-stage：點這一站直接跳到追溯鏈裡對應的模組卡片（使用者 2026-08-28：
+    // 「對預算 1 有疑問，點預算就要看得到預算 1」），不用自己回清單再翻。
+    return `<span class="case-step ${rag}" data-stage="${escapeHtml(s.key || "")}" role="button" tabindex="0"`
+      + ` title="${escapeHtml(s.label)}：${RAG_LABEL[rag] || s.tone}${s.days != null ? "（" + urgencyText(s.days) + "）" : ""}｜點此查看本案的${escapeHtml(s.label)}">`
       + `<span class="case-dot ${rag}"></span><span>${escapeHtml(s.label)}</span></span>`;
   }).join("");
   const amt = it.amount ? `${money(it.amount)} 元` : "—";
+  const code = isTempCaseCode(it.case_code) ? "" : `${escapeHtml(it.case_code)}　`;
   return `<div class="case-progress-row" data-case-id="${it.case_id}">
-    <div class="case-progress-name"><b>${escapeHtml(it.case_code)}　${escapeHtml(it.title)}</b>
+    <div class="case-progress-name"><b>${code}${escapeHtml(it.title)}</b>
       <span>${amt}｜${escapeHtml(it.owner || "未指派")}</span></div>
     <div class="case-progress-track">${dots || '<span class="muted">尚未建立流程階段</span>'}</div>
     <div class="case-progress-status"><span class="status-pill ${it.block.tone}">${escapeHtml(it.block.text)}</span></div>
@@ -703,15 +722,31 @@ async function loadCaseProgress() {
 }
 // 進度圖／矩陣點擊直達細項：在總覽看到「這件要立即處理」之後，原本得自己回案件清單再翻一次；
 // 現在點那一列（或矩陣上那個點）就切回清單並展開它的追溯鏈，一頁看完花多少、欠多少。
-function openCaseFromOverview(caseId) {
+// 進度列的階段名稱 → 追溯鏈裡的卡片。發票沒有自己的卡片（發票狀態記在付款上），導到付款。
+const STAGE_TO_TRACE_CARD = {
+  budget: "budget", project: "project", signoff: "signoff",
+  contract: "contract", purchase: "purchase", payment: "payment", invoice: "payment",
+};
+function openCaseFromOverview(caseId, stage) {
   if (!caseId) return;
   activateCaseTab("list");
-  loadCaseTrace(caseId);
+  loadCaseTrace(caseId, STAGE_TO_TRACE_CARD[stage] || "");
 }
 for (const sel of ["#case-progress-list", "#case-matrix", "#case-matrix-body"]) {
   document.querySelector(sel)?.addEventListener("click", (event) => {
     const el = event.target.closest("[data-case-id]");
-    if (el) openCaseFromOverview(el.getAttribute("data-case-id"));
+    if (!el) return;
+    const step = event.target.closest("[data-stage]");
+    openCaseFromOverview(el.getAttribute("data-case-id"), step?.getAttribute("data-stage"));
+  });
+  // 階段點是 role="button"，鍵盤也要能用（不然只有滑鼠使用者享受得到）
+  document.querySelector(sel)?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const step = event.target.closest("[data-stage]");
+    const el = event.target.closest("[data-case-id]");
+    if (!step || !el) return;
+    event.preventDefault();
+    openCaseFromOverview(el.getAttribute("data-case-id"), step.getAttribute("data-stage"));
   });
 }
 
@@ -2537,10 +2572,22 @@ function renderCaseRow(item) {
     : item.status === "pending_review" || item.status === "returned" || item.status === "paused" ? "warn"
     : item.status === "rejected" || item.status === "cancelled" ? "danger"
     : ["disabled", "merged", "closed"].includes(item.status) ? "neutral" : "";
-  // 核准前顯示暫時號（灰底），核准後才是正式案號——一眼看得出這件還沒過
-  const num = caseNumber(item)
-    ? `<span class="badge" title="案號（年度＋流水號）＝這個案的身分證，各階段共用">${escapeHtml(caseNumber(item))}</span>`
-    : `<span class="badge temp-code" title="尚未核准，這是暫時號；核准後才配正式案號">${escapeHtml(caseTempNumber(item) || "—")}</span>`;
+  // 「案號」與「案件編號」原本是兩欄，但核准後兩者是同一個值（store 把 年+流水 同時寫進
+  // case_code），核准前又變成一欄「草稿」一欄「—」，兩欄都沒資訊。使用者 2026-08-28
+  // 拍板合併成一欄：核准後給案號、核准前給狀態；匯入帶進來的原始編號跟系統案號不同時
+  // 附在下面小字，才追溯得回原始 Excel。
+  const n = caseNumber(item);
+  const rawCode = String(item.case_code || "");
+  const keepsOwnCode = rawCode && rawCode !== n && !isTempCaseCode(rawCode);
+  const num = (n
+    ? `<span class="badge" title="案號（年度＋流水號）＝這個案的身分證，各階段共用">${escapeHtml(n)}</span>`
+    // 未核准時留「—」而不是寫狀態：合併後右邊本來就有獨立的「狀態」欄，
+    // 兩欄都寫「草稿」等於同一個字佔兩次版面（合併時實測才看出來）。
+    : `<span class="muted" title="尚未核准，核准後才配正式案號（目前狀態見右邊狀態欄）">—</span>`)
+    + (keepsOwnCode
+      ? `<div class="review-note" title="原始編號（匯入帶進來的，不是系統配的）">${escapeHtml(rawCode)}</div>`
+      : "")
+    + sourceTag(item);
   // 退件原因/駁回理由/併到哪一件：直接顯示在狀態底下，不用點進去才知道為什麼
   const mergedInto = item.merged_into_case_id
     ? (caseCache || []).find((c) => String(c.id) === String(item.merged_into_case_id))
@@ -2559,8 +2606,7 @@ function renderCaseRow(item) {
   return `<tr data-case-id="${item.id}"${caseSelection.has(String(item.id)) ? ' class="picked"' : ""}>
     <td class="col-pick"><input type="checkbox" data-case-pick="${item.id}"${caseSelection.has(String(item.id)) ? " checked" : ""} aria-label="選取 ${escapeHtml(item.case_code)}" /></td>
     <td class="col-narrow">${num}</td>
-    <td class="col-narrow"><strong>${escapeHtml(item.case_code)}</strong>${sourceTag(item)}</td>
-    <td>${escapeHtml(item.title)}</td>
+    <td><strong>${escapeHtml(item.title)}</strong></td>
     <td class="col-narrow muted">${escapeHtml(item.owner || "未指派")}</td>
     <td class="col-narrow"><span class="badge ${statusClass}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${note}</td>
     <td class="col-actions">
@@ -2585,7 +2631,7 @@ async function loadCases() {
     ? `${renderBatchBar()}<div class="grid-scroll"><table class="grid-table">
         <thead><tr>
           <th class="col-pick"><input type="checkbox" id="case-pick-all" title="全選／取消全選" aria-label="全選案件" /></th>
-          <th class="col-narrow">案號</th><th class="col-narrow">案件編號</th><th>案件名稱</th><th class="col-narrow">負責人</th><th class="col-narrow">狀態</th><th class="col-actions">操作</th></tr></thead>
+          <th class="col-narrow">案號</th><th>案件名稱</th><th class="col-narrow">負責人</th><th class="col-narrow">狀態</th><th class="col-actions">操作</th></tr></thead>
         <tbody>${caseCache.map(renderCaseRow).join("")}</tbody>
       </table></div>`
     : `<p class="muted">目前沒有案件資料。</p>`;
@@ -2893,7 +2939,9 @@ function renderTraceSchedule(res) {
     + `<div class="sched-summary">預計 <b>${money(sum.planned)}</b> 元　｜　已付 <b class="paid">${money(sum.paid)}</b> 元`
     + `　｜　還欠 <b class="owe">${money(sum.unpaid_planned)}</b> 元</div>`;
 }
-async function loadCaseTrace(caseId) {
+// focusCard：從進度列的某一站點進來時，把該模組的卡片捲到眼前並標記出來，
+// 不然使用者點了「預算」還要自己在六張卡片裡找預算在哪。
+async function loadCaseTrace(caseId, focusCard = "") {
   const box = document.querySelector("#case-trace");
   if (!box) return;
   box.innerHTML = `<p class="muted">載入追溯鏈…</p>`;
@@ -2942,16 +2990,22 @@ async function loadCaseTrace(caseId) {
           ${chip("付款", n(d.payments), t.payment_amount)}
         </div>
         <div class="trace-lists">
-          <div class="trace-card"><h4>預算 <span class="trace-card-count">${n(d.budgets)}</span></h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
-          <div class="trace-card"><h4>專案 <span class="trace-card-count">${n(d.projects)}</span></h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
-          <div class="trace-card"><h4>簽呈 <span class="trace-card-count">${n(d.signoffs)}</span></h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
-          <div class="trace-card"><h4>費用 <span class="trace-card-count">${n(d.purchases)}</span></h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯費用")}</ul></div>
-          <div class="trace-card"><h4>合約 <span class="trace-card-count">${n(d.contracts)}</span></h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)}${contractSystemLink(k.contract_code)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
+          <div class="trace-card" data-trace-card="budget"><h4>預算 <span class="trace-card-count">${n(d.budgets)}</span></h4><ul class="note-list">${listOf(d.budgets, "budget", (b) => `<strong>${escapeHtml(b.budget_code)}</strong> ${escapeHtml(valueOrDash(b.unit_name))}｜${money(b.amount)} 元`, "無關聯預算——在「預算」模組把它關聯到本案件")}</ul></div>
+          <div class="trace-card" data-trace-card="project"><h4>專案 <span class="trace-card-count">${n(d.projects)}</span></h4><ul class="note-list">${listOf(d.projects, "project", (p) => `<strong>${escapeHtml(p.project_code)}</strong> ${escapeHtml(p.project_name || "")}｜${escapeHtml(labelStatus(p.status))}`, "無關聯專案")}</ul></div>
+          <div class="trace-card" data-trace-card="signoff"><h4>簽呈 <span class="trace-card-count">${n(d.signoffs)}</span></h4><ul class="note-list">${listOf(d.signoffs, "signoff", (s) => `<strong>${escapeHtml(s.signoff_code)}</strong> ${escapeHtml(s.subject || "")}｜${money(s.amount)} 元｜${escapeHtml(labelStatus(s.status))}${s.attachment_ref ? "｜" + attachmentLink(s.attachment_ref) : ""}`, "無關聯簽呈——在「簽呈」模組把它關聯到本案件")}</ul></div>
+          <div class="trace-card" data-trace-card="purchase"><h4>費用 <span class="trace-card-count">${n(d.purchases)}</span></h4><ul class="note-list">${listOf(d.purchases, "purchase", (p) => `<strong>${escapeHtml(p.purchase_code)}</strong> ${escapeHtml(p.item_name || "")}｜廠商 ${escapeHtml(valueOrDash(p.vendor_name))}｜${money(p.amount)} 元${sourceTag("簽呈", p.signoff_id, d.signoffs, "signoff_code")}`, "無關聯費用")}</ul></div>
+          <div class="trace-card" data-trace-card="contract"><h4>合約 <span class="trace-card-count">${n(d.contracts)}</span></h4><ul class="note-list">${listOf(d.contracts, "contract", (k) => `<strong>${escapeHtml(k.contract_code)}</strong>${relationTag(k)}${contractSystemLink(k.contract_code)} ${escapeHtml(k.contract_name || "")}｜廠商 ${escapeHtml(valueOrDash(k.vendor_name))}｜${money(k.amount)} 元${sourceTag("費用", k.purchase_id, d.purchases, "purchase_code")}`
             + traceContractMoney(k), "無關聯合約")}</ul></div>
-          <div class="trace-card"><h4>付款 <span class="trace-card-count">${n(d.payments)}</span></h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
+          <div class="trace-card" data-trace-card="payment"><h4>付款 <span class="trace-card-count">${n(d.payments)}</span></h4><ul class="note-list">${listOf(d.payments, "payment", (p) => `${escapeHtml(p.payment_month)}｜${money(p.payment_amount)} 元｜${escapeHtml(labelStatus(p.status))}`, traceLatestContractId ? "無付款紀錄" : "無付款紀錄（需先建立合約才能新增付款）")}</ul></div>
         </div>
       </div>`;
-    box.scrollIntoView({ block: "nearest" });
+    const target = focusCard ? box.querySelector(`[data-trace-card="${focusCard}"]`) : null;
+    if (target) {
+      target.classList.add("trace-card-focus");
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+    } else {
+      box.scrollIntoView({ block: "nearest" });
+    }
   } catch (error) {
     box.innerHTML = `<p class="muted">追溯鏈載入失敗：${escapeHtml(error.message)}</p>`;
   }
@@ -3057,7 +3111,12 @@ function renderResourceTable(type, items) {
   const head = config.columns
     .map((c, i) => {
       const arrow = st && st.col === i ? (st.dir === "asc" ? " ▲" : " ▼") : "";
-      return `<th class="sortable${c.cls ? " " + c.cls : ""}" data-sort-type="${type}" data-col-index="${i}" title="點欄名可排序">${c.label}${arrow}</th>`;
+      // 系統編號是跟著案件走的（同一案各模組共用案件的年+流水），所以單看某個模組
+      // 一定會跳號。不講的話使用者會以為資料被刪了——這是設計，不是遺失。
+      const hint = c.label === "系統編號"
+        ? "系統編號跟著案件走：同一個案件的預算/專案/合約共用同一組年度＋流水號。單看這個模組會跳號，代表那些案件沒有這一段，不是資料遺失。｜點欄名可排序"
+        : "點欄名可排序";
+      return `<th class="sortable${c.cls ? " " + c.cls : ""}" data-sort-type="${type}" data-col-index="${i}" title="${escapeHtml(hint)}">${c.label}${arrow}</th>`;
     })
     .join("");
   const body = sortItems(type, items).map((item) => renderResourceRow(type, item)).join("");
@@ -3101,6 +3160,8 @@ const ICON_TRACE = `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" 
 
 // 編輯／停用／刪除＝一排圖示鈕（一鍵，不用點兩次）；hover 顯示文字
 function renderRowMenu(config, item) {
+  // readOnly 目前沒有模組在用（預算曾短暫設過，見 index.html 的回退說明）。
+  // 保留這個開關是因為「某模組改成唯讀」是客戶反覆提過的需求，留著比每次重寫便宜。
   if (config.readOnly) return `<span class="muted">唯讀</span>`;
   const disableButton = config.canDisable
     ? `<button type="button" class="icon-btn" data-action="disable" data-resource-id="${item.id}" title="停用" aria-label="停用">${ICON_DISABLE}</button>`
@@ -4637,7 +4698,7 @@ function renderManagerFocusDetail() {
   if (managerFocusOpen === "new") {
     title = `本月新成立案件（${d.this_month}）`;
     body = rows(d.new_cases.items, [
-      { label: "案號", cell: (i) => `<strong>${escapeHtml(caseNumber(i) || i.case_code)}</strong>` },
+      { label: "案號", cell: (i) => caseNumberCell(i) },
       { label: "案件名稱", cell: (i) => escapeHtml(i.title) },
       { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
       { label: "金額", num: true, cell: (i) => money(i.amount) },
@@ -4744,7 +4805,7 @@ function renderTodoCardDetail() {
   } else if (todoCardsOpen === "approved") {
     title = `本月新核准案件（${d.this_month}）`;
     const cols = [
-      { label: "案號", cell: (i) => `<strong>${escapeHtml(caseNumber(i) || i.case_code)}</strong>` },
+      { label: "案號", cell: (i) => caseNumberCell(i) },
       { label: "案件名稱", cell: (i) => escapeHtml(i.title) },
       { label: "負責人", cell: (i) => escapeHtml(valueOrDash(i.owner)) },
       { label: "金額", num: true, cell: (i) => money(i.amount) },
@@ -7295,7 +7356,11 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
     try {
       const created = (await api("/api/case-wizard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).data || {};
       if (statusEl) statusEl.textContent = "全部建立成功！";
-      const lines = [`案件 ${escapeHtml(created.case.case_code)}（${escapeHtml(caseTempNumber(created.case) || "暫時號")}，核准後才配正式案號）`];
+      // 原本這行印「案件 TMP20260038（TMP20260038，核准後才配正式案號）」——同一個暫時號印兩次。
+      // 改成報案名；使用者自己填的編號才顯示（那不是系統配的暫時號）。
+      const newCase = created.case || {};
+      const codeBit = isTempCaseCode(newCase.case_code) ? "" : `（${escapeHtml(newCase.case_code || "")}）`;
+      const lines = [`案件「${escapeHtml(newCase.title || "")}」${codeBit}已建立，核准後才配正式案號`];
       if (created.project) {
         const wbs = created.project.standard_wbs;
         const wbsNote = wbs ? `　已自動排 ${wbs.created_count} 項標準 WBS 工作項` : "";
