@@ -1045,6 +1045,9 @@ SETTLE_PREFIX = "Sett"
 # 用「原識別碼＋A＋兩位流水」（例 CT20260001A01），一眼看得出誰是誰的增購。
 # 助理 0803 文件寫成 CT-2026-0001，但主管交代編號不得含連字號，故拿掉分隔符（見 _CODE_OK）。
 CONTRACT_PREFIX = "CT"
+# 費用（單筆請購）還沒真的請購前沒有編號，系統先配一個：Purc＋西元年＋四位流水。
+# 用功能碼表上的 Purc（見 app.js 的 SYS_PREFIX），格式跟其他系統碼一致。
+PURCHASE_PREFIX = "Purc"
 CONTRACT_LIGHT_LABEL = {"red": "已到期", "yellow": "3 個月內到期", "green": "尚未接近到期",
                         "gray": "已整併／不續約", "none": "未設到期日"}
 
@@ -1268,6 +1271,12 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         _validate_contract(conn, fields)
         if not str(fields.get("system_code") or "").strip():
             fields = {**fields, **_next_contract_system_code(conn, fields)}
+        # 合約編號留空＝還沒跟廠商簽約、公司合約系統還沒給號（使用者 2026-08-28 拍板：
+        # 新案申請當下不可能知道合約編號）。contract_code 是 NOT NULL UNIQUE，不能留空白，
+        # 所以用系統自己配的識別碼暫代——那是真編號不是假資料，而且天生唯一。
+        # 前端偵測「contract_code == system_code」就顯示「未取號」，簽約後回來改成真編號。
+        if not str(fields.get("contract_code") or "").strip():
+            fields["contract_code"] = fields["system_code"]
         # 對應專案是系統關聯（助理註明「無須顯示給使用者」）：合約掛在案件上，
         # 案件底下有專案就自動接起來，不要求人再選一次。
         if not fields.get("project_id") and fields.get("case_id"):
@@ -1283,6 +1292,12 @@ def _insert_row(conn, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         # 讓內部關聯與匯出仍有穩定識別（用 id 當流水，必唯一）。
         nxt = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM projects").fetchone()["n"]
         fields["project_code"] = f"PRJ{get_working_year()}{nxt:04d}"
+    if table == "purchases" and not str(fields.get("purchase_code") or "").strip():
+        # 同合約：費用編號要等真的請購了才會有，申請階段留空是正常的。
+        # purchase_code 也是 NOT NULL UNIQUE，用系統碼暫代（Purc+西元年+4碼流水），
+        # 前端偵測到這個格式就顯示「未取號」。
+        nxt = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 AS n FROM purchases").fetchone()["n"]
+        fields["purchase_code"] = f"{PURCHASE_PREFIX}{get_working_year()}{nxt:04d}"
     if table == "payments" and not str(fields.get("settle_no") or "").strip():
         # 核銷編號自動發號：年度取核銷月份，流水號只計自動發的(settle_seq>0)，避免匯入真號污染
         pm = str(fields.get("payment_month") or "").strip()
@@ -5936,6 +5951,37 @@ def clear_business_data(confirm: str) -> dict[str, Any]:
 
 # 助理第三次回饋 §6：同一 Case 已填過的廠商，其他相關模組應該能選既有的，不用每次重打，
 # 也不強制覆寫（同一案可能真的有多個廠商，例如硬體一家、維護服務另一家）。
+def list_all_vendors() -> list[str]:
+    """全系統出現過的廠商名稱，供各表單的廠商欄位當建議清單。
+
+    使用者 2026-08-28 指出的問題：廠商欄位是自由輸入，同一家被打成「台灣IBM」「台灣 IBM」
+    「IBM台灣」時，「廠商別合約金額」那張報表會拆成三家、金額全錯，而且每一筆看起來都對，
+    沒人會發現。系統原本只有事後補救（資料管理→名稱歸納），這裡改成輸入當下就給建議。
+
+    已裁決的正規名（name_master kind='vendor'）排前面——那是人工確認過「以誰為準」的名字，
+    應該優先被選到；其餘是各模組實際填過的名稱，去重後依最近使用排序。
+    """
+    with connect() as conn:
+        canonical = [str(r["canonical_name"]).strip() for r in conn.execute(
+            "SELECT canonical_name FROM name_master WHERE kind = 'vendor' AND canonical_name <> '' "
+            "ORDER BY canonical_name").fetchall()]
+        rows = conn.execute(
+            "SELECT vendor_name, created_at FROM contracts WHERE vendor_name <> '' "
+            "UNION ALL SELECT vendor_name, created_at FROM projects WHERE vendor_name <> '' "
+            "UNION ALL SELECT vendor_name, created_at FROM purchases WHERE vendor_name <> '' "
+            "UNION ALL SELECT vendor_name, created_at FROM expense_masters WHERE vendor_name <> '' "
+            "ORDER BY created_at DESC").fetchall()
+    out: list[str] = []
+    for v in canonical:
+        if v and v not in out:
+            out.append(v)
+    for r in rows:
+        v = str(r["vendor_name"]).strip()
+        if v and v not in out:
+            out.append(v)
+    return out
+
+
 def list_case_vendors(case_id: int) -> list[str]:
     """這個 Case 底下（合約／專案／費用／單筆費用）已經填過的廠商名稱，去重、依最近建立排序。"""
     with connect() as conn:
@@ -6513,8 +6559,9 @@ def _prepare_expense_master(conn: sqlite3.Connection, fields: dict[str, Any]) ->
     if bad:
         raise ValueError(f"不認得的費用排程模式：{'、'.join(bad)}。")
     fields["modes"] = ",".join(modes)
-    if not str(fields.get("signoff_ref") or "").strip() and not str(fields.get("signoff_none_reason") or "").strip():
-        raise ValueError("請填簽呈／請購編號；沒有編號的話，請在「無編號原因」說明為什麼。")
+    # 原本規定「簽呈／請購編號」與「無編號原因」至少要填一個，2026-08-28 使用者拍板放寬：
+    # 費用建立的時間點通常還沒上簽，簽呈編號要簽了才有。強迫填「沒有編號的原因」只是
+    # 多一道無意義手續，填出來的內容也沒人會回頭看。兩個都留空即可，簽了再回來補編號。
     return fields
 
 

@@ -47,18 +47,27 @@ def test_無合約時期間清空且總費用改人工填(tmp_path):
         assert m["start_date"] == "" and m["end_date"] == ""   # 助理：無合約時停用、不得輸入
 
 
-def test_總費用與模式與簽呈編號的必填檢核(tmp_path):
+def test_總費用與模式的必填檢核(tmp_path):
     with _client(tmp_path) as client:
         assert _master(client, expense_name="沒金額").status_code == 422
         assert _master(client, expense_name="零元", total_amount=0).status_code == 422
         assert _master(client, expense_name="沒模式", total_amount=100, modes="").status_code == 422
-        no_sign = client.post("/api/expenses", json={
-            "expense_name": "沒簽呈", "total_amount": 100, "modes": "periodic"})
-        assert no_sign.status_code == 422 and "無編號原因" in no_sign.json()["detail"]
-        # 沒編號但寫了原因 → 放行
-        assert client.post("/api/expenses", json={
-            "expense_name": "沒簽呈但有原因", "total_amount": 100, "modes": "periodic",
-            "signoff_none_reason": "小額零星採購免簽"}).status_code == 201
+
+
+def test_簽呈編號可以留空不必說明原因(tmp_path):
+    """2026-08-28 使用者拍板放寬：費用建立的時間點通常還沒上簽，簽呈編號要簽了才有。
+    原本規定「編號」與「無編號原因」至少填一個，等於逼人為了過檢核而寫一句沒人會看的話。"""
+    with _client(tmp_path) as client:
+        both_blank = client.post("/api/expenses", json={
+            "expense_name": "還沒上簽", "total_amount": 100, "modes": "periodic"})
+        assert both_blank.status_code == 201
+        assert both_blank.json()["data"]["signoff_ref"] == ""
+
+        # 有編號時照樣存得進去（放寬不影響已經有號的情況）
+        with_ref = client.post("/api/expenses", json={
+            "expense_name": "已上簽", "total_amount": 100, "modes": "periodic",
+            "signoff_ref": "APR2026001"})
+        assert with_ref.status_code == 201 and with_ref.json()["data"]["signoff_ref"] == "APR2026001"
 
 
 def test_里程碑依總期數產生可逐期編輯的明細(tmp_path):

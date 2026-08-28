@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI_FEE</title>
-    <link rel="stylesheet" href="/static/styles.css?v=v0-82-1" />
+    <link rel="stylesheet" href="/static/styles.css?v=v0-84-0" />
   </head>
   <body>
     <div id="build-badge" class="build-badge" title="前端／後端版本；對不上代表後端沒重啟或瀏覽器吃舊快取">前端 … ｜ 後端 …</div>
@@ -391,7 +391,9 @@
                       <select name="group_name" class="person-group-select" data-wizard-group required title="組別"><option value="">（未選擇）</option></select>
                     </label>
                     <label class="field-label">負責人<span class="req">*</span>
-                      <select name="owner" class="personnel-select" data-group-filtered data-placeholder="負責人" required><option value="">（未選擇）</option></select>
+                      <!-- 不給 data-placeholder：欄位名稱已在上面的 label 了，給了的話
+                           populatePersonnelSelects 會生成「（未選擇）負責人」跟標籤重複 -->
+                      <select name="owner" class="personnel-select" data-group-filtered required><option value="">（未選擇）</option></select>
                     </label>
                     <label class="field-label">案件來源<span class="req">*</span>
                       <select name="source" required title="案件來源">
@@ -423,6 +425,7 @@
                     </label>
                     <label class="field-label">預算名目<span class="req">*</span><input name="budget_item" placeholder="預算名目" list="opt-budget-items" required /></label>
                     <datalist id="opt-budget-items"></datalist>
+                    <datalist id="vendor-options"></datalist>
                   </div>
                   <div class="wizard-subgroup wizard-subgroup-full">
                     <p class="wizard-subhead">案件說明</p>
@@ -433,7 +436,7 @@
                 <fieldset class="wizard-step" data-wizard-step="project">
                   <legend><label><input type="checkbox" data-wizard-toggle="project" /> ② 是否涉及專案？若是，請勾選並填寫專案及 WBS 資料</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <label class="field-label">中文專案名稱<span class="req">*</span><input name="project_name" placeholder="中文專案名稱" /></label>
+                    <label class="field-label">中文專案名稱<span class="req">*</span><input name="project_name" placeholder="預設同案件名稱" title="勾選這一步時會自動帶入①的案件名稱。除非專案真的另有正式名稱，否則保持一致比較好查——同一個案子被打成好幾個名字，事後就看不出是同一件事。" /></label>
                     <select name="level" title="專案等級">
                       <option value="">專案等級</option>
                       <option value="公司級">公司級</option>
@@ -441,7 +444,7 @@
                       <option value="部級">部級</option>
                     </select>
                     <select name="owner" class="personnel-select" data-placeholder="專案負責人（預設同案件）"><option value="">（未選擇）專案負責人（預設同案件）</option></select>
-                    <input name="vendor_name" placeholder="廠商名稱" />
+                    <input name="vendor_name" placeholder="廠商名稱" list="vendor-options" title="先看清單有沒有這家；同一家廠商用同一個寫法，「廠商別合約金額」報表才不會被拆成好幾家" />
                     <select name="cross_company" title="是否為集團/跨子公司合作">
                       <option value="">是否跨子公司合作</option>
                       <option value="是">是</option>
@@ -458,9 +461,9 @@
                 <fieldset class="wizard-step" data-wizard-step="contract">
                   <legend><label><input type="checkbox" data-wizard-toggle="contract" /> ③ 是否涉及合約？若是，請勾選並填寫合約資料</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <label class="field-label">合約編號<span class="req">*</span><input name="contract_code" placeholder="合約編號" /></label>
-                    <label class="field-label">合約名稱<span class="req">*</span><input name="contract_name" placeholder="合約名稱" /></label>
-                    <input name="vendor_name" placeholder="廠商" />
+                    <label class="field-label">合約編號<input name="contract_code" placeholder="簽約後才有，可留空" title="還沒跟廠商簽約就留空；系統會先給識別碼，清單顯示「未取號」，簽約後回合約模組補填" /></label>
+                    <label class="field-label">合約名稱<span class="req">*</span><input name="contract_name" placeholder="預設同案件名稱" title="會自動帶入①的案件名稱。合約若有正式全銜再改，否則保持一致。" /></label>
+                    <input name="vendor_name" placeholder="廠商" list="vendor-options" title="先看清單有沒有這家；同一家廠商用同一個寫法，報表才不會被拆開" />
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
                     <input name="start_date" placeholder="合約起日" type="date" />
                     <input name="end_date" placeholder="合約迄日" type="date" />
@@ -470,9 +473,9 @@
                 <fieldset class="wizard-step" data-wizard-step="purchase">
                   <legend><label><input type="checkbox" data-wizard-toggle="purchase" /> ④ 是否涉及費用（例行性費用／無合約費用）？若是，請勾選並填寫</label></legend>
                   <div class="wizard-step-body" hidden>
-                    <label class="field-label">費用編號<span class="req">*</span><input name="purchase_code" placeholder="費用編號" /></label>
-                    <label class="field-label">費用項目<span class="req">*</span><input name="item_name" placeholder="費用項目" /></label>
-                    <input name="vendor_name" placeholder="廠商" />
+                    <label class="field-label">費用編號<input name="purchase_code" placeholder="請購後才有，可留空" title="還沒請購就留空；系統會先給識別碼，清單顯示「未取號」，請購後回費用模組補填" /></label>
+                    <label class="field-label">費用項目<span class="req">*</span><input name="item_name" placeholder="預設同案件名稱" title="會自動帶入①的案件名稱。除非這筆費用是案子裡的某個細項，否則保持一致。" /></label>
+                    <input name="vendor_name" placeholder="廠商" list="vendor-options" title="先看清單有沒有這家；同一家廠商用同一個寫法，報表才不會被拆開" />
                     <input name="quantity" placeholder="數量" type="number" min="0" step="1" />
                     <input name="amount" placeholder="金額" type="number" min="0" step="1" />
                     <input name="note" placeholder="備註" />
@@ -1239,8 +1242,8 @@
                 最低承諾金額：第二層設定承諾期間與產生規則，實際費用於第三層按費用年月登錄。
               </p>
             </fieldset>
-            <input name="signoff_ref" placeholder="簽呈／請購編號" />
-            <input name="signoff_none_reason" placeholder="沒有編號的原因（沒填編號時必填）" />
+            <input name="signoff_ref" placeholder="簽呈／請購編號（上簽後才有，可留空）" />
+            <input name="signoff_none_reason" placeholder="沒有編號的原因（選填）" title="2026-08-28 起不再強制：申請階段本來就還沒上簽，兩個都留空即可" />
             <select name="owner" class="personnel-select" data-placeholder="承辦人"></select>
             <select name="case_id" class="case-picker" title="關聯案件"><option value="">（不關聯案件）</option></select>
             <input name="note" placeholder="備註" />
@@ -1271,6 +1274,6 @@
         </section>
       </main>
     </div>
-    <script src="/static/app.js?v=v0-82-1"></script>
+    <script src="/static/app.js?v=v0-84-0"></script>
   </body>
 </html>

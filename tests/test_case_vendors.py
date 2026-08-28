@@ -56,3 +56,23 @@ def test_other_case_vendors_not_mixed_in(tmp_path):
             "contract_code": "VDK-4", "contract_name": "合約", "vendor_name": "只屬於案A",
             "case_id": case1["id"]})
         assert client.get(f"/api/cases/{case2['id']}/vendors").json()["data"] == []
+
+
+def test_全域廠商清單含名稱歸納正規名且去重(tmp_path):
+    """使用者 2026-08-28：廠商自由輸入導致同一家被打成多種寫法，「廠商別合約金額」報表會被
+    拆開而且看不出來。新案申請當下沒有 case_id，只給「同案廠商」等於清單是空的，所以要有全域清單。"""
+    with _client(tmp_path) as client:
+        c = client.post("/api/cases", json={"title": "廠商清單測試案"}).json()["data"]
+        client.post("/api/contracts", json={"contract_name": "約一", "vendor_name": "台灣IBM", "case_id": c["id"]})
+        client.post("/api/contracts", json={"contract_name": "約二", "vendor_name": "台灣IBM"})   # 同名只出現一次
+        client.post("/api/projects", json={"project_name": "專案一", "vendor_name": "神坊資訊"})
+
+        vendors = client.get("/api/vendors").json()["data"]
+        assert vendors.count("台灣IBM") == 1          # 去重
+        assert "神坊資訊" in vendors                   # 跨模組都收
+        assert all(v.strip() for v in vendors)         # 不會混進空字串
+
+
+def test_全域廠商清單在沒有任何資料時回空陣列(tmp_path):
+    with _client(tmp_path) as client:
+        assert client.get("/api/vendors").json()["data"] == []

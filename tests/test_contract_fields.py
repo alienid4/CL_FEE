@@ -185,6 +185,26 @@ def test_舊資料庫重開就自動補識別碼(tmp_path):
         assert codes["B4"].startswith("CT") and codes["B4A"] == codes["B4"] + "A01"
 
 
+def test_合約編號可留空由系統識別碼暫代(tmp_path):
+    """使用者 2026-08-28 拍板：新案申請當下還沒跟廠商簽約，合約編號要簽了才有，
+    不該逼使用者先編一個假編號。contract_code 是 NOT NULL UNIQUE 不能真的留白，
+    所以留空時用系統識別碼暫代——真編號、天生唯一，前端顯示「未取號」。"""
+    with _client(tmp_path) as client:
+        r = client.post("/api/contracts", json={"contract_name": "還沒簽的約"})
+        assert r.status_code == 201
+        k = r.json()["data"]
+        assert k["contract_code"] == k["system_code"]      # 前端靠這個判斷「未取號」
+        assert k["system_code"].startswith("CT")
+
+        # 多筆都留空也不會撞唯一鍵（每筆各自配到不同的系統識別碼）
+        k2 = client.post("/api/contracts", json={"contract_name": "另一個還沒簽的約"}).json()["data"]
+        assert k2["contract_code"] != k["contract_code"]
+
+        # 簽約後把真編號補上去
+        real = client.patch(f"/api/contracts/{k['id']}", json={"contract_code": "EF20260001"}).json()["data"]
+        assert real["contract_code"] == "EF20260001" != real["system_code"]
+
+
 def test_核准簽核銷簽呈編號可選填且跟系統識別碼是兩回事(tmp_path):
     """第四輪回饋 AC-05：合約要能記「核准簽」「核銷簽」兩個簽呈編號，非必填、
     跟系統自動配發的 Contract ID（system_code）不是同一件事。"""

@@ -163,3 +163,21 @@ def test_project_step_procurement_defaults_owner_to_case_owner(tmp_path):
         # 案件負責人也沒填，此時交由承辦身分（ap02 的 owner_scope）帶入——只需確認沒有噴錯、且有排出 8 項
         items = client.get(f"/api/projects/{d['project']['id']}/items").json()["data"]
         assert len(items) == 8
+
+
+def test_合約編號與費用編號可留空(tmp_path):
+    """使用者 2026-08-28 拍板：新案申請當下還沒跟廠商簽約，合約/費用編號都要等簽了才有。
+    留空時後端各自用系統碼暫代（合約用識別碼、費用用 Purc+年+流水），前端顯示「未取號」。"""
+    with _client(tmp_path) as client:
+        r = client.post("/api/case-wizard", json={
+            "case": {"title": "還沒簽約的新案"},
+            "contract": {"contract_name": "預計要簽的約"},
+            "purchase": {"item_name": "預計要買的東西"},
+        })
+        assert r.status_code == 201, r.text
+        d = r.json()["data"]
+        assert d["contract"]["contract_code"] == d["contract"]["system_code"]
+        assert d["purchase"]["purchase_code"].startswith("Purc")
+        # 名稱／項目仍然必填，不能連這個都省
+        assert client.post("/api/case-wizard", json={
+            "case": {"title": "沒合約名稱"}, "contract": {"contract_code": "K1"}}).status_code == 422

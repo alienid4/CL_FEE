@@ -1,7 +1,7 @@
 // 前端建置版本（單一來源）。每次改前端就 bump 版本號＋index.html 的 ?v=。
 // 版本號「vX.Y.Z」永遠往上加、永不重複——同一天更新多次也分得出第幾版；號碼大＝新。
 // 徽章顯示前後端版本號，對不上＝後端沒重啟，會亮警告。格式「vX.Y.Z · 日期 · 摘要」。
-const BUILD_TAG = "v0.82.1 · 2026-08-28 · 修好固定Label造成的版面破圖、精靈①欄位全數補標籤";
+const BUILD_TAG = "v0.84.0 · 2026-08-28 · 廠商建議清單、費用項目沿用案件名稱";
 (async () => {
   const badge = document.querySelector("#build-badge");
   if (!badge) return;
@@ -205,7 +205,7 @@ const resourceConfig = {
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.contract, i.case_id) },
       { label: "系統識別碼", cell: (i) => `<span class="sys-code">${escapeHtml(valueOrDash(i.system_code))}</span>${relationTag(i)}` },
-      { label: "合約編號", cell: (i) => `${escapeHtml(i.contract_code)}${contractSystemLink(i.external_code)}` },
+      { label: "合約編號", cell: (i) => businessCodeCell(i.contract_code, i.contract_code === i.system_code) + contractSystemLink(i.external_code) },
       { label: "到期警示", cell: (i) => expiryLightCell(i) },
       { label: "合約名稱", cell: (i) => `<strong>${escapeHtml(i.contract_name)}</strong>` },
       { label: "類型", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.contract_type))}</span>` },
@@ -329,7 +329,7 @@ const resourceConfig = {
     numberFields: ["quantity", "amount", "case_id", "signoff_id"], canDisable: true,
     columns: [
       { label: "系統編號", cell: (i) => systemCodeCell(SYS_PREFIX.purchase, i.case_id) },
-      { label: "費用編號", cell: (i) => `<strong>${escapeHtml(i.purchase_code)}</strong>` },
+      { label: "費用編號", cell: (i) => businessCodeCell(i.purchase_code, AUTO_PURCHASE_CODE_RE.test(i.purchase_code || "")) },
       { label: "品項", cell: (i) => `<strong>${escapeHtml(i.item_name)}</strong>` },
       { label: "廠商", cell: (i) => `<span class="muted">${escapeHtml(valueOrDash(i.vendor_name))}</span>` },
       { label: "數量", cls: "num", cell: (i) => `${Number(i.quantity || 0)}` },
@@ -408,6 +408,15 @@ function caseNumberCell(item) {
   return `<strong>${escapeHtml(item.case_code || "—")}</strong>`;
 }
 // AC-11：系統自動配發的編號是給勾稽用的，不是業務人員要看的重點，版面上不該比業務名稱／狀態搶眼
+// 合約／費用還沒拿到正式編號時，後端會用系統識別碼暫代（見 store.py 的 _insert_row）。
+// 這裡把那種情況顯示成「未取號」，不要讓使用者以為 CT20260001 就是公司的合約編號。
+// 合約：編號等於系統識別碼＝還沒取號。費用：系統配的是 Purc+西元年+4碼。
+const AUTO_PURCHASE_CODE_RE = /^Purc\d{8}$/;
+function businessCodeCell(code, isAuto) {
+  if (isAuto) return `<span class="muted" title="尚未取得正式編號（系統先給了識別碼追蹤用）；取得後回本模組補填">未取號</span>`;
+  return `<strong>${escapeHtml(code)}</strong>`;
+}
+
 function systemCodeCell(prefix, caseId) {
   const c = (caseCache || []).find((x) => String(x.id) === String(caseId));
   const n = caseNumber(c);
@@ -2882,18 +2891,38 @@ document.addEventListener("change", (event) => {
   if (c && c.title) nameEl.value = c.title;
 });
 
-// 廠商清單（助理第三次回饋 §6）：換了案件就重抓這個 Case 已經填過的廠商，灌進共用 datalist——
-// 只是「建議選項」，使用者仍可自己打新的，不強制覆寫任何欄位。
+// 廠商建議清單。只是「建議選項」，使用者仍可自己打新的（第一次遇到的新廠商不能被擋死）。
+//
+// 使用者 2026-08-28 指出：廠商欄位自由輸入，同一家被打成「台灣IBM」「台灣 IBM」「IBM台灣」，
+// 「廠商別合約金額」報表就被拆成三家、金額全錯，而且每一筆看起來都對，沒人會發現。
+// 系統原本只有事後補救（資料管理→名稱歸納），現在改成輸入當下就給建議。
+const vendorOptionsHtml = (list) => list.map((v) => `<option value="${escapeHtml(v)}"></option>`).join("");
+
+// 全域清單：新案申請當下還沒有 case_id，只給「同案用過的廠商」等於清單是空的。
+async function loadVendorOptions() {
+  const targets = document.querySelectorAll("#vendor-options, #case-vendor-options");
+  if (!targets.length) return;
+  try {
+    const vendors = (await api("/api/vendors")).data || [];
+    for (const el of targets) el.innerHTML = vendorOptionsHtml(vendors);
+  } catch (_e) { /* 抓不到不影響表單本身，安靜失敗 */ }
+}
+
+// 選了案件就把「這個 Case 用過的廠商」排到最前面（多半就是要選的那家），其餘全域清單仍留著。
 document.addEventListener("change", async (event) => {
   const picker = event.target.closest(".case-picker");
   if (!picker) return;
   const list = document.querySelector("#case-vendor-options");
   if (!list) return;
-  if (!picker.value) { list.innerHTML = ""; return; }
+  if (!picker.value) { loadVendorOptions(); return; }
   try {
-    const vendors = (await api(`/api/cases/${picker.value}/vendors`)).data || [];
-    list.innerHTML = vendors.map((v) => `<option value="${escapeHtml(v)}"></option>`).join("");
-  } catch (_e) { /* 廠商建議清單抓不到不影響表單本身，安靜失敗即可 */ }
+    const [caseVendors, allVendors] = await Promise.all([
+      api(`/api/cases/${picker.value}/vendors`).then((r) => r.data || []),
+      api("/api/vendors").then((r) => r.data || []),
+    ]);
+    const merged = [...caseVendors, ...allVendors.filter((v) => !caseVendors.includes(v))];
+    list.innerHTML = vendorOptionsHtml(merged);
+  } catch (_e) { /* 同上 */ }
 });
 
 // 換案件或改合約性質 → 重新判斷「增購／附屬」能不能選、原合約要不要自動帶
@@ -4890,7 +4919,7 @@ async function refresh() {
     loadManagerFocus(), loadTodoCards(), loadCaseProgress(), loadPendingApprovals(), loadOrphanPayments(), loadAdminConsole(),
     loadPortfolio(), loadUnitConflicts(), loadPersonnelMaster(), loadCaseOptions(), loadWorkingYear(),
     loadSignoffOptions(), loadPurchaseOptions(), loadParentContractOptions(),
-    loadMonthlyStatus(),
+    loadMonthlyStatus(), loadVendorOptions(),
   ]);
   // 組別下拉沿用人員組別那份選項（處長預設看全部，要拆組別時才用）
   const msGroup = document.querySelector("#monthly-status-group");
@@ -7203,10 +7232,12 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   const wizardForm = document.querySelector("#wizard-form");
   if (!wizardForm) return;
   const contractToggle = wizardForm.querySelector('[data-wizard-toggle="contract"]');
+  // 合約編號／費用編號不在必填之列：新案申請當下還沒跟廠商簽約，那些號碼要簽了才會有
+  // （使用者 2026-08-28 拍板）。留空時後端會用系統識別碼暫代，清單顯示「未取號」。
   const REQUIRED_BY_STEP = {
     project: ["project_name"],
-    purchase: ["purchase_code", "item_name"],
-    contract: ["contract_code", "contract_name"],
+    purchase: ["item_name"],
+    contract: ["contract_name"],
   };
   const OPTIONAL_STEPS = ["project", "contract", "purchase"];
 
@@ -7234,9 +7265,28 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
   }
   const num = (v) => (v === "" || v == null ? 0 : Number(v));
 
-  // 案名沿用（精靈版）：勾選簽呈/合約步驟時，若該步驟「名稱」欄位還空著，帶入①案件名稱當預設值
+  // 案名沿用（精靈版）：勾選步驟時，若該步驟「名稱」欄位還空著，帶入①案件名稱當預設值
   // （仍可改，不鎖死）。跟獨立表單版同一個道理：合約正式名稱常跟案子暱稱有出入。
-  const WIZARD_NAME_AUTOFILL_FIELD = { project: "project_name", contract: "contract_name" };
+  //
+  // 使用者 2026-08-28 指出：同一個案子的專案／合約／費用被打成三個不同名字，事後根本
+  // 看不出是同一件事。原本這張表漏了 purchase（費用項目），所以費用永遠要重打一次名稱
+  // ——最容易產生分歧的正是那一欄。補上去。
+  const WIZARD_NAME_AUTOFILL_FIELD = { project: "project_name", contract: "contract_name", purchase: "item_name" };
+
+  // 把①案件名稱帶進所有「已勾選、名稱還空著」的步驟。
+  // 抽成函式是因為要在兩個時機呼叫：勾選步驟時、以及案件名稱本身被填寫/修改時——
+  // 使用者不一定照①②③④的順序填，先勾步驟再回頭打案件名稱的話，原本完全不會帶入。
+  function fillStepNamesFromCaseTitle() {
+    const title = stepScope("case")?.querySelector('[name="title"]')?.value.trim();
+    if (!title) return;
+    for (const [step, fieldName] of Object.entries(WIZARD_NAME_AUTOFILL_FIELD)) {
+      const toggle = wizardForm.querySelector(`[data-wizard-toggle="${step}"]`);
+      if (!toggle?.checked) continue;
+      const el = stepScope(step)?.querySelector(`[name="${fieldName}"]`);
+      if (el && !el.value.trim()) el.value = title;
+    }
+  }
+  wizardForm.querySelector('[name="title"]')?.addEventListener("blur", fillStepNamesFromCaseTitle);
   for (const toggle of wizardForm.querySelectorAll("[data-wizard-toggle]")) {
     toggle.addEventListener("change", () => {
       const step = toggle.getAttribute("data-wizard-toggle");
@@ -7274,7 +7324,9 @@ document.querySelector("#notify-reminders")?.addEventListener("click", async () 
     const g = groupSel ? groupSel.value : "";
     const list = (personnelMasterCache || []).filter((p) => !g || p.group_name === g);
     const prev = ownerSel.value;
-    ownerSel.innerHTML = `<option value="">（未選擇）負責人 *</option>`
+    // 只寫「（未選擇）」：欄位名稱與必填星號已經在上方的 <label> 上，
+    // 這裡再寫一次會變成「負責人 *」上下重複兩遍（截圖才看得出來，DOM 文字檢查抓不到）。
+    ownerSel.innerHTML = `<option value="">（未選擇）</option>`
       + list.map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
     if (prev && list.some((p) => p.name === prev)) ownerSel.value = prev;
   }

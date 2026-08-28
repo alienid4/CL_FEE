@@ -176,7 +176,9 @@ class CasePatch(BaseModel):
 
 
 class ContractIn(BaseModel):
-    contract_code: str = Field(min_length=1)
+    # 留空＝還沒跟廠商簽約、還沒拿到正式合約編號；store 會用系統識別碼暫代，
+    # 清單顯示「未取號」。簽約後回來補填即可（使用者 2026-08-28 拍板）。
+    contract_code: str = ""
     contract_name: str = Field(min_length=1)
     vendor_name: str = ""
     amount: float | None = 0
@@ -774,7 +776,8 @@ class SignoffPatch(BaseModel):
 
 
 class PurchaseIn(BaseModel):
-    purchase_code: str = Field(min_length=1)
+    # 留空＝還沒請購、還沒拿到費用編號；store 會自動配一個系統碼，清單顯示「未取號」。
+    purchase_code: str = ""
     item_name: str = Field(min_length=1)
     vendor_name: str = ""
     quantity: float = 0
@@ -844,7 +847,7 @@ class CaseWizardSignoffIn(BaseModel):
 
 
 class CaseWizardPurchaseIn(BaseModel):
-    purchase_code: str = Field(min_length=1)
+    purchase_code: str = ""
     item_name: str = Field(min_length=1)
     vendor_name: str = ""
     quantity: float = 0
@@ -853,7 +856,7 @@ class CaseWizardPurchaseIn(BaseModel):
 
 
 class CaseWizardContractIn(BaseModel):
-    contract_code: str = Field(min_length=1)
+    contract_code: str = ""
     contract_name: str = Field(min_length=1)
     vendor_name: str = ""
     amount: float | None = 0
@@ -1009,7 +1012,7 @@ CSV_COLUMNS: dict[str, list[tuple[str, str]]] = {
 
 # 後端建置日期／標記（單一來源）：由 /health 回傳，前端徽章拿來跟自己的版本比對。
 # 每次改後端就 bump；若前端徽章顯示的後端日期不對，代表 uvicorn 沒重啟。
-BACKEND_BUILD = "v0.82.1 · 2026-08-28 · 修好 v0.79.0 固定Label造成的版面破圖（欄位高160px、星號換行、radio被撐開），精靈①欄位全數補上標籤"
+BACKEND_BUILD = "v0.84.0 · 2026-08-28 · 廠商改用建議清單（避免同一家多種寫法）、費用項目也自動沿用案件名稱"
 
 # 試辦免密碼登入：預設關（測試維持嚴格密碼驗證）；上線試辦的伺服器用環境變數 PILOT_PASSWORDLESS=1 打開。
 # 打開後，內建帳號（ap01~ap04/admin）從下拉選單選角色即可登入、不需密碼。僅供 localhost 試辦，勿用於正式環境。
@@ -2027,6 +2030,12 @@ def create_app() -> FastAPI:
             return ok(case_360(case_id))
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/vendors")
+    def all_vendors() -> dict[str, Any]:
+        # 全域廠商建議清單。新案申請當下還沒有 case_id，只靠「同案用過的廠商」等於清單是空的，
+        # 使用者只能自由打字——那正是同一家被打成好幾種寫法的來源（使用者 2026-08-28 指出）。
+        return ok(store.list_all_vendors())
 
     @app.get("/api/cases/{case_id}/vendors")
     def case_vendors(case_id: int) -> dict[str, Any]:
