@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MVP 開發前資料準備清單</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">MVP Development Input / 開發前資料準備</div>
+    <h1>MVP 開發前資料準備清單</h1>
+    <p class="lead">這份用來判斷是否可以進入第一階段開發。資料先收齊到可驗證、可對照、可追溯，再開始寫 MVP Code。</p>
+    <a class="back" href="00_會議導覽.html">回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>開發前必備文件</h2>
+          <p class="lead">第一批先拿最新版、近三個月樣本、異常案例樣本。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag red">必備</span>
+          <span class="tag amber">近三個月</span>
+          <span class="tag blue">保留原檔</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>資料包</th>
+                <th>要提供什麼</th>
+                <th>建議提供者</th>
+                <th>用途</th>
+                <th>缺少影響</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Excel 主來源</td>
+                <td>費用項目整合23.xlsx、次月預計上簽項目.xlsx、架構部續約合約進度.xlsx、年度預算 / 專案追蹤相關 Excel。</td>
+                <td>助理</td>
+                <td>建立 Case、費用、合約、預算、上簽與來源追溯。</td>
+                <td>無法確認欄位、主檔、狀態與匯入規則。</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈樣本</td>
+                <td>例行付款、專案付款、續約、計畫外採購、漲價補差、預算保留 / 轉用各 2 至 3 份。</td>
+                <td>助理 / 承辦</td>
+                <td>確認 PDF 需擷取的案名、金額、期間、簽呈編號、頁碼與來源。</td>
+                <td>PDF 只能當附件，無法做簽呈內容追溯。</td>
+              </tr>
+              <tr>
+                <td>預算資料</td>
+                <td>去年編列今年、今年核定、明年提報、預算保留申請、凍結取消、計畫外採購、漲價補差資料。</td>
+                <td>主管 / 助理</td>
+                <td>建立預算流向、年度使用統計、凍結取消與計畫外採購清單。</td>
+                <td>主管看不到錢從哪來、用到哪裡、剩多少。</td>
+              </tr>
+              <tr>
+                <td>代表案例</td>
+                <td>正常例行付款、一次性付款、計畫外採購、取消釋出、凍結、漲價補差、PDF 待關聯、計費期間待確認。</td>
+                <td>助理 / 主管</td>
+                <td>拿來測 MVP 流程、畫面、欄位與狀態規則。</td>
+                <td>只能做空畫面，無法驗證流程是否正確。</td>
+              </tr>
+              <tr>
+                <td>人員與角色</td>
+                <td>助理、承辦、主管、處長名單與可看 / 可改 / 可確認 / 可送審權限。</td>
+                <td>主管</td>
+                <td>建立待辦、權限、責任人與簽核節點。</td>
+                <td>無法做角色畫面與責任追蹤。</td>
+              </tr>
+              <tr>
+                <td>廠商與統編</td>
+                <td>廠商名稱、統編、付款方式、合約關聯、採購累計、定期支付與專案支付。</td>
+                <td>助理</td>
+                <td>建立廠商 / 統編關聯頁與採購累計查詢。</td>
+                <td>統編、廠商、合約與付款資料無法互相下鑽。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>規則確認清單</h2>
+          <p class="lead">這些不是請業主設計系統，是確認業務規則。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">規則</span>
+          <span class="tag amber">狀態</span>
+          <span class="tag green">責任</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>規則主題</th>
+                <th>我方建議</th>
+                <th>需要確認</th>
+                <th>使用畫面</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Case_ID</td>
+                <td>系統自建，保留 Excel 原列與來源檔名。</td>
+                <td>是否有既有案件編號需一併保留。</td>
+                <td>助理 / 主管 / 搜尋</td>
+              </tr>
+              <tr>
+                <td>例行性 / 一次性</td>
+                <td>做成正式欄位，支出費用與月支出都可篩選。</td>
+                <td>哪些費用固定視為例行性，哪些視為一次性。</td>
+                <td>支出費用</td>
+              </tr>
+              <tr>
+                <td>預算保留</td>
+                <td>取消或不執行時，承辦必須有預算保留申請狀態。</td>
+                <td>申請期限、責任人、完成判斷。</td>
+                <td>主管預算 / 承辦待辦</td>
+              </tr>
+              <tr>
+                <td>計畫外採購</td>
+                <td>獨立分類，可查來源預算、目前階段與本月預估支出。</td>
+                <td>計畫外採購認定條件與是否需主管 / 處長確認。</td>
+                <td>主管預算</td>
+              </tr>
+              <tr>
+                <td>凍結取消</td>
+                <td>獨立清單，標示原預算、已支出、釋出 / 保留、原因與承辦申請。</td>
+                <td>凍結與取消的狀態定義。</td>
+                <td>主管預算</td>
+              </tr>
+              <tr>
+                <td>每月上簽</td>
+                <td>可選月份，看預計上簽與已簽紀錄。</td>
+                <td>上簽月份以預計日期、簽核日期或核銷月份為準。</td>
+                <td>每月預計上簽</td>
+              </tr>
+              <tr>
+                <td>PDF 關聯</td>
+                <td>第一階段以人工確認關聯為主，保留頁碼與文字摘錄。</td>
+                <td>PDF 必抓欄位與正式簽呈編號格式。</td>
+                <td>PDF 簽呈 / 來源追溯</td>
+              </tr>
+              <tr>
+                <td>全文檢索</td>
+                <td>搜尋案名、Hostname / IP、人員、AP、廠商、統編、公文 / 簽呈編號、金額。</td>
+                <td>哪些欄位可被所有角色搜尋。</td>
+                <td>全文搜尋</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>MVP 第一階段開發輸入</h2>
+          <p class="lead">這一區收齊後，才適合開始做第一條流程 Code。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag green">可開發</span>
+          <span class="tag blue">第一條流程</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>開發項目</th>
+                <th>需要的資料</th>
+                <th>完成判斷</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Excel 匯入</td>
+                <td>最新版 Excel、Sheet 清單、欄位名稱、欄位對照、範例資料。</td>
+                <td>匯入後可看到原始列、Case_ID、來源檔名、匯入批次。</td>
+              </tr>
+              <tr>
+                <td>案件清單</td>
+                <td>案件欄位、狀態、責任人、金額、月份、來源。</td>
+                <td>可依案名、負責人、月份、金額、狀態篩選。</td>
+              </tr>
+              <tr>
+                <td>單案詳情</td>
+                <td>一筆代表案例的 Excel 原列、PDF、廠商、預算、付款資料。</td>
+                <td>可從單案看到來源、欄位、文件、狀態與異動紀錄。</td>
+              </tr>
+              <tr>
+                <td>主管預算</td>
+                <td>去年編列今年、今年核定、預算流向、計畫外採購、凍結取消、保留申請。</td>
+                <td>可看 KPI、預算流向、揭露表、今年 / 去年預計專案。</td>
+              </tr>
+              <tr>
+                <td>支出費用</td>
+                <td>例行性 / 一次性分類、付款期間、核銷月份、上月價格、本次價格。</td>
+                <td>可看差異、費用類型、本月支出與待確認案件。</td>
+              </tr>
+              <tr>
+                <td>每月上簽</td>
+                <td>每月上簽 Excel、已簽紀錄、簽呈 PDF、簽呈編號。</td>
+                <td>可選月份，看預計上簽與已簽紀錄。</td>
+              </tr>
+              <tr>
+                <td>來源追溯</td>
+                <td>Excel 原列、PDF 檔、匯入時間、修改紀錄、責任人。</td>
+                <td>每個金額、廠商、統編、請購編號都能追到來源。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>建議資料夾</h2>
+          <p class="lead">後續收資料時，先依這些目錄放，不要混在同一層。</p>
+        </div>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag blue">01 Excel 原檔</span>
+          <h3>現行作業檔</h3>
+          <p>最新版、近三個月版本、歷史對照檔。</p>
+        </div>
+        <div class="card">
+          <span class="tag green">02 PDF 簽呈</span>
+          <h3>簽呈與附件</h3>
+          <p>例行、專案、續約、計畫外採購、保留、轉用、漲價補差。</p>
+        </div>
+        <div class="card">
+          <span class="tag amber">03 代表案例</span>
+          <h3>測試案例包</h3>
+          <p>每種狀態至少一筆，包含 Excel 原列與 PDF。</p>
+        </div>
+        <div class="card">
+          <span class="tag red">04 規則確認</span>
+          <h3>業務規則</h3>
+          <p>狀態、分類、權限、預算保留、上簽月份、PDF 必抓欄位。</p>
+        </div>
+        <div class="card">
+          <span class="tag">05 欄位對照</span>
+          <h3>欄位與代碼</h3>
+          <p>Excel 欄位、系統欄位、分類對照、廠商統編、人員組別。</p>
+        </div>
+        <div class="card">
+          <span class="tag blue">06 驗收資料</span>
+          <h3>開發驗證</h3>
+          <p>預期匯入筆數、預期查詢結果、已知異常案例。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

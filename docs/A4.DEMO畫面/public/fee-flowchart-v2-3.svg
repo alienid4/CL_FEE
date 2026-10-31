@@ -1,0 +1,198 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="4550" viewBox="0 0 1600 4550">
+  <defs>
+    <style>
+      .bg { fill: #f4f7fb; }
+      .title { font: 800 44px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 600 21px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #667085; }
+      .box { fill: #fff; stroke: #cfd8e6; stroke-width: 3; }
+      .blue { fill: #e7f2fb; stroke: #1f6aa5; }
+      .green { fill: #e8f5ec; stroke: #2f7a48; }
+      .amber { fill: #fff3d6; stroke: #a96800; }
+      .red { fill: #fde8e7; stroke: #b42318; }
+      .purple { fill: #f0eafa; stroke: #6941a5; }
+      .gray { fill: #f5f7fa; stroke: #667085; }
+      .diamond { fill: #fff; stroke: #9aa7b5; stroke-width: 3; }
+      .h { font: 800 24px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #172033; }
+      .p { font: 600 18px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #475467; }
+      .note { font: 700 17px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #344054; }
+      .line { fill: none; stroke: #263244; stroke-width: 4; marker-end: url(#arrow); }
+      .soft { fill: none; stroke: #667085; stroke-width: 4; stroke-dasharray: 11 9; marker-end: url(#arrow-soft); }
+      .label { font: 800 18px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #172033; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#263244"/>
+    </marker>
+    <marker id="arrow-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#667085"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="4550"/>
+  <text class="title" x="800" y="72" text-anchor="middle">費用合約控管系統流程圖 v2.3</text>
+  <text class="subtitle" x="800" y="112" text-anchor="middle">Case_ID 為事件主軸，合約、專案、付款、預算、核銷、發票與稽核皆依條件建立</text>
+
+  <rect class="box blue" x="545" y="165" width="510" height="120" rx="18"/>
+  <text class="h" x="800" y="212" text-anchor="middle">1. 案件進件</text>
+  <text class="p" x="800" y="248" text-anchor="middle">建立 Case_ID、來源、組別、負責人、目標日</text>
+
+  <path class="line" d="M800 285 V345"/>
+  <rect class="box amber" x="545" y="345" width="510" height="124" rx="18"/>
+  <text class="h" x="800" y="392" text-anchor="middle">2. Intake 初判</text>
+  <text class="p" x="800" y="427" text-anchor="middle">判斷合約、專案、付款、預算與放行條件</text>
+
+  <path class="line" d="M800 469 V540"/>
+  <polygon class="diamond" points="800,540 950,660 800,780 650,660"/>
+  <text class="h" x="800" y="650" text-anchor="middle">是否與合約相關？</text>
+  <text class="p" x="800" y="684" text-anchor="middle">Contract_ID 可正式、候選或空白</text>
+
+  <path class="line" d="M650 660 H355 V830"/>
+  <text class="label" x="502" y="638">否</text>
+  <rect class="box gray" x="150" y="830" width="410" height="115" rx="18"/>
+  <text class="h" x="355" y="876" text-anchor="middle">Contract_ID 空白</text>
+  <text class="p" x="355" y="910" text-anchor="middle">保留 Case_ID 與案件說明</text>
+
+  <path class="line" d="M950 660 H1245 V830"/>
+  <text class="label" x="1088" y="638">是</text>
+  <rect class="box green" x="1040" y="830" width="410" height="115" rx="18"/>
+  <text class="h" x="1245" y="876" text-anchor="middle">建立 / 關聯 Contract_ID</text>
+  <text class="p" x="1245" y="910" text-anchor="middle">新約、續約、增購、補充、費用調整</text>
+
+  <path class="line" d="M1245 945 V1010"/>
+  <polygon class="diamond" points="1245,1010 1375,1118 1245,1226 1115,1118"/>
+  <text class="h" x="1245" y="1108" text-anchor="middle">特殊關聯？</text>
+  <text class="p" x="1245" y="1140" text-anchor="middle">續約 / 增購 / 補充</text>
+
+  <path class="line" d="M1115 1118 H980 V1290"/>
+  <text class="label" x="1046" y="1098">否</text>
+  <rect class="box gray" x="775" y="1290" width="410" height="110" rx="18"/>
+  <text class="h" x="980" y="1335" text-anchor="middle">一般合約維護</text>
+  <text class="p" x="980" y="1368" text-anchor="middle">維護期間、廠商、金額與附件</text>
+
+  <path class="line" d="M1375 1118 H1500 V1290"/>
+  <text class="label" x="1432" y="1098">是</text>
+  <rect class="box green" x="1295" y="1290" width="300" height="110" rx="18"/>
+  <text class="h" x="1445" y="1335" text-anchor="middle">Contract_Relation</text>
+  <text class="p" x="1445" y="1368" text-anchor="middle">來源、目標、關聯型態</text>
+
+  <path class="line" d="M355 945 V1465 H650"/>
+  <path class="line" d="M980 1400 V1465 H650"/>
+  <path class="line" d="M1445 1400 V1465 H950"/>
+  <polygon class="diamond" points="800,1405 950,1525 800,1645 650,1525"/>
+  <text class="h" x="800" y="1514" text-anchor="middle">是否正式專案？</text>
+  <text class="p" x="800" y="1548" text-anchor="middle">Project_ID 只給正式專案</text>
+
+  <path class="line" d="M650 1525 H355 V1725"/>
+  <text class="label" x="505" y="1503">否</text>
+  <rect class="box gray" x="150" y="1725" width="410" height="115" rx="18"/>
+  <text class="h" x="355" y="1771" text-anchor="middle">Project_ID 空白</text>
+  <text class="p" x="355" y="1805" text-anchor="middle">保留公司級、處級、主管關注標籤</text>
+
+  <path class="line" d="M950 1525 H1245 V1725"/>
+  <text class="label" x="1088" y="1503">是</text>
+  <rect class="box purple" x="1040" y="1725" width="410" height="115" rx="18"/>
+  <text class="h" x="1245" y="1771" text-anchor="middle">建立 / 關聯 Project_ID</text>
+  <text class="p" x="1245" y="1805" text-anchor="middle">正式專案、跨子公司、金控專案</text>
+
+  <path class="line" d="M355 1840 V1905 H650"/>
+  <path class="line" d="M1245 1840 V1905 H950"/>
+  <polygon class="diamond" points="800,1845 950,1965 800,2085 650,1965"/>
+  <text class="h" x="800" y="1954" text-anchor="middle">是否產生付款需求？</text>
+  <text class="p" x="800" y="1988" text-anchor="middle">合約付款或非合約費用皆可</text>
+
+  <path class="soft" d="M650 1965 H355 V2200 H620"/>
+  <text class="label" x="505" y="1943">否</text>
+  <rect class="box gray" x="150" y="2160" width="410" height="115" rx="18"/>
+  <text class="h" x="355" y="2206" text-anchor="middle">僅保留案件說明</text>
+  <text class="p" x="355" y="2240" text-anchor="middle">進 Dashboard 與 Audit</text>
+
+  <path class="line" d="M950 1965 H1245 V2160"/>
+  <text class="label" x="1088" y="1943">是</text>
+  <rect class="box amber" x="1040" y="2160" width="410" height="115" rx="18"/>
+  <text class="h" x="1245" y="2206" text-anchor="middle">Payment_Schedule</text>
+  <text class="p" x="1245" y="2240" text-anchor="middle">付款頻率、期數、金額、付款依據</text>
+
+  <path class="line" d="M1245 2275 V2338 H800"/>
+  <rect class="box red" x="545" y="2338" width="510" height="115" rx="18"/>
+  <text class="h" x="800" y="2384" text-anchor="middle">Budget_Check</text>
+  <text class="p" x="800" y="2418" text-anchor="middle">預算內 / 外、原因、Release_Gate</text>
+
+  <path class="line" d="M800 2453 V2520"/>
+  <polygon class="diamond" points="800,2520 950,2640 800,2760 650,2640"/>
+  <text class="h" x="800" y="2628" text-anchor="middle">是否預算內？</text>
+  <text class="p" x="800" y="2662" text-anchor="middle">預算外需留下理由</text>
+
+  <path class="line" d="M650 2640 H355 V2840"/>
+  <text class="label" x="505" y="2618">否</text>
+  <rect class="box red" x="150" y="2840" width="410" height="115" rx="18"/>
+  <text class="h" x="355" y="2886" text-anchor="middle">預算外處理</text>
+  <text class="p" x="355" y="2920" text-anchor="middle">填原因、依據、影響金額</text>
+
+  <path class="line" d="M950 2640 H1245 V2840"/>
+  <text class="label" x="1088" y="2618">是</text>
+  <rect class="box green" x="1040" y="2840" width="410" height="115" rx="18"/>
+  <text class="h" x="1245" y="2886" text-anchor="middle">關聯 Budget_ID</text>
+  <text class="p" x="1245" y="2920" text-anchor="middle">列入上簽規劃與月支出預估</text>
+
+  <path class="line" d="M355 2955 V3020 H650"/>
+  <polygon class="diamond" points="800,2960 950,3080 800,3200 650,3080"/>
+  <text class="h" x="800" y="3068" text-anchor="middle">需處長放行？</text>
+  <text class="p" x="800" y="3102" text-anchor="middle">Release_Gate</text>
+
+  <path class="line" d="M650 3080 H355 V3260"/>
+  <text class="label" x="505" y="3058">否</text>
+  <rect class="box amber" x="150" y="3260" width="410" height="115" rx="18"/>
+  <text class="h" x="355" y="3306" text-anchor="middle">主管確認</text>
+  <text class="p" x="355" y="3340" text-anchor="middle">主管確認即可繼續作業</text>
+
+  <path class="line" d="M950 3080 H1245 V3260"/>
+  <text class="label" x="1088" y="3058">是</text>
+  <rect class="box red" x="1040" y="3260" width="410" height="115" rx="18"/>
+  <text class="h" x="1245" y="3306" text-anchor="middle">處長確認放行</text>
+  <text class="p" x="1245" y="3340" text-anchor="middle">放行、退回補件或要求補簽</text>
+
+  <path class="line" d="M355 3375 V3440 H800"/>
+  <path class="line" d="M1245 3375 V3440 H800"/>
+  <path class="line" d="M1245 2955 V3440 H800"/>
+  <rect class="box purple" x="545" y="3440" width="510" height="115" rx="18"/>
+  <text class="h" x="800" y="3486" text-anchor="middle">Expense_Claim</text>
+  <text class="p" x="800" y="3520" text-anchor="middle">收到帳單後建立核銷資料</text>
+
+  <path class="line" d="M800 3555 V3625"/>
+  <rect class="box red" x="545" y="3625" width="510" height="115" rx="18"/>
+  <text class="h" x="800" y="3671" text-anchor="middle">Invoice</text>
+  <text class="p" x="800" y="3705" text-anchor="middle">發票由核銷關聯，不直接掛合約</text>
+
+  <path class="line" d="M800 3740 V3810"/>
+  <polygon class="diamond" points="800,3810 950,3930 800,4050 650,3930"/>
+  <text class="h" x="800" y="3918" text-anchor="middle">是否需要分攤？</text>
+  <text class="p" x="800" y="3952" text-anchor="middle">多合約或多付款才建立</text>
+
+  <path class="line" d="M650 3930 H355 V4115"/>
+  <text class="label" x="505" y="3908">否</text>
+  <rect class="box gray" x="150" y="4115" width="410" height="115" rx="18"/>
+  <text class="h" x="355" y="4161" text-anchor="middle">單一核銷</text>
+  <text class="p" x="355" y="4195" text-anchor="middle">一張發票對應單一付款</text>
+
+  <path class="line" d="M950 3930 H1245 V4115"/>
+  <text class="label" x="1088" y="3908">是</text>
+  <rect class="box red" x="1040" y="4115" width="410" height="115" rx="18"/>
+  <text class="h" x="1245" y="4161" text-anchor="middle">Invoice_Allocation</text>
+  <text class="p" x="1245" y="4195" text-anchor="middle">分攤至 Payment_ID 並檢查金額平衡</text>
+
+  <path class="line" d="M355 4230 V4300 H800"/>
+  <path class="line" d="M1245 4230 V4300 H800"/>
+  <path class="soft" d="M355 2275 V4300 H800"/>
+  <rect class="box blue" x="485" y="4300" width="630" height="125" rx="18"/>
+  <text class="h" x="800" y="4350" text-anchor="middle">Dashboard / 報表快照 / audit_logs</text>
+  <text class="p" x="800" y="4385" text-anchor="middle">摘要可下鑽到案件履歷、來源附件、動作紀錄</text>
+
+  <rect class="box blue" x="80" y="145" width="350" height="120" rx="18"/>
+  <text class="h" x="255" y="192" text-anchor="middle">核心規則</text>
+  <text class="p" x="255" y="226" text-anchor="middle">Case_ID 必填</text>
+  <text class="p" x="255" y="254" text-anchor="middle">其他 ID 依條件建立</text>
+
+  <rect class="box red" x="1170" y="145" width="350" height="120" rx="18"/>
+  <text class="h" x="1345" y="192" text-anchor="middle">重要限制</text>
+  <text class="p" x="1345" y="226" text-anchor="middle">AI / PDF 只進暫存</text>
+  <text class="p" x="1345" y="254" text-anchor="middle">人工確認後才寫正式資料</text>
+</svg>

@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理角度 - 案件進件管理 v2.2</title>
+  <link rel="stylesheet" href="mockup-v2-2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="四角度切換">
+      <div class="brand">費控</div>
+      <a class="rail-link active" href="assistant-intake-v2-2.html">助理</a>
+      <a class="rail-link" href="manager-dashboard-v2-2.html">主管</a>
+      <a class="rail-link" href="executive-release-v2-2.html">處長</a>
+      <a class="rail-link" href="handler-workbench-v2-2.html">承辦</a>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">管理者 / 助理角度</div>
+          <h1>案件進件、Intake 初判與關聯建立</h1>
+          <p class="subline">助理負責把來源資料轉成 Case_ID，初判合約、專案、費用、預算與是否送主管或處長。</p>
+        </div>
+        <div class="toolbar">
+          <input type="search" value="中華電信 板橋機櫃 電力費" aria-label="搜尋" />
+          <button class="primary" type="button">新增 Case</button>
+          <button class="secondary" type="button">送主管確認</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>Case_ID 主流程</h2>
+              <p class="subline">案件先建立，再依判斷結果建立或保留關聯 ID。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">Case_ID 必填</span>
+              <span class="tag green">Contract_ID 可空白</span>
+              <span class="tag purple">Project_ID 可空白</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="pipeline">
+              <div class="step"><div class="step-number">1</div><div class="step-title">案件進件</div><span class="step-copy">建立 Case_ID、來源、組別、負責人。</span></div>
+              <div class="step"><div class="step-number">2</div><div class="step-title">合約判斷</div><span class="step-copy">是否新約、續約、增購、補充或費用調整。</span></div>
+              <div class="step"><div class="step-number">3</div><div class="step-title">專案判斷</div><span class="step-copy">正式專案建立 Project_ID，非正式可空白。</span></div>
+              <div class="step"><div class="step-number">4</div><div class="step-title">補齊屬性</div><span class="step-copy">廠商、期間、金額、主管關注、來源。</span></div>
+              <div class="step"><div class="step-number">5</div><div class="step-title">費用判斷</div><span class="step-copy">判斷是否產生付款或核銷需求。</span></div>
+              <div class="step"><div class="step-number">6</div><div class="step-title">付款明細</div><span class="step-copy">建立 Payment_Schedule 與期數。</span></div>
+              <div class="step"><div class="step-number">7</div><div class="step-title">預算檢核</div><span class="step-copy">預算內外、原因、Budget_ID。</span></div>
+              <div class="step"><div class="step-number">8</div><div class="step-title">上簽規劃</div><span class="step-copy">列入次月上簽與支出追蹤。</span></div>
+              <div class="step"><div class="step-number">9</div><div class="step-title">費用核銷</div><span class="step-copy">建立 Expense_Claim。</span></div>
+              <div class="step"><div class="step-number">10</div><div class="step-title">發票分攤</div><span class="step-copy">Invoice 與 Allocation。</span></div>
+              <div class="step"><div class="step-number">11</div><div class="step-title">稽核追溯</div><span class="step-copy">Dashboard、報表、Audit。</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>助理下鑽路徑</h2>
+              <p class="subline">助理不只新增案件，也要能一路追到待處理清單、單案分流與來源稽核。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">L1 進件總覽</span>
+              <span class="tag amber">L2 待處理</span>
+              <span class="tag green">L3 單案分流</span>
+              <span class="tag">L4 來源稽核</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="flow-item">
+                <strong>L1 進件總覽</strong>
+                <span>看今日新增、Excel 匯入、Email 來函、承辦新增與待補來源數量。</span>
+                <span class="tag blue">新進 9</span>
+              </div>
+              <div class="flow-item">
+                <strong>L2 待處理清單</strong>
+                <span>點進「待補來源」或「待合約勾稽」，看每筆 Case 的卡點與責任人。</span>
+                <span class="tag amber">待處理 6</span>
+              </div>
+              <div class="flow-item">
+                <strong>L3 單案分流</strong>
+                <span>確認是否建立候選 Contract_ID、Project_ID 是否空白、是否產生 Payment 與 Budget_Check。</span>
+                <span class="tag green">Intake</span>
+              </div>
+              <div class="flow-item">
+                <strong>L4 來源稽核</strong>
+                <span>核對 Email、Excel、PDF、AI 建議與人工確認狀態，再送主管或處長。</span>
+                <span class="tag">Audit</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L3 單案分流：進件表單</h2>
+              <p class="subline">範例：中華電信電力費調整。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag red">合約編號待勾稽</span>
+              <span class="tag amber">預算外待確認</span>
+              <span class="tag green">可建立付款明細</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="form-grid">
+              <div class="field">
+                <label>Case_ID</label>
+                <input value="CASE-20260612-003" readonly />
+              </div>
+              <div class="field">
+                <label>案件來源</label>
+                <select><option>Email 來函</option><option>Excel 匯入</option><option>承辦新增</option></select>
+              </div>
+              <div class="field">
+                <label>組別</label>
+                <select><option>網路基礎架構</option><option>維運管理</option></select>
+              </div>
+              <div class="field">
+                <label>負責人</label>
+                <input value="王小明" />
+              </div>
+              <div class="field wide">
+                <label>案件名稱</label>
+                <input value="中華電信板橋機櫃電力費調整" />
+              </div>
+              <div class="field">
+                <label>目標日</label>
+                <input type="date" value="2026-07-05" />
+              </div>
+              <div class="field">
+                <label>優先等級</label>
+                <select><option>高</option><option>中</option><option>低</option></select>
+              </div>
+              <div class="field full">
+                <label>來源摘要</label>
+                <textarea>中華電信以 mail 通知，因應台電漲價，原板橋機櫃合約月費 150,000 元外，增加 3,000 元電力費，後續以帳單方式處理。</textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L2 待處理清單：Intake 判斷</h2>
+              <p class="subline">助理點進待處理後，需要看到每個判斷點是否已完成。</p>
+            </div>
+          </div>
+          <div class="section-body grid four">
+            <div class="panel">
+              <span class="tag blue">合約相關</span>
+              <h3>Contract_ID 候選關聯</h3>
+              <p class="label">原合約系統編號難以勾稽，先建立候選關聯與人工確認狀態。</p>
+            </div>
+            <div class="panel">
+              <span class="tag purple">非正式專案</span>
+              <h3>Project_ID 暫空</h3>
+              <p class="label">以公司級、處級、部級、金控或跨子公司標籤管理。</p>
+            </div>
+            <div class="panel">
+              <span class="tag amber">產生費用</span>
+              <h3>Payment_Schedule</h3>
+              <p class="label">定期付款，12 期，每月 3,000 元，由帳單核銷。</p>
+            </div>
+            <div class="panel">
+              <span class="tag red">預算外</span>
+              <h3>Budget_Check</h3>
+              <p class="label">填寫原因與依據，判斷是否送主管或處長放行。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L2 待補與待確認清單</h2>
+              <p class="subline">這一層讓助理知道哪些 Case 還不能送主管，避免只建立 Case 卻沒有補完資料。</p>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">Case_ID</button></th>
+                    <th><button type="button">案件</button></th>
+                    <th><button type="button">卡點</button></th>
+                    <th><button type="button">缺資料</button></th>
+                    <th><button type="button">下一步</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CASE-20260612-003</td>
+                    <td>中華電信板橋機櫃電力費調整</td>
+                    <td><span class="tag amber">合約待勾稽</span> <span class="tag red">預算外</span></td>
+                    <td>正式合約編號、預算外原因</td>
+                    <td>補來源後送主管判斷 Release_Gate。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260611-009</td>
+                    <td>年度維運續約與增購整併</td>
+                    <td><span class="tag amber">子 Case 判斷</span></td>
+                    <td>父合約、增購範圍、付款里程碑</td>
+                    <td>拆分續約與增購資料後送主管。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260608-015</td>
+                    <td>非合約臨時軟體授權費</td>
+                    <td><span class="tag blue">非合約</span></td>
+                    <td>請購原因、預算歸屬、付款依據</td>
+                    <td>確認 Contract_ID 可空白後建立 Payment。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>例外案例處理</h2>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">例外</button></th>
+                    <th><button type="button">判斷</button></th>
+                    <th><button type="button">助理處理</button></th>
+                    <th><button type="button">送審</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>中華電信追加電力費</td>
+                    <td>合約相關、費用新增、可能預算外。</td>
+                    <td>建 Case、候選 Contract、Contract_Relation「費用調整」、Payment、Budget_Check。</td>
+                    <td><span class="tag red">主管 / 處長</span></td>
+                  </tr>
+                  <tr>
+                    <td>子合約是否新 Case</td>
+                    <td>獨立簽核、獨立預算或獨立付款才新 Case。</td>
+                    <td>標記 Parent_Case_ID / Parent_Contract_ID。</td>
+                    <td><span class="tag amber">主管</span></td>
+                  </tr>
+                  <tr>
+                    <td>合約系統編號難勾稽</td>
+                    <td>流程不阻塞，但需信心分數與待確認狀態。</td>
+                    <td>建立人工勾稽清單，依廠商、期間、金額、案名比對。</td>
+                    <td><span class="tag amber">人工確認</span></td>
+                  </tr>
+                  <tr>
+                    <td>處長頁是否顯示</td>
+                    <td>只有 Release_Gate 標記後才進處長頁。</td>
+                    <td>整理摘要、風險、金額、來源、建議選項。</td>
+                    <td><span class="tag blue">放行佇列</span></td>
+                  </tr>
+                  <tr>
+                    <td>付款頻率與期數</td>
+                    <td>支援定期付款與里程碑付款。</td>
+                    <td>建立期數、月份、金額、驗收條件與付款依據。</td>
+                    <td><span class="tag green">Payment</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L4 來源與動作紀錄</h2>
+              <p class="subline">助理送出前要確認來源完整，並留下每次判斷與補件紀錄。</p>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">類型</button></th>
+                    <th><button type="button">內容</button></th>
+                    <th><button type="button">確認狀態</button></th>
+                    <th><button type="button">處理人</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Email</td>
+                    <td>中華電信通知電力費追加，每月 3,000 元。</td>
+                    <td><span class="tag green">已附</span></td>
+                    <td>王小明</td>
+                  </tr>
+                  <tr>
+                    <td>候選合約</td>
+                    <td>以廠商、地點、期間、原月費比對建立候選 Contract_ID。</td>
+                    <td><span class="tag amber">待人工勾稽</span></td>
+                    <td>助理 / 合約窗口</td>
+                  </tr>
+                  <tr>
+                    <td>AI 建議</td>
+                    <td>解析金額為 3,000 / 月，僅作建議。</td>
+                    <td><span class="tag red">待人工確認</span></td>
+                    <td>系統建議</td>
+                  </tr>
+                  <tr>
+                    <td>動作紀錄</td>
+                    <td>新增 Case、建立候選合約、補預算外原因、送主管確認。</td>
+                    <td><span class="tag">持續記錄</span></td>
+                    <td>系統</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  <script src="mockup-v2-2.js"></script>
+</body>
+</html>

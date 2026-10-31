@@ -1,0 +1,83 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理工作台 - PDF 待關聯案件</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero"><div class="eyebrow">Assistant Workbench</div><h1>PDF 待關聯案件</h1><a class="back" href="17_PDF簽呈關聯.html">返回 PDF 簽呈關聯</a></header>
+  <main class="content">
+    <section class="mvp-shell">
+                                          <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item active" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+      <section class="mock-app">
+        <div class="screen-title">
+          <div><h2>PDF 待關聯案件</h2><div class="meta"><span>月份：2026/06</span><span>PDF 狀態：待關聯</span></div></div>
+          <div class="tag-row">
+            <a class="tag red tag-link" href="25_PDF待關聯案件.html">待關聯 5</a>
+            <a class="tag amber tag-link" href="26_PDF待確認案件.html">待確認 7</a>
+            <a class="tag green tag-link" href="27_PDF已確認案件.html">已確認 9</a>
+          </div>
+        </div>
+        <div class="tab-row">
+          <a class="tab" href="17_PDF簽呈關聯.html">關聯總覽</a>
+          <a class="tab active" href="25_PDF待關聯案件.html">待關聯</a>
+          <a class="tab" href="26_PDF待確認案件.html">待確認</a>
+          <a class="tab" href="27_PDF已確認案件.html">已確認</a>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h2>待關聯清單</h2><a class="tag red tag-link" href="25_PDF待關聯案件.html">5 筆</a></div>
+          <div class="panel-body">
+            <div class="case-list">
+              <div class="case-row wide header"><span>Case_ID</span><span>案件</span><span>可能 PDF</span><span>金額</span><span>狀態</span></div>
+              <div class="case-row wide"><span>CASE-202606-002</span><div class="case-title"><strong>機房維運服務續約</strong><span>公文編號待補</span></div><span>續約簽呈_機房.pdf</span><span>待填</span><span class="tag red">待關聯</span></div>
+              <div class="case-row wide"><span>CASE-202606-012</span><div class="case-title"><strong>資料庫備援服務</strong><span>費用項目整合23.xlsx / Row 47</span></div><span>備援服務簽呈.pdf</span><span>128,000</span><span class="tag red">待關聯</span></div>
+              <div class="case-row wide"><span>CASE-202606-017</span><div class="case-title"><strong>負載平衡設備維護</strong><span>架構部續約合約進度.xlsx / Row 58</span></div><span>未找到</span><span>96,000</span><span class="tag red">待關聯</span></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理工作台 - 分類對照表查詢</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero"><div class="eyebrow">Assistant Workbench</div><h1>分類對照表查詢</h1><a class="back" href="34_新增案件.html">返回新增案件</a></header>
+  <main class="content">
+    <section class="mvp-shell">
+                        <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item active" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+      <section class="mock-app">
+        <div class="screen-title">
+          <div><h2>分類對照表</h2><div class="meta"><span>來源：費用項目整合23.xlsx / 分類對照表</span><span>查詢：中華電信</span></div></div>
+          <div class="tag-row">
+            <a class="tag blue tag-link" href="40_新增例行性維護項目.html">套用到例行維護</a>
+            <a class="tag green tag-link" href="41_新增專案付款明細.html">套用到專案付款</a>
+          </div>
+        </div>
+        <div class="mock-topbar">
+          <div class="search-preview">
+            <div class="search-box"><span class="search-icon">搜</span><span>搜尋費用名稱 / 廠商 / 統編 / 負責人 / 2026 名稱</span></div>
+          </div>
+          <div class="action-row">
+            <button class="btn primary" type="button">搜尋</button>
+            <button class="btn" type="button">新增待分類</button>
+          </div>
+        </div>
+        <div class="tab-row">
+          <a class="tab" href="34_新增案件.html">新增入口</a>
+          <a class="tab" href="40_新增例行性維護項目.html">例行性維護項目</a>
+          <a class="tab" href="41_新增專案付款明細.html">專案付款明細</a>
+          <a class="tab active" href="39_分類對照表查詢.html">分類對照表</a>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h2>查詢結果</h2><span class="tag blue">3 筆</span></div>
+          <div class="panel-body">
+            <div class="case-list">
+              <div class="case-row wide header"><span>負責人 / 組別</span><span>費用名稱</span><span>廠商 / 統編</span><span>分類</span><span>套用</span></div>
+              <div class="case-row wide"><span>林凱文 / 主機組</span><div class="case-title"><strong>遠傳電信數據線路月租費</strong><span>2026：遠傳電信數據線路月租費</span></div><span>中華電信股份有限公司台灣北區信分公司台北營運處 / 81691784</span><span>工具 / 專案付款</span><a class="tag green tag-link" href="41_新增專案付款明細.html">套用</a></div>
+              <div class="case-row wide"><span>林宏喜 / 主機組</span><div class="case-title"><strong>中華電信數據線路月租費</strong><span>2026：中華電信數據線路月租費</span></div><span>中華電信股份有限公司企業客戶分公司 / 27950876</span><span>資訊安全 / 半年</span><a class="tag blue tag-link" href="40_新增例行性維護項目.html">套用</a></div>
+              <div class="case-row wide"><span>鄭一鳴 / 主機組</span><div class="case-title"><strong>中華電信國際數據線路月租費</strong><span>2026：中華電信國際數據線路月租費</span></div><span>中華電信股份有限公司國際電信分公司 / 96979981</span><span>年 / 維護付款</span><a class="tag blue tag-link" href="40_新增例行性維護項目.html">套用</a></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理工作台 - Excel 來源清單</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero"><div class="eyebrow">Assistant Workbench</div><h1>Excel 來源清單</h1><a class="back" href="18_來源追溯.html">返回來源追溯</a></header>
+  <main class="content">
+    <section class="mvp-shell">
+                                          <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item active" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+      <section class="mock-app">
+        <div class="screen-title">
+          <div><h2>Excel 來源清單</h2><div class="meta"><span>來源類型：Excel</span><span>批次：2026/06</span></div></div>
+          <div class="tag-row">
+            <a class="tag blue tag-link" href="28_Excel來源清單.html">Excel 來源 18</a>
+            <a class="tag green tag-link" href="29_PDF來源清單.html">PDF 來源 12</a>
+            <a class="tag amber tag-link" href="30_異動紀錄清單.html">異動紀錄 24</a>
+          </div>
+        </div>
+        <div class="tab-row">
+          <a class="tab" href="18_來源追溯.html">追溯總覽</a>
+          <a class="tab active" href="28_Excel來源清單.html">Excel 來源</a>
+          <a class="tab" href="29_PDF來源清單.html">PDF 來源</a>
+          <a class="tab" href="30_異動紀錄清單.html">異動紀錄</a>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h2>Excel 原列</h2><a class="tag blue tag-link" href="28_Excel來源清單.html">18 筆</a></div>
+          <div class="panel-body">
+            <div class="case-list">
+              <div class="case-row source header"><span>Case_ID</span><span>來源檔案</span><span>欄位</span><span>列號</span></div>
+              <div class="case-row source"><span>CASE-202606-001</span><div class="case-title"><strong>費用項目整合23.xlsx</strong><span>工作表：費用明細</span></div><span>案名、金額、期間</span><span>Row 18</span></div>
+              <div class="case-row source"><span>CASE-202606-008</span><div class="case-title"><strong>次月預計上簽項目.xlsx</strong><span>工作表：上簽清單</span></div><span>案名、預計月份</span><span>Row 9</span></div>
+              <div class="case-row source"><span>CASE-202606-010</span><div class="case-title"><strong>架構部續約合約進度.xlsx</strong><span>工作表：續約進度</span></div><span>合約到期日、廠商</span><span>Row 41</span></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>

@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Excel 系統化工作台 v2.9</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d0d7e2;
+      --paper: #ffffff;
+      --canvas: #f4f7fb;
+      --blue: #1f6aa5;
+      --blue-soft: #e7f2fb;
+      --green: #2f7a48;
+      --green-soft: #e8f5ec;
+      --amber: #9a6200;
+      --amber-soft: #fff3d6;
+      --red: #b42318;
+      --red-soft: #fde8e7;
+      --purple: #6941a5;
+      --purple-soft: #f0eafa;
+      --shadow: 0 12px 28px rgba(16, 24, 40, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .hero {
+      padding: 30px 38px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      margin-top: 7px;
+      font-size: 32px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 15px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 1050px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .content {
+      padding: 22px 38px 38px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head {
+      padding: 15px 16px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .panel-body { padding: 16px; }
+
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #344054;
+      background: #f5f7fa;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tag.blue { color: var(--blue); background: var(--blue-soft); border-color: #bad4ee; }
+    .tag.green { color: var(--green); background: var(--green-soft); border-color: #b9ddb9; }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); border-color: #f0cf88; }
+    .tag.red { color: var(--red); background: var(--red-soft); border-color: #f2b8b2; }
+    .tag.purple { color: var(--purple); background: var(--purple-soft); border-color: #d4c4ee; }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .card {
+      min-height: 132px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .card p {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(160px, 1fr));
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .step {
+      min-height: 132px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      position: relative;
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      top: 48px;
+      right: -9px;
+      width: 9px;
+      height: 2px;
+      background: #98a2b3;
+    }
+
+    .step:last-child::after { display: none; }
+
+    .num {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      margin-bottom: 9px;
+    }
+
+    .step span:last-child {
+      display: block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      min-width: 960px;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    th {
+      color: #344054;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .columns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .col {
+      padding: 3px 7px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .search-box {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      border: 1px solid #b9c4d3;
+      border-radius: 999px;
+      background: #fff;
+      color: #475467;
+      font-size: 15px;
+    }
+
+    .search-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--blue);
+      font-size: 12px;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    @media (max-width: 980px) {
+      .hero, .content { padding-left: 18px; padding-right: 18px; }
+      .grid.three, .grid.two { grid-template-columns: 1fr; }
+      .tag-row { justify-content: flex-start; }
+      h1 { font-size: 25px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Excel-first Systemization / v2.9</div>
+    <h1>既有 Excel 控管資料如何系統化</h1>
+    <p class="lead">這不是全新系統取代 Excel，而是把 `A3.附件` 裡的 Excel 與 PDF 簽呈變成可匯入、可檢核、可追溯、可下鑽、可回匯的系統資料。第一版先承接既有欄位與簽呈內容，再逐步改善流程與 UI。</p>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>系統化流程</h2>
+          <p class="lead">Excel 先進暫存，不直接覆蓋正式資料。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">保留來源</span>
+          <span class="tag amber">先檢核</span>
+          <span class="tag green">人工確認</span>
+          <span class="tag red">PDF 不只是附件</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="pipeline">
+          <div class="step"><div class="num">1</div><h3>Excel / PDF 匯入</h3><span>記錄檔名、Sheet、Row No、PDF 頁碼、匯入人。</span></div>
+          <div class="step"><div class="num">2</div><h3>暫存區</h3><span>保留原 Excel 欄位，不直接寫正式表。</span></div>
+          <div class="step"><div class="num">3</div><h3>欄位與內容對應</h3><span>把 Excel 欄位與 PDF 簽呈內容對到 Case、Contract、Payment、Budget。</span></div>
+          <div class="step"><div class="num">4</div><h3>系統檢核</h3><span>檢查必填、金額、日期、合約、預算內外、PDF 與 Excel 是否一致。</span></div>
+          <div class="step"><div class="num">5</div><h3>人工確認</h3><span>助理、承辦、主管、處長依角色確認。</span></div>
+          <div class="step"><div class="num">6</div><h3>正式資料</h3><span>確認後建立 Case、費用項目、合約、付款、核銷、簽呈文件。</span></div>
+          <div class="step"><div class="num">7</div><h3>全文索引</h3><span>索引案名、合約、廠商、人員、PDF 文字、Excel 原列與稽核紀錄。</span></div>
+          <div class="step"><div class="num">8</div><h3>報表與回匯</h3><span>產出 Dashboard、報表快照，必要時回匯 Excel。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>全域全文檢索</h2>
+          <p class="lead">搜尋不是單頁篩選，而是跨 Excel、PDF、正式資料與稽核紀錄的共用入口。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">全域搜尋</span>
+          <span class="tag red">PDF 頁碼</span>
+          <span class="tag green">Excel 原列</span>
+        </div>
+      </div>
+      <div class="panel-body grid two">
+        <div class="card">
+          <h3>搜尋框示意</h3>
+          <p>使用者可以用同一個搜尋框找案名、合約、廠商、統編、公文編號、人員、PDF 簽呈內容與 Excel 原始欄位。</p>
+          <div class="search-box"><span class="search-icon">⌕</span><span>搜尋案名 / 合約 / 廠商 / 公文編號 / 人員 / PDF / Excel Row</span></div>
+        </div>
+        <div class="card">
+          <h3>搜尋結果要可追溯</h3>
+          <p>PDF 結果要顯示頁碼與文字摘錄；Excel 結果要顯示檔名、Sheet、Row、原欄位；正式資料要顯示 Case、狀態、責任人與下一步。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Excel 來源與系統定位</h2>
+          <p class="lead">這些檔案不是附件而已，是第一版資料設計的來源。</p>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Excel</th>
+                <th>主要 Sheet / 欄位</th>
+                <th>系統化模組</th>
+                <th>UI 改善</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>PDF 簽呈檔</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">檔名</span><span class="col">簽呈案名</span><span class="col">公文/簽呈編號</span><span class="col">廠商</span><span class="col">金額</span><span class="col">期間</span><span class="col">頁碼</span><span class="col">命中段落</span><span class="col">人工確認狀態</span>
+                  </div>
+                </td>
+                <td>Signing Document、document_texts、source_references、Release_Gate 依據</td>
+                <td>處長與主管決策包要能下鑽到 PDF 頁碼與簽呈內容。</td>
+              </tr>
+              <tr>
+                <td>費用項目整合23.xlsx</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">費用項目代碼</span><span class="col">費用項目名稱</span><span class="col">廠商</span><span class="col">統編</span><span class="col">是否為專案費</span><span class="col">是否為維護費</span><span class="col">是否為電信費</span><span class="col">金控/跨子公司合作</span><span class="col">預算內/預算外</span><span class="col">付款方式</span><span class="col">合約總金額</span><span class="col">合約起日</span><span class="col">合約迄日</span><span class="col">組別</span><span class="col">負責窗口</span>
+                  </div>
+                </td>
+                <td>費用項目主檔、Contract、Budget_Check、Payment_Schedule</td>
+                <td>做成「費用項目工作台」，可看合約狀態、預算內外、責任人與付款方式。</td>
+              </tr>
+              <tr>
+                <td>2026次月預計上簽項目.xlsx</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">類別</span><span class="col">案名</span><span class="col">簡述</span><span class="col">續約/汰換/新購/請款(100萬以上)</span><span class="col">金額</span><span class="col">簡述說明</span>
+                  </div>
+                </td>
+                <td>Signing Case、次月上簽、Release_Gate 候選</td>
+                <td>做成「次月上簽清單」，可依金額、類別、是否 100 萬以上下鑽。</td>
+              </tr>
+              <tr>
+                <td>架構部續約合約進度.xlsx</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">序號</span><span class="col">合約編號</span><span class="col">合約名稱</span><span class="col">承辦人</span><span class="col">合約迄日</span><span class="col">合約進度</span><span class="col">進度詳情</span><span class="col">備註</span>
+                  </div>
+                </td>
+                <td>Contract Renewal Task、到期提醒、承辦待辦</td>
+                <td>做成「續約進度看板」，主管看逾期，承辦看待辦。</td>
+              </tr>
+              <tr>
+                <td>費用項目整合23.xlsx / 核銷 Sheets</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">核銷項目</span><span class="col">核銷金額</span><span class="col">簽核層級</span><span class="col">費用核銷申請書</span><span class="col">付款憑證</span><span class="col">請購簽呈/請購單</span><span class="col">費用分攤表</span><span class="col">合約書</span><span class="col">費用核銷月份</span><span class="col">窗口</span><span class="col">處理進度</span><span class="col">核銷編號</span><span class="col">發票形式</span><span class="col">發票日期</span><span class="col">核銷項目是否逾期</span>
+                  </div>
+                </td>
+                <td>Payment、Reimbursement、Invoice、Document Checklist、Audit</td>
+                <td>做成「核銷工作清單」，用文件 checklist 取代人工看欄位。</td>
+              </tr>
+              <tr>
+                <td>資訊架構部處級專案進度追蹤總表 (2).xlsx</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">專案名稱</span><span class="col">分類</span><span class="col">總進度預計%</span><span class="col">總進度實際%</span><span class="col">工作主項目</span><span class="col">負責人</span><span class="col">開始日期</span><span class="col">結束日期</span><span class="col">完成度(%)</span><span class="col">關鍵風險點/備註說明</span><span class="col">需決策項目</span><span class="col">需支援項目</span>
+                  </div>
+                </td>
+                <td>Project Progress、Project_ID 關聯</td>
+                <td>不當費用主檔，只在正式專案成立時關聯進度。</td>
+              </tr>
+              <tr>
+                <td>金控專案_20260323.xlsx</td>
+                <td>
+                  <div class="columns">
+                    <span class="col">合作單位（集團）</span><span class="col">負責窗口（集團）</span><span class="col">專案名稱</span><span class="col">負責部門</span><span class="col">負責人</span><span class="col">集團預計完成日</span><span class="col">03月進度</span><span class="col">02月進度</span>
+                  </div>
+                </td>
+                <td>金控 / 跨子公司標籤、主管與處長關注條件</td>
+                <td>做成跨子公司案件標籤，不強迫變成合約或費用。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>四角色 UI 要改成 Excel-first</h2>
+          <p class="lead">使用者看到的不是「我要重填資料」，而是「系統幫我整理 Excel 後，我只處理例外」。</p>
+        </div>
+      </div>
+      <div class="panel-body grid two">
+        <div class="card">
+          <span class="tag blue">助理 / 管理者</span>
+          <h3>Excel 匯入與欄位 mapping</h3>
+          <p>L1 匯入批次，L2 Sheet / Row / PDF 清單，L3 單列欄位 mapping 與 PDF 內容比對，L4 原 Excel、PDF 頁碼與修正紀錄。</p>
+        </div>
+        <div class="card">
+          <span class="tag amber">承辦</span>
+          <h3>補資料與核銷</h3>
+          <p>承辦不重填 Excel 已有欄位，只補缺漏：PDF 簽呈、來源、附件、預算外原因、帳單、發票。</p>
+        </div>
+        <div class="card">
+          <span class="tag green">主管</span>
+          <h3>看例外與風險</h3>
+          <p>主管不用看所有 Excel row，只看預算外、合約不明、逾期、跨子公司、金額異常，必要時下鑽 PDF 簽呈。</p>
+        </div>
+        <div class="card">
+          <span class="tag red">處長</span>
+          <h3>只看 Release_Gate</h3>
+          <p>處長看整理好的決策包，來源可下鑽到 Excel 原列與 PDF 簽呈頁碼，但不直接面對所有欄位。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>要跟業主確認的欄位問題</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>問題</th>
+                <th>原因</th>
+                <th>業主需確認</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>哪一份 Excel 是正式主檔？</td>
+                <td>新舊整合表欄位重疊，不能兩份都當唯一真相。</td>
+                <td>建議以 `費用項目整合23.xlsx` 為第一版主資料。</td>
+              </tr>
+              <tr>
+                <td>費用項目代碼是否可當系統代碼？</td>
+                <td>若可當穩定 ID，匯入與回匯會簡單很多。</td>
+                <td>確認是否唯一、是否會重編。</td>
+              </tr>
+              <tr>
+                <td>費用名稱、核銷項目、合約名稱如何比對？</td>
+                <td>目前不同表用不同名稱描述同一件事。</td>
+                <td>確認比對規則與人工勾稽流程。</td>
+              </tr>
+              <tr>
+                <td>預算內/外以哪張表為準？</td>
+                <td>費用項目主檔與預算編列都出現預算資訊。</td>
+                <td>確認預算檢核基準。</td>
+              </tr>
+              <tr>
+                <td>核銷文件欄位是否都要系統化？</td>
+                <td>核銷 sheet 裡有費用核銷申請書、付款憑證、請購簽呈、合約書等文件欄位。</td>
+                <td>確認第一版哪些文件必填，哪些先保留備註。</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈要解析哪些內容？</td>
+                <td>PDF 是簽呈依據，不是一般附件。</td>
+                <td>確認案名、金額、廠商、期間、公文編號、簽核層級是否必須擷取。</td>
+              </tr>
+              <tr>
+                <td>專案追蹤表是否只做關聯？</td>
+                <td>專案表有大量甘特日期欄，不應直接塞進費用主流程。</td>
+                <td>確認 Project_ID 成立時才關聯專案進度。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

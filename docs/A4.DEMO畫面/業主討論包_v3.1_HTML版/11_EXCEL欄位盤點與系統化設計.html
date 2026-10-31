@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Excel / PDF 欄位盤點與系統化設計</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Excel + PDF Systemization / 欄位盤點</div>
+    <h1>Excel / PDF 欄位盤點與系統化設計</h1>
+    <p class="lead">既有 Excel 是目前的業務資料庫，PDF 是簽呈內容與決策依據。第一版系統要先承接既有資料，再做檢核、拆表、流程與 UI 改善。</p>
+    <a class="back" href="00_會議導覽.html">回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>PM 修正方向</h2>
+          <p class="lead">不是推翻 Excel，也不是叫使用者重填。系統要把既有 Excel / PDF 先接住。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">Excel-first</span>
+          <span class="tag red">PDF 是簽呈</span>
+          <span class="tag green">人工確認</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="script">
+          既有 Excel 控管 + PDF 簽呈內容<br />
+          → 匯入 / 上傳暫存<br />
+          → 欄位對應<br />
+          → 系統檢核<br />
+          → 人工確認<br />
+          → 正式資料<br />
+          → Dashboard / 報表快照 / Excel 回匯
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>主要來源與系統定位</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>來源</th>
+                <th>目前角色</th>
+                <th>系統定位</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>費用項目整合23.xlsx</td>
+                <td>目前最像費用主控檔</td>
+                <td>費用項目主檔、付款、核銷、文件 checklist 的主要來源候選。</td>
+              </tr>
+              <tr>
+                <td>費用合約整合(舊).xlsx</td>
+                <td>舊版歷史資料與欄位參考</td>
+                <td>作為比對、補歷史與欄位對照，不直接覆蓋新版資料。</td>
+              </tr>
+              <tr>
+                <td>2026次月預計上簽項目.xlsx</td>
+                <td>每月上簽計畫</td>
+                <td>建立 Signing Plan / Case 候選資料。</td>
+              </tr>
+              <tr>
+                <td>架構部續約合約進度.xlsx</td>
+                <td>續約合約進度追蹤</td>
+                <td>建立 contract_renewal_tasks，串接合約到期提醒與承辦待辦。</td>
+              </tr>
+              <tr>
+                <td>資訊架構部處級專案進度追蹤總表</td>
+                <td>專案進度追蹤</td>
+                <td>只在正式 Project_ID 成立時關聯專案進度，不當費用主檔。</td>
+              </tr>
+              <tr>
+                <td>金控專案_20260323.xlsx</td>
+                <td>跨子公司 / 金控合作追蹤</td>
+                <td>建立合作標籤與處長關注條件。</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈檔</td>
+                <td>簽呈內容與決策依據</td>
+                <td>建立 signing_documents，關聯 Case / Signing Case / Contract / Budget_Check。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>核心欄位群組</h2>
+      </div>
+      <div class="panel-body grid three">
+        <div class="card">
+          <span class="tag blue">費用主檔</span>
+          <h3>費用項目與廠商</h3>
+          <p>費用項目代碼、費用項目名稱、廠商、統編、標的分類、組別、負責窗口。</p>
+        </div>
+        <div class="card">
+          <span class="tag green">合約</span>
+          <h3>合約與期間</h3>
+          <p>合約總金額、合約起日、合約迄日、付款方式、合約狀態、是否跨年度。</p>
+        </div>
+        <div class="card">
+          <span class="tag amber">預算</span>
+          <h3>預算編列</h3>
+          <p>年度、主分類、子分類、費用名稱、預算金額、資本 / 費用化分類。</p>
+        </div>
+        <div class="card">
+          <span class="tag">付款</span>
+          <h3>付款與期別</h3>
+          <p>付款年度、付款月份、付款金額、計費期間、總期數、已付期數、繳別 / 期別。</p>
+        </div>
+        <div class="card">
+          <span class="tag red">核銷</span>
+          <h3>核銷與發票</h3>
+          <p>費用核銷申請日、核銷編號、核銷者、發票形式、發票日期、給付方式。</p>
+        </div>
+        <div class="card">
+          <span class="tag blue">文件</span>
+          <h3>文件 checklist</h3>
+          <p>費用核銷申請書、付款憑證、請購簽呈、費用分攤表、驗收單、合約書、其他文件。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Excel 欄位到系統模組</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Excel 欄位群</th>
+                <th>系統模組</th>
+                <th>設計建議</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>費用項目代碼、費用項目名稱、廠商、統編</td>
+                <td>cost_items / vendors</td>
+                <td>作為費用與廠商主檔，不應只存在 Excel row。</td>
+              </tr>
+              <tr>
+                <td>合約起日、合約迄日、合約總金額、付款方式</td>
+                <td>contracts / contract_terms</td>
+                <td>建立合約資料與到期提醒，支援續約追蹤。</td>
+              </tr>
+              <tr>
+                <td>預算年度、預算金額、主分類、子分類</td>
+                <td>budget_lines</td>
+                <td>作為 Budget_Check 基準，支援預算內外判斷。</td>
+              </tr>
+              <tr>
+                <td>付款年度、付款月份、付款金額、計費期間</td>
+                <td>payment_schedules / payment_records</td>
+                <td>拆成付款明細，支援期別、跨年度與月支出預估。</td>
+              </tr>
+              <tr>
+                <td>核銷申請日、核銷編號、核銷者、處理進度</td>
+                <td>expense_claims</td>
+                <td>建立核銷工作清單，與承辦待辦串接。</td>
+              </tr>
+              <tr>
+                <td>發票形式、發票日期、付款備註詳情</td>
+                <td>invoices</td>
+                <td>建立發票資料與給付條件，不混在付款備註裡。</td>
+              </tr>
+              <tr>
+                <td>文件欄位</td>
+                <td>document_requirements / documents</td>
+                <td>轉成文件 checklist 與上傳紀錄。</td>
+              </tr>
+              <tr>
+                <td>備註、差異說明</td>
+                <td>notes / audit_logs</td>
+                <td>保留原文；若具有固定狀態意義，應再拉正式欄位。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>PDF 簽呈內容盤點</h2>
+        <span class="tag red">決策依據</span>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>系統欄位</th>
+                <th>說明</th>
+                <th>為什麼需要</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>document_id</td>
+                <td>PDF 文件 ID</td>
+                <td>建立文件主鍵與來源追溯。</td>
+              </tr>
+              <tr>
+                <td>signing_case_id</td>
+                <td>簽呈案件 ID</td>
+                <td>連到上簽流程與決策包。</td>
+              </tr>
+              <tr>
+                <td>official_doc_no</td>
+                <td>公文 / 簽呈案號</td>
+                <td>方便與 Excel 公文編號互相勾稽。</td>
+              </tr>
+              <tr>
+                <td>subject</td>
+                <td>簽呈主旨 / 案名</td>
+                <td>確認 PDF 與 Case 是否同一案。</td>
+              </tr>
+              <tr>
+                <td>vendor_name</td>
+                <td>廠商名稱</td>
+                <td>比對合約與費用項目。</td>
+              </tr>
+              <tr>
+                <td>amount</td>
+                <td>簽呈金額</td>
+                <td>與 Excel 金額做差異檢核。</td>
+              </tr>
+              <tr>
+                <td>period_start / period_end</td>
+                <td>服務或計費期間</td>
+                <td>檢核合約期間與付款期別。</td>
+              </tr>
+              <tr>
+                <td>page_no / text_excerpt</td>
+                <td>頁碼與文字摘錄</td>
+                <td>主管與處長可回查原文。</td>
+              </tr>
+              <tr>
+                <td>parse_status / confirmed_by</td>
+                <td>解析狀態與人工確認人</td>
+                <td>AI / PDF 抓值不得直接寫正式資料。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>系統化流程</h2>
+      </div>
+      <div class="panel-body steps">
+        <div class="step">
+          <span class="num">1</span>
+          <div>
+            <h3>匯入 / 上傳暫存</h3>
+            <p>Excel 保留原檔名、Sheet、Row、原欄位；PDF 保留檔名、頁碼與可抽取文字。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="num">2</span>
+          <div>
+            <h3>欄位對應</h3>
+            <p>將 Excel 欄位對應到 Case、Contract、Budget、Payment、Expense、Invoice、Document。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="num">3</span>
+          <div>
+            <h3>系統檢核</h3>
+            <p>檢查必填、格式、重複、金額差異、日期衝突、PDF 與 Excel 是否一致。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="num">4</span>
+          <div>
+            <h3>人工確認</h3>
+            <p>助理或管理者確認欄位 mapping；必要時主管下鑽 PDF 原文與頁碼。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="num">5</span>
+          <div>
+            <h3>全文索引</h3>
+            <p>將 Excel 原值、PDF 文字、正式資料與稽核紀錄納入搜尋索引，並套用角色權限。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="num">6</span>
+          <div>
+            <h3>正式資料與報表</h3>
+            <p>確認後才寫正式資料，Dashboard、報表快照、Excel 回匯都以正式資料為準。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>不要做歪的地方</h2>
+      </div>
+      <div class="panel-body grid">
+        <div class="callout warning">不要把 Excel 丟掉；第一版要能承接 Excel。</div>
+        <div class="callout warning">不要讓使用者重填 Excel 已經有的欄位。</div>
+        <div class="callout warning">不要把每張 Excel 都硬做成一個系統頁面。</div>
+        <div class="callout warning">不要直接用匯入資料覆蓋正式資料。</div>
+        <div class="callout warning">不要把專案追蹤表強行當費用主檔。</div>
+        <div class="callout warning">不要把 PDF 當一般附件；它是簽呈依據。</div>
+        <div class="callout warning">不要只搜正式資料；Excel 原列與 PDF 頁碼也要能被全文檢索找回。</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

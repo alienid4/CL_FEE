@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>案例流程圖 - 中華電信電力費調整 v2.4</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #cfd8e6;
+      --canvas: #f4f7fb;
+      --paper: #ffffff;
+      --blue: #1f6aa5;
+      --blue-soft: #e7f2fb;
+      --green: #2f7a48;
+      --green-soft: #e8f5ec;
+      --amber: #9a6200;
+      --amber-soft: #fff3d6;
+      --red: #c81e1e;
+      --red-soft: #fde8e7;
+      --purple: #6941a5;
+      --purple-soft: #f0eafa;
+      --gray-soft: #f5f7fa;
+      --shadow: 0 12px 28px rgba(16, 24, 40, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .page {
+      min-height: 100vh;
+    }
+
+    .header {
+      padding: 28px 34px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      margin-top: 6px;
+      font-size: 30px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 20px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 15px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .subline {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .content {
+      padding: 22px 34px 36px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head {
+      padding: 15px 16px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #344054;
+      background: var(--gray-soft);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tag.blue { color: var(--blue); background: var(--blue-soft); border-color: #bad4ee; }
+    .tag.green { color: var(--green); background: var(--green-soft); border-color: #b9ddb9; }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); border-color: #f0cf88; }
+    .tag.red { color: var(--red); background: var(--red-soft); border-color: #f2b8b2; }
+    .tag.purple { color: var(--purple); background: var(--purple-soft); border-color: #d4c4ee; }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid.five {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .grid.two {
+      grid-template-columns: minmax(0, 1fr) minmax(380px, .9fr);
+    }
+
+    .metric {
+      min-height: 112px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 9px;
+      font-size: 22px;
+      line-height: 1.15;
+    }
+
+    .metric span:last-child {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .flow-wrap {
+      overflow-x: auto;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      min-width: 1320px;
+      height: auto;
+    }
+
+    .flow-bg { fill: #fbfcfe; }
+    .box { fill: #fff; stroke: #cfd8e6; stroke-width: 2.5; }
+    .box-blue { fill: #e7f2fb; stroke: #1f6aa5; }
+    .box-green { fill: #e8f5ec; stroke: #2f7a48; }
+    .box-amber { fill: #fff3d6; stroke: #a96800; }
+    .box-red { fill: #fde8e7; stroke: #c81e1e; }
+    .box-purple { fill: #f0eafa; stroke: #6941a5; }
+    .box-gray { fill: #f5f7fa; stroke: #667085; }
+    .diamond { fill: #fff; stroke: #9aa7b5; stroke-width: 2.5; }
+    .active-node { stroke: #c81e1e; stroke-width: 5; }
+    .node-title { font: 800 17px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #172033; }
+    .node-copy { font: 600 13px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #475467; }
+    .label { font: 800 13px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #344054; }
+    .path { fill: none; stroke: #263244; stroke-width: 3; marker-end: url(#arrow); }
+    .path-soft { fill: none; stroke: #98a2b3; stroke-width: 3; stroke-dasharray: 9 7; marker-end: url(#arrow-soft); }
+    .case-path { fill: none; stroke: #c81e1e; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow-red); }
+    .case-path-thin { fill: none; stroke: #c81e1e; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; marker-end: url(#arrow-red); }
+    .case-label { font: 900 14px "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; fill: #c81e1e; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      min-width: 820px;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    th,
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    th {
+      color: #344054;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .item {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .item p {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1080px) {
+      .grid.five,
+      .grid.two {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-head {
+        display: grid;
+      }
+
+      .tag-row {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .header,
+      .content {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div class="eyebrow">Case Flow Reference / v2.4</div>
+      <h1>案例流程圖：中華電信板橋機櫃電力費調整</h1>
+      <p class="subline">紅線代表此案例實際走過的流程：合約相關、非正式專案、產生付款、預算外、需處長 Release_Gate，後續收到帳單後才進核銷與發票。</p>
+    </header>
+
+    <div class="content">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>案例摘要</h2>
+            <p class="subline">這個案例可作為後續案例 HTML 的版型。</p>
+          </div>
+          <div class="tag-row">
+            <span class="tag blue">CASE-20260612-003</span>
+            <span class="tag green">合約候選</span>
+            <span class="tag red">預算外</span>
+            <span class="tag amber">待放行</span>
+          </div>
+        </div>
+        <div class="panel-body grid five">
+          <div class="metric">
+            <span class="tag blue">Case</span>
+            <strong>中華電信電力費調整</strong>
+            <span>Email 來函，板橋機櫃電力費追加。</span>
+          </div>
+          <div class="metric">
+            <span class="tag green">Contract</span>
+            <strong>候選關聯</strong>
+            <span>外部合約系統編號待勾稽。</span>
+          </div>
+          <div class="metric">
+            <span class="tag purple">Project</span>
+            <strong>不建立</strong>
+            <span>非正式專案，Project_ID 可空白。</span>
+          </div>
+          <div class="metric">
+            <span class="tag amber">Payment</span>
+            <strong>3,000 / 月</strong>
+            <span>定期付款 12 期，收到帳單後核銷。</span>
+          </div>
+          <div class="metric">
+            <span class="tag red">Budget</span>
+            <strong>36,000 / 年</strong>
+            <span>預算外，需主管與處長確認。</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>紅線流程圖</h2>
+            <p class="subline">灰黑線是系統完整流程，紅線是此案例的實際路徑。</p>
+          </div>
+          <div class="tag-row">
+            <span class="tag red">紅線：本案路徑</span>
+            <span class="tag">虛線：未走或條件分支</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="flow-wrap">
+            <svg viewBox="0 0 1500 2920" role="img" aria-labelledby="flowTitle flowDesc">
+              <title id="flowTitle">中華電信電力費調整案例流程圖</title>
+              <desc id="flowDesc">紅線標示中華電信板橋機櫃電力費調整案例從案件進件到預算外放行、核銷與稽核的流程。</desc>
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 Z" fill="#263244"></path>
+                </marker>
+                <marker id="arrow-soft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 Z" fill="#98a2b3"></path>
+                </marker>
+                <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+                  <path d="M0 0 L10 5 L0 10 Z" fill="#c81e1e"></path>
+                </marker>
+              </defs>
+
+              <rect class="flow-bg" x="0" y="0" width="1500" height="2920"></rect>
+
+              <path class="path" d="M750 104 V150"></path>
+              <path class="path" d="M750 250 V325"></path>
+              <path class="path" d="M612 420 H330 V560"></path>
+              <path class="path" d="M888 420 H1170 V560"></path>
+              <path class="path" d="M1170 650 V705"></path>
+              <path class="path" d="M1046 795 H865 V930"></path>
+              <path class="path" d="M1294 795 H1360 V930"></path>
+              <path class="path" d="M330 650 V910 H612"></path>
+              <path class="path" d="M865 1020 V1090 H612"></path>
+              <path class="path" d="M1360 1020 V1090 H888"></path>
+              <path class="path" d="M612 1185 H330 V1320"></path>
+              <path class="path" d="M888 1185 H1170 V1320"></path>
+              <path class="path" d="M330 1410 V1470 H612"></path>
+              <path class="path" d="M1170 1410 V1470 H888"></path>
+              <path class="path" d="M750 1585 V1630"></path>
+              <path class="path" d="M612 1695 H330 V1770"></path>
+              <path class="path" d="M888 1695 H1170 V1770"></path>
+              <path class="path" d="M750 1860 V1930"></path>
+              <path class="path" d="M612 2025 H330 V2170"></path>
+              <path class="path" d="M888 2025 H1170 V2170"></path>
+              <path class="path" d="M330 2260 V2315 H612"></path>
+              <path class="path" d="M612 2410 H330 V2550"></path>
+              <path class="path" d="M888 2410 H1170 V2550"></path>
+              <path class="path" d="M1170 2640 V2695 H750"></path>
+              <path class="path" d="M750 2785 V2835"></path>
+
+              <path class="path-soft" d="M330 650 V1235 H612"></path>
+              <path class="path-soft" d="M330 1410 V1770 H330"></path>
+
+              <path class="case-path" d="M750 104 V150"></path>
+              <path class="case-path" d="M750 250 V325"></path>
+              <path class="case-path" d="M888 420 H1170 V560"></path>
+              <path class="case-path" d="M1170 650 V705"></path>
+              <path class="case-path" d="M1294 795 H1360 V930"></path>
+              <path class="case-path" d="M1360 1020 V1090 H888"></path>
+              <path class="case-path" d="M612 1185 H330 V1320"></path>
+              <path class="case-path" d="M330 1410 V1470 H612"></path>
+              <path class="case-path" d="M750 1585 V1630"></path>
+              <path class="case-path-thin" d="M888 1695 H1170 V1770"></path>
+              <path class="case-path-thin" d="M1170 1828 H750 V1805"></path>
+              <path class="case-path" d="M750 1860 V1930"></path>
+              <path class="case-path" d="M612 2025 H330 V2170"></path>
+              <path class="case-path" d="M330 2260 V2315 H612"></path>
+              <path class="case-path" d="M888 2410 H1170 V2550"></path>
+              <path class="case-path" d="M1170 2640 V2695 H750"></path>
+              <path class="case-path" d="M750 2785 V2835"></path>
+
+              <rect class="box box-blue active-node" x="545" y="20" width="410" height="84" rx="14"></rect>
+              <text class="node-title" x="750" y="53" text-anchor="middle">1. 案件進件</text>
+              <text class="node-copy" x="750" y="78" text-anchor="middle">建立 Case_ID：CASE-20260612-003</text>
+
+              <rect class="box box-amber active-node" x="545" y="150" width="410" height="100" rx="14"></rect>
+              <text class="node-title" x="750" y="187" text-anchor="middle">2. Intake 初判</text>
+              <text class="node-copy" x="750" y="214" text-anchor="middle">合約相關、非正式專案、產生付款、預算外</text>
+
+              <polygon class="diamond active-node" points="750,325 888,420 750,515 612,420"></polygon>
+              <text class="node-title" x="750" y="412" text-anchor="middle">是否與合約相關？</text>
+              <text class="case-label" x="902" y="398">本案：是</text>
+
+              <rect class="box box-gray" x="145" y="560" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="330" y="596" text-anchor="middle">Contract_ID 空白</text>
+              <text class="node-copy" x="330" y="622" text-anchor="middle">非合約案件才走此分支</text>
+
+              <rect class="box box-green active-node" x="985" y="560" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="1170" y="596" text-anchor="middle">建立候選 Contract_ID</text>
+              <text class="node-copy" x="1170" y="622" text-anchor="middle">CON-CAND-CHT-2026-04，待勾稽</text>
+
+              <polygon class="diamond active-node" points="1170,705 1294,795 1170,885 1046,795"></polygon>
+              <text class="node-title" x="1170" y="785" text-anchor="middle">特殊關聯？</text>
+              <text class="case-label" x="1308" y="776">本案：費用調整</text>
+
+              <rect class="box box-gray" x="680" y="930" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="865" y="966" text-anchor="middle">一般合約維護</text>
+              <text class="node-copy" x="865" y="992" text-anchor="middle">無特殊關聯時使用</text>
+
+              <rect class="box box-green active-node" x="1175" y="930" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="1360" y="966" text-anchor="middle">Contract_Relation</text>
+              <text class="node-copy" x="1360" y="992" text-anchor="middle">關聯型態：費用調整</text>
+
+              <polygon class="diamond active-node" points="750,1090 888,1185 750,1280 612,1185"></polygon>
+              <text class="node-title" x="750" y="1177" text-anchor="middle">是否正式專案？</text>
+              <text class="case-label" x="480" y="1165">本案：否</text>
+
+              <rect class="box box-gray active-node" x="145" y="1320" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="330" y="1356" text-anchor="middle">Project_ID 空白</text>
+              <text class="node-copy" x="330" y="1382" text-anchor="middle">保留組別與主管關注標籤</text>
+
+              <rect class="box box-purple" x="985" y="1320" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="1170" y="1356" text-anchor="middle">建立 Project_ID</text>
+              <text class="node-copy" x="1170" y="1382" text-anchor="middle">正式專案才建立</text>
+
+              <polygon class="diamond active-node" points="750,1470 888,1585 750,1700 612,1585"></polygon>
+              <text class="node-title" x="750" y="1576" text-anchor="middle">是否產生付款需求？</text>
+              <text class="case-label" x="902" y="1562">本案：是</text>
+
+              <rect class="box box-amber active-node" x="985" y="1770" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="1170" y="1806" text-anchor="middle">Payment_Schedule</text>
+              <text class="node-copy" x="1170" y="1832" text-anchor="middle">3,000 / 月，12 期，帳單核銷</text>
+
+              <rect class="box box-red active-node" x="545" y="1770" width="410" height="90" rx="14"></rect>
+              <text class="node-title" x="750" y="1806" text-anchor="middle">Budget_Check</text>
+              <text class="node-copy" x="750" y="1832" text-anchor="middle">預算外，年度影響 36,000，需 Release_Gate</text>
+
+              <polygon class="diamond active-node" points="750,1930 888,2025 750,2120 612,2025"></polygon>
+              <text class="node-title" x="750" y="2016" text-anchor="middle">是否預算內？</text>
+              <text class="case-label" x="458" y="2003">本案：否</text>
+
+              <rect class="box box-red active-node" x="145" y="2170" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="330" y="2206" text-anchor="middle">預算外原因</text>
+              <text class="node-copy" x="330" y="2232" text-anchor="middle">台電漲價造成電力費追加</text>
+
+              <rect class="box box-green" x="985" y="2170" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="1170" y="2206" text-anchor="middle">預算內</text>
+              <text class="node-copy" x="1170" y="2232" text-anchor="middle">關聯 Budget_ID，列入上簽</text>
+
+              <polygon class="diamond active-node" points="750,2315 888,2410 750,2505 612,2410"></polygon>
+              <text class="node-title" x="750" y="2401" text-anchor="middle">需處長放行？</text>
+              <text class="case-label" x="902" y="2388">本案：是</text>
+
+              <rect class="box box-amber" x="145" y="2550" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="330" y="2586" text-anchor="middle">主管確認即可</text>
+              <text class="node-copy" x="330" y="2612" text-anchor="middle">一般預算外小額可走此分支</text>
+
+              <rect class="box box-red active-node" x="985" y="2550" width="370" height="90" rx="14"></rect>
+              <text class="node-title" x="1170" y="2586" text-anchor="middle">處長確認放行</text>
+              <text class="node-copy" x="1170" y="2612" text-anchor="middle">放行後保留決策與理由</text>
+
+              <rect class="box box-purple active-node" x="545" y="2695" width="410" height="90" rx="14"></rect>
+              <text class="node-title" x="750" y="2731" text-anchor="middle">Expense_Claim</text>
+              <text class="node-copy" x="750" y="2757" text-anchor="middle">收到帳單後建立核銷資料</text>
+
+              <rect class="box box-red active-node" x="545" y="2835" width="410" height="90" rx="14"></rect>
+              <text class="node-title" x="750" y="2871" text-anchor="middle">Invoice / Audit</text>
+              <text class="node-copy" x="750" y="2897" text-anchor="middle">發票由核銷關聯；本案預設不分攤，寫入 audit_logs</text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid two">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>本案判斷結果</h2>
+          </div>
+          <div class="panel-body">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>判斷點</th>
+                    <th>本案結果</th>
+                    <th>建立資料</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>是否合約相關</td>
+                    <td><span class="tag green">是</span></td>
+                    <td>建立候選 Contract_ID，待人工勾稽。</td>
+                  </tr>
+                  <tr>
+                    <td>是否特殊關聯</td>
+                    <td><span class="tag green">是，費用調整</span></td>
+                    <td>建立 Contract_Relation，型態為費用調整。</td>
+                  </tr>
+                  <tr>
+                    <td>是否正式專案</td>
+                    <td><span class="tag">否</span></td>
+                    <td>Project_ID 空白，保留組別與標籤。</td>
+                  </tr>
+                  <tr>
+                    <td>是否產生付款</td>
+                    <td><span class="tag amber">是</span></td>
+                    <td>Payment_Schedule：每月 3,000，12 期。</td>
+                  </tr>
+                  <tr>
+                    <td>是否預算內</td>
+                    <td><span class="tag red">否</span></td>
+                    <td>Budget_Check：預算外原因與年度影響。</td>
+                  </tr>
+                  <tr>
+                    <td>是否需處長放行</td>
+                    <td><span class="tag red">是</span></td>
+                    <td>Release_Gate：送主管與處長確認。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>後續節點</h2>
+          </div>
+          <div class="panel-body stack">
+            <div class="item">
+              <h3>Expense_Claim</h3>
+              <p>收到中華電信帳單後建立核銷資料，需關聯 Payment_ID 與來源附件。</p>
+            </div>
+            <div class="item">
+              <h3>Invoice</h3>
+              <p>發票由核銷資料建立，不直接掛在 Contract_ID 上。</p>
+            </div>
+            <div class="item">
+              <h3>Invoice_Allocation</h3>
+              <p>本案預設單一費用單一發票，不需分攤；若一張發票含多筆費用才建立分攤。</p>
+            </div>
+            <div class="item">
+              <h3>audit_logs</h3>
+              <p>新增 Case、候選合約、預算外原因、主管確認、處長放行與核銷更新都需留紀錄。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

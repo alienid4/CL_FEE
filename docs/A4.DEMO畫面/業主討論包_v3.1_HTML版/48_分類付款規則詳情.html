@@ -1,0 +1,78 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>關聯明細 - 分類付款規則</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero"><div class="eyebrow">Linked Detail</div><h1>分類 / 付款規則詳情</h1><a class="back" href="40_新增例行性維護項目.html">返回新增資料</a></header>
+  <main class="content">
+    <section class="mvp-shell">
+      <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item active" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+      <section class="mock-app">
+        <div class="screen-title">
+          <div><h2>主機組 / 季 / 資訊安全 / 維護付款</h2><div class="meta"><span>來源：分類對照表 / Row 4</span><span>簽核層級：處長</span></div></div>
+          <div class="tag-row"><a class="tag blue tag-link" href="39_分類對照表查詢.html">分類對照表</a><a class="tag green tag-link" href="40_新增例行性維護項目.html">回填表單</a></div>
+        </div>
+        <section class="panel">
+          <div class="panel-head"><h2>關聯資料</h2><span class="tag blue">分類 / 簽核</span></div>
+          <div class="panel-body">
+            <div class="compact-fields">
+              <div class="compact-field"><span>組別</span><b><a class="entity-link" href="47_人員組別關聯詳情.html">主機組</a></b></div>
+              <div class="compact-field"><span>付款方式</span><b><a class="entity-link" href="40_新增例行性維護項目.html">季</a></b></div>
+              <div class="compact-field"><span>類別欄位</span><b><a class="entity-link" href="39_分類對照表查詢.html">資訊安全</a></b></div>
+              <div class="compact-field"><span>簽呈種類</span><b><a class="entity-link" href="17_PDF簽呈關聯.html">維護付款</a></b></div>
+              <div class="compact-field"><span>簽核層級</span><b><a class="entity-link" href="40_新增例行性維護項目.html">處長</a></b></div>
+              <div class="compact-field"><span>比對鍵</span><b><a class="entity-link" href="39_分類對照表查詢.html">廠商 + 統編 + 費用名稱</a></b></div>
+              <div class="compact-field wide"><span>套用來源</span><b><a class="entity-link" href="39_分類對照表查詢.html">分類對照表 / Row 4</a></b></div>
+              <div class="compact-field wide"><span>關聯案件</span><b><a class="entity-link" href="40_新增例行性維護項目.html">中華電信數據線路月租費</a></b></div>
+              <div class="compact-field full"><span>例外狀態</span><b><a class="entity-link" href="23_計費期間待確認.html">計費期間仍需助理確認</a></b></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>

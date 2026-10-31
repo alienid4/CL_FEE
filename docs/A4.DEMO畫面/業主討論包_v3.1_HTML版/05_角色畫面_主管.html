@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>主管角度 - 五面向控管看板</title>
+  <link rel="stylesheet" href="mockup-v2-2.css" />
+  <style>
+    body.no-left-rail .app-shell {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  </style>
+</head>
+<body class="no-left-rail">
+  <div class="app-shell">
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">主管角度</div>
+          <h1>五面向控管看板</h1>
+          <p class="subline">更新時間：2026/06/15 14:30</p>
+        </div>
+        <div class="toolbar">
+          <select aria-label="期間"><option>2026/06 本月</option><option>2026/07 次月</option></select>
+          <button class="primary" type="button">匯出追蹤表</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="manager-layout">
+          <nav class="angle-tabs" data-tabs aria-label="主管五面向">
+            <button class="angle-tab active" type="button" data-tab-target="manager-project">專案</button>
+            <button class="angle-tab" type="button" data-tab-target="manager-budget">預算</button>
+            <button class="angle-tab" type="button" data-tab-target="manager-expense">支出費用</button>
+            <button class="angle-tab" type="button" data-tab-target="manager-sign">每月預計上簽</button>
+            <button class="angle-tab" type="button" data-tab-target="manager-contract">合約</button>
+          </nav>
+
+          <div class="manager-panels">
+            <section class="section tab-panel" id="manager-project">
+              <div class="section-header">
+                <h2>專案</h2>
+                <div class="tag-row">
+                  <a class="tag blue" href="35_上簽清單.html">進行中 9</a>
+                  <a class="tag amber" href="20_待確認案件.html">待主管 6</a>
+                  <a class="tag red" href="20_待確認案件.html">逾期 3</a>
+                  <a class="tag green" href="22_可送審案件.html">完成 12</a>
+                </div>
+              </div>
+              <nav class="sheet-tabs" data-tabs aria-label="專案切換">
+                <button class="sheet-tab active" type="button" data-tab-target="project-chart">進度圖</button>
+                <button class="sheet-tab" type="button" data-tab-target="project-risk">處理優先矩陣</button>
+                <button class="sheet-tab" type="button" data-tab-target="project-list">專案清單</button>
+              </nav>
+              <div class="section-body tab-panel" id="project-chart">
+                <div class="pm-tracks">
+                  <div class="pm-card">
+                    <div>
+                      <a class="pm-card-title" href="41_新增專案付款明細.html">A 系統維護續約</a>
+                      <span class="pm-card-meta"><a href="46_費用項目關聯詳情.html">1500萬</a>｜<a href="16_付款計費檢核.html">2026-06</a>｜<a href="47_人員組別關聯詳情.html">王小明</a></span>
+                    </div>
+                    <div class="pm-line">
+                      <a class="pm-step done" href="34_新增案件.html"><span class="pm-dot">✓</span><span>需求</span></a>
+                      <a class="pm-step done" href="46_費用項目關聯詳情.html"><span class="pm-dot">✓</span><span>報價</span></a>
+                      <a class="pm-step done" href="17_PDF簽呈關聯.html"><span class="pm-dot">✓</span><span>簽呈</span></a>
+                      <a class="pm-step active" href="35_上簽清單.html"><span class="pm-dot">●</span><span>簽核</span></a>
+                      <a class="pm-step" href="36_合約續約.html"><span class="pm-dot">○</span><span>合約</span></a>
+                      <a class="pm-step" href="16_付款計費檢核.html"><span class="pm-dot">○</span><span>核銷</span></a>
+                      <a class="pm-step" href="22_可送審案件.html"><span class="pm-dot">○</span><span>完成</span></a>
+                    </div>
+                    <a class="tag blue pm-status" href="35_上簽清單.html">進行中</a>
+                  </div>
+                  <div class="pm-card">
+                    <div>
+                      <a class="pm-card-title" href="40_新增例行性維護項目.html">B 授權請款</a>
+                      <span class="pm-card-meta"><a href="46_費用項目關聯詳情.html">500萬</a>｜<a href="16_付款計費檢核.html">2026-06</a>｜<a href="47_人員組別關聯詳情.html">李小華</a></span>
+                    </div>
+                    <div class="pm-line">
+                      <a class="pm-step late" href="20_待確認案件.html"><span class="pm-dot">!</span><span>需求</span></a>
+                      <a class="pm-step" href="46_費用項目關聯詳情.html"><span class="pm-dot">○</span><span>報價</span></a>
+                      <a class="pm-step" href="17_PDF簽呈關聯.html"><span class="pm-dot">○</span><span>簽呈</span></a>
+                      <a class="pm-step" href="35_上簽清單.html"><span class="pm-dot">○</span><span>簽核</span></a>
+                      <a class="pm-step" href="36_合約續約.html"><span class="pm-dot">○</span><span>合約</span></a>
+                      <a class="pm-step" href="16_付款計費檢核.html"><span class="pm-dot">○</span><span>核銷</span></a>
+                      <a class="pm-step" href="22_可送審案件.html"><span class="pm-dot">○</span><span>完成</span></a>
+                    </div>
+                    <a class="tag red pm-status" href="20_待確認案件.html">逾期</a>
+                  </div>
+                  <div class="pm-card">
+                    <div>
+                      <a class="pm-card-title" href="41_新增專案付款明細.html">C 內湖機房建置</a>
+                      <span class="pm-card-meta"><a href="46_費用項目關聯詳情.html">190萬</a>｜<a href="35_上簽清單.html">2026-06</a>｜<a href="47_人員組別關聯詳情.html">吳季凌</a></span>
+                    </div>
+                    <div class="pm-line">
+                      <a class="pm-step done" href="34_新增案件.html"><span class="pm-dot">✓</span><span>需求</span></a>
+                      <a class="pm-step done" href="46_費用項目關聯詳情.html"><span class="pm-dot">✓</span><span>報價</span></a>
+                      <a class="pm-step active" href="17_PDF簽呈關聯.html"><span class="pm-dot">●</span><span>簽呈</span></a>
+                      <a class="pm-step" href="35_上簽清單.html"><span class="pm-dot">○</span><span>簽核</span></a>
+                      <a class="pm-step" href="36_合約續約.html"><span class="pm-dot">○</span><span>合約</span></a>
+                      <a class="pm-step" href="16_付款計費檢核.html"><span class="pm-dot">○</span><span>核銷</span></a>
+                      <a class="pm-step" href="22_可送審案件.html"><span class="pm-dot">○</span><span>完成</span></a>
+                    </div>
+                    <a class="tag amber pm-status" href="23_計費期間待確認.html">待確認</a>
+                  </div>
+                </div>
+                <div class="flow-disclosure">
+                  <h3>流向揭露</h3>
+                  <div class="table-wrap">
+                    <table data-sortable>
+                      <thead>
+                        <tr>
+                          <th><button type="button">來源年度</button></th>
+                          <th><button type="button">來源專案</button></th>
+                          <th><button type="button">動作</button></th>
+                          <th><button type="button">金額</button></th>
+                          <th><button type="button">去向</button></th>
+                          <th><button type="button">保留申請</button></th>
+                          <th><button type="button">依據</button></th>
+                          <th><button type="button">責任人</button></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td><a href="11_EXCEL欄位盤點與系統化設計.html">2025 編列 2026</a></td>
+                          <td><a href="20_待確認案件.html">A 專案</a></td>
+                          <td><a class="tag red" href="#budget-frozen-list">取消釋出</a></td>
+                          <td><a href="46_費用項目關聯詳情.html">10,000,000</a></td>
+                          <td><a href="#budget-temp-list">B 300萬</a> / <a href="24_費用差異案件.html">C 100萬</a> / <a href="11_EXCEL欄位盤點與系統化設計.html">剩餘 600萬</a></td>
+                          <td><a class="tag red" href="07_角色畫面_承辦.html">未申請</a></td>
+                          <td><a href="17_PDF簽呈關聯.html">簽呈 / Excel</a></td>
+                          <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        </tr>
+                        <tr>
+                          <td><a href="11_EXCEL欄位盤點與系統化設計.html">2026</a></td>
+                          <td><a href="20_待確認案件.html">A 專案釋出</a></td>
+                          <td><a class="tag blue" href="#budget-temp-list">轉用</a></td>
+                          <td><a href="46_費用項目關聯詳情.html">3,000,000</a></td>
+                          <td><a href="41_新增專案付款明細.html">B AI Token</a></td>
+                          <td><a class="tag" href="41_新增專案付款明細.html">不適用</a></td>
+                          <td><a href="17_PDF簽呈關聯.html">轉用簽呈</a></td>
+                          <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                        </tr>
+                        <tr>
+                          <td><a href="11_EXCEL欄位盤點與系統化設計.html">2026</a></td>
+                          <td><a href="20_待確認案件.html">A 專案釋出</a></td>
+                          <td><a class="tag amber" href="24_費用差異案件.html">補差</a></td>
+                          <td><a href="46_費用項目關聯詳情.html">1,000,000</a></td>
+                          <td><a href="24_費用差異案件.html">C 專案授權費</a></td>
+                          <td><a class="tag" href="24_費用差異案件.html">不適用</a></td>
+                          <td><a href="17_PDF簽呈關聯.html">漲價簽呈</a></td>
+                          <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="project-risk" hidden>
+                <div class="risk-plot">
+                  <div class="risk-zone review">主管確認</div>
+                  <div class="risk-zone urgent">立即處理</div>
+                  <div class="risk-zone watch">可送審</div>
+                  <div class="risk-zone schedule">本週處理</div>
+                  <div class="risk-axis y">金額 / 影響高</div>
+                  <div class="risk-axis x">期限近</div>
+                  <a class="risk-point blue" href="36_合約續約.html" style="--x:38%;--y:70%;--size:116px;">
+                    <strong>續約合約</strong>
+                    <span>248萬 / 20天</span>
+                  </a>
+                  <a class="risk-point red" href="41_新增專案付款明細.html" style="--x:86%;--y:78%;--size:126px;">
+                    <strong>網路建置</strong>
+                    <span>190萬 / 2天</span>
+                  </a>
+                  <a class="risk-point red" href="43_廠商統編詳情.html" style="--x:77%;--y:54%;--size:112px;">
+                    <strong>中華電信</strong>
+                    <span>12萬 / 5天</span>
+                  </a>
+                  <a class="risk-point amber" href="25_PDF待關聯案件.html" style="--x:61%;--y:32%;--size:112px;">
+                    <strong>PDF 待關聯</strong>
+                    <span>36萬 / 9天</span>
+                  </a>
+                  <a class="risk-point green" href="22_可送審案件.html" style="--x:24%;--y:25%;--size:100px;">
+                    <strong>可送審</strong>
+                    <span>12件</span>
+                  </a>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="project-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">專案</button></th>
+                        <th><button type="button">目前階段</button></th>
+                        <th><button type="button">金額</button></th>
+                        <th><button type="button">負責人</button></th>
+                        <th><button type="button">期限</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">內湖延伸機房網路基礎建設採購建置案</a></td>
+                        <td><a class="tag blue" href="35_上簽清單.html">簽核中</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,900,000</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                        <td><a href="16_付款計費檢核.html">2026/06/18</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">確認期別</a> / <a href="06_角色畫面_處長.html">送處長</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">系統維護續約</a></td>
+                        <td><a class="tag red" href="20_待確認案件.html">逾期未回</a></td>
+                        <td><a href="36_合約續約.html">15,000,000</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="36_合約續約.html">2026/06/17</a></td>
+                        <td><a href="30_異動紀錄清單.html">催辦</a> / <a href="21_需補件案件.html">退回補件</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="40_新增例行性維護項目.html">授權請款</a></td>
+                        <td><a class="tag amber" href="20_待確認案件.html">需求待回</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">5,000,000</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                        <td><a href="35_上簽清單.html">2026/06/20</a></td>
+                        <td><a href="21_需補件案件.html">補需求資料</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section class="section tab-panel" id="manager-budget" hidden>
+              <div class="section-header">
+                <h2>預算</h2>
+                <div class="tag-row">
+                  <a class="tag blue" href="11_EXCEL欄位盤點與系統化設計.html">年度預算 9000萬</a>
+                  <a class="tag amber" href="24_費用差異案件.html">差異 500萬</a>
+                  <a class="tag red" href="20_待確認案件.html">預算外 6</a>
+                  <a class="tag red" href="20_待確認案件.html">保留未申請 1</a>
+                  <a class="tag blue" href="#budget-current-projects">今年預計 12</a>
+                  <a class="tag" href="#budget-last-projects">去年預計 15</a>
+                  <a class="tag blue" href="#budget-temp-list">計畫外採購 3</a>
+                  <a class="tag red" href="#budget-frozen-list">凍結取消 2</a>
+                  <a class="tag green" href="22_可送審案件.html">可送審 12</a>
+                </div>
+              </div>
+              <nav class="sheet-tabs" data-tabs aria-label="預算切換">
+                <button class="sheet-tab active" type="button" data-tab-target="budget-flow">預算流向</button>
+                <button class="sheet-tab" type="button" data-tab-target="budget-current-projects">今年預計專案</button>
+                <button class="sheet-tab" type="button" data-tab-target="budget-last-projects">去年預計專案</button>
+                <button class="sheet-tab" type="button" data-tab-target="budget-chart">年度使用統計</button>
+                <button class="sheet-tab" type="button" data-tab-target="budget-temp-list">計畫外採購清單</button>
+                <button class="sheet-tab" type="button" data-tab-target="budget-frozen-list">凍結取消</button>
+                <button class="sheet-tab" type="button" data-tab-target="budget-list">異動明細</button>
+              </nav>
+              <div class="section-body tab-panel" id="budget-flow">
+                <div class="budget-kpis">
+                  <div class="budget-kpi-group">
+                    <h3>年度預算</h3>
+                    <div class="budget-kpi-items">
+                      <a class="budget-kpi" href="#budget-last-projects">
+                        <span>去年編列今年</span>
+                        <strong>9000萬</strong>
+                      </a>
+                      <a class="budget-kpi blue" href="#budget-current-projects">
+                        <span>今年核定</span>
+                        <strong>9000萬</strong>
+                      </a>
+                      <a class="budget-kpi" href="11_EXCEL欄位盤點與系統化設計.html">
+                        <span>明年提報</span>
+                        <strong>9800萬</strong>
+                      </a>
+                    </div>
+                  </div>
+                  <div class="budget-kpi-group">
+                    <h3>執行使用</h3>
+                    <div class="budget-kpi-items">
+                      <a class="budget-kpi green" href="46_費用項目關聯詳情.html">
+                        <span>使用率</span>
+                        <strong>63%</strong>
+                      </a>
+                      <a class="budget-kpi" href="46_費用項目關聯詳情.html">
+                        <span>已執行</span>
+                        <strong>3200萬</strong>
+                      </a>
+                      <a class="budget-kpi" href="46_費用項目關聯詳情.html">
+                        <span>預算承諾金額</span>
+                        <strong>5650萬</strong>
+                      </a>
+                      <a class="budget-kpi green" href="11_EXCEL欄位盤點與系統化設計.html">
+                        <span>可用餘額</span>
+                        <strong>3350萬</strong>
+                      </a>
+                      <a class="budget-kpi blue" href="#budget-current-projects">
+                        <span>進行中</span>
+                        <strong>7件</strong>
+                      </a>
+                    </div>
+                  </div>
+                  <div class="budget-kpi-group">
+                    <h3>預算異動</h3>
+                    <div class="budget-kpi-items">
+                      <a class="budget-kpi amber" href="20_待確認案件.html">
+                        <span>釋出待保留</span>
+                        <strong>1000萬</strong>
+                      </a>
+                      <a class="budget-kpi red" href="20_待確認案件.html">
+                        <span>保留未申請</span>
+                        <strong>1件</strong>
+                      </a>
+                      <a class="budget-kpi blue" href="#budget-temp-list">
+                        <span>計畫外採購</span>
+                        <strong>3件 / 480萬</strong>
+                      </a>
+                      <a class="budget-kpi red" href="#budget-frozen-list">
+                        <span>凍結取消</span>
+                        <strong>2件 / 1200萬</strong>
+                      </a>
+                      <a class="budget-kpi amber" href="24_費用差異案件.html">
+                        <span>漲價補差</span>
+                        <strong>100萬</strong>
+                      </a>
+                    </div>
+                  </div>
+                  <div class="budget-kpi-group">
+                    <h3>月支出</h3>
+                    <div class="budget-kpi-items single">
+                      <a class="budget-kpi" href="16_付款計費檢核.html">
+                        <span>月均預計支出</span>
+                        <strong>620萬</strong>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <div class="budget-flow">
+                  <a class="budget-node source blue" href="11_EXCEL欄位盤點與系統化設計.html">
+                    <span>去年編列</span>
+                    <strong>A 專案</strong>
+                    <b>1000萬</b>
+                    <span class="tag blue">年度預算來源</span>
+                    <span>2026 可用預算</span>
+                  </a>
+                  <div class="budget-arrow">→</div>
+                  <a class="budget-node source red" href="20_待確認案件.html">
+                    <span>今年異動</span>
+                    <strong>A 專案終止</strong>
+                    <b>釋出 1000萬</b>
+                    <span class="tag red">預算保留未申請</span>
+                    <span>承辦 王小明</span>
+                  </a>
+                  <div class="budget-arrow">→</div>
+                  <a class="budget-node pool amber" href="24_費用差異案件.html">
+                    <span>可轉用待確認</span>
+                    <strong>1000萬</strong>
+                    <b>保留申請待補</b>
+                    <span class="tag amber">主管確認</span>
+                  </a>
+                  <div class="budget-arrow">→</div>
+                  <div class="budget-splits">
+                    <a class="budget-node target blue" href="41_新增專案付款明細.html">
+                      <span>計畫外採購</span>
+                      <strong>B AI Token</strong>
+                      <b>300萬</b>
+                      <span class="tag blue">轉用簽核中</span>
+                    </a>
+                    <a class="budget-node target amber" href="24_費用差異案件.html">
+                      <span>漲價補差</span>
+                      <strong>C 專案</strong>
+                      <b>500萬 → 600萬</b>
+                      <span class="tag amber">補差 100萬</span>
+                    </a>
+                    <a class="budget-node target green" href="11_EXCEL欄位盤點與系統化設計.html">
+                      <span>剩餘</span>
+                      <strong>待分配</strong>
+                      <b>600萬</b>
+                      <span class="tag green">可保留</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="budget-current-projects" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">今年預計專案</button></th>
+                        <th><button type="button">類型</button></th>
+                        <th><button type="button">預算</button></th>
+                        <th><button type="button">已支出</button></th>
+                        <th><button type="button">本月預估</button></th>
+                        <th><button type="button">來源預算</button></th>
+                        <th><button type="button">目前階段</button></th>
+                        <th><button type="button">負責人</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">A 系統維護續約</a></td>
+                        <td><a class="tag blue" href="36_合約續約.html">年度續約</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">15,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">6,200,000</a></td>
+                        <td><a href="35_上簽清單.html">1,500,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">去年編列</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">簽核中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="35_上簽清單.html">追簽核進度</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">B AI Token 費用</a></td>
+                        <td><a class="tag blue" href="#budget-temp-list">計畫外採購</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">3,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">0</a></td>
+                        <td><a href="35_上簽清單.html">1,200,000</a></td>
+                        <td><a href="20_待確認案件.html">A 專案釋出</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">轉用簽核中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                        <td><a href="35_上簽清單.html">確認轉用簽呈</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="24_費用差異案件.html">C 專案授權費</a></td>
+                        <td><a class="tag amber" href="24_費用差異案件.html">漲價補差</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">6,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">5,500,000</a></td>
+                        <td><a href="35_上簽清單.html">500,000</a></td>
+                        <td><a href="20_待確認案件.html">A 專案釋出</a></td>
+                        <td><a class="tag red" href="24_費用差異案件.html">差異待確認</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                        <td><a href="24_費用差異案件.html">確認漲價原因</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">D 維護合約</a></td>
+                        <td><a class="tag green" href="36_合約續約.html">例行維護</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">12,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">7,600,000</a></td>
+                        <td><a href="35_上簽清單.html">1,000,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">去年編列</a></td>
+                        <td><a class="tag blue" href="36_合約續約.html">合約中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="16_付款計費檢核.html">看月付款</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">監控通知簡訊費</a></td>
+                        <td><a class="tag blue" href="#budget-temp-list">計畫外採購</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">600,000</a></td>
+                        <td><a href="16_付款計費檢核.html">120,000</a></td>
+                        <td><a href="35_上簽清單.html">80,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">維運預備金</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">可送審</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="22_可送審案件.html">列入送審</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="budget-last-projects" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">去年預計專案</button></th>
+                        <th><button type="button">去年編列</button></th>
+                        <th><button type="button">今年狀態</button></th>
+                        <th><button type="button">今年核定</button></th>
+                        <th><button type="button">已支出</button></th>
+                        <th><button type="button">差異</button></th>
+                        <th><button type="button">預算處理</button></th>
+                        <th><button type="button">保留申請</button></th>
+                        <th><button type="button">負責人</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="20_待確認案件.html">A 專案年度採購</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">10,000,000</a></td>
+                        <td><a class="tag red" href="#budget-frozen-list">取消</a></td>
+                        <td><a href="20_待確認案件.html">0</a></td>
+                        <td><a href="16_付款計費檢核.html">0</a></td>
+                        <td><a class="tag red" href="20_待確認案件.html">-10,000,000</a></td>
+                        <td><a href="#budget-flow">釋出轉用</a></td>
+                        <td><a class="tag red" href="07_角色畫面_承辦.html">未申請</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">A 系統維護續約</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">15,000,000</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">執行中</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">15,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">6,200,000</a></td>
+                        <td><a class="tag green" href="24_費用差異案件.html">0</a></td>
+                        <td><a href="35_上簽清單.html">續作</a></td>
+                        <td><a class="tag" href="41_新增專案付款明細.html">不適用</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="24_費用差異案件.html">C 專案授權費</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">5,000,000</a></td>
+                        <td><a class="tag amber" href="24_費用差異案件.html">漲價</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">6,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">5,500,000</a></td>
+                        <td><a class="tag amber" href="24_費用差異案件.html">+1,000,000</a></td>
+                        <td><a href="#budget-flow">補差</a></td>
+                        <td><a class="tag" href="24_費用差異案件.html">不適用</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">E 備援設備汰換</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">2,000,000</a></td>
+                        <td><a class="tag amber" href="#budget-frozen-list">凍結</a></td>
+                        <td><a href="20_待確認案件.html">2,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">800,000</a></td>
+                        <td><a class="tag amber" href="20_待確認案件.html">餘額 120萬</a></td>
+                        <td><a href="#budget-frozen-list">保留待確認</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">申請中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">F 儲存設備擴充</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">8,000,000</a></td>
+                        <td><a class="tag" href="20_待確認案件.html">延後</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">0</a></td>
+                        <td><a href="16_付款計費檢核.html">0</a></td>
+                        <td><a class="tag" href="20_待確認案件.html">-8,000,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">列明年提報</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">已申請</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="budget-chart" hidden>
+                <div class="budget-usage-board">
+                  <div class="budget-usage-panel wide">
+                    <h3>進行中專案</h3>
+                    <a class="usage-row" href="41_新增專案付款明細.html" style="--value: 72%;">
+                      <span>A 系統維護續約</span>
+                      <strong>預算 1500萬｜已支出 620萬｜簽核中</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row" href="41_新增專案付款明細.html" style="--value: 38%;">
+                      <span>B AI Token</span>
+                      <strong>預算 300萬｜已支出 0萬｜計畫外採購</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row amber" href="24_費用差異案件.html" style="--value: 92%;">
+                      <span>C 專案授權費</span>
+                      <strong>預算 600萬｜已支出 550萬｜漲價補差</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row" href="36_合約續約.html" style="--value: 64%;">
+                      <span>D 維護合約</span>
+                      <strong>預算 1200萬｜已支出 760萬｜合約中</strong>
+                      <i><b></b></i>
+                    </a>
+                  </div>
+                  <div class="budget-usage-panel">
+                    <h3>階段支出</h3>
+                    <a class="usage-row" href="34_新增案件.html" style="--value: 18%;">
+                      <span>需求 / 報價</span>
+                      <strong>420萬</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row amber" href="17_PDF簽呈關聯.html" style="--value: 28%;">
+                      <span>簽呈 / 簽核</span>
+                      <strong>860萬</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row" href="36_合約續約.html" style="--value: 44%;">
+                      <span>合約 / 請購</span>
+                      <strong>1380萬</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row green" href="16_付款計費檢核.html" style="--value: 52%;">
+                      <span>核銷 / 已付款</span>
+                      <strong>3200萬</strong>
+                      <i><b></b></i>
+                    </a>
+                  </div>
+                  <div class="budget-usage-panel">
+                    <h3>每月預計支出</h3>
+                    <a class="usage-row" href="35_上簽清單.html" style="--value: 46%;">
+                      <span>2026/06</span>
+                      <strong>420萬</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row amber" href="35_上簽清單.html" style="--value: 76%;">
+                      <span>2026/07</span>
+                      <strong>690萬</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row red" href="20_待確認案件.html" style="--value: 88%;">
+                      <span>2026/08</span>
+                      <strong>800萬</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row" href="16_付款計費檢核.html" style="--value: 62%;">
+                      <span>2026/09</span>
+                      <strong>560萬</strong>
+                      <i><b></b></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="budget-temp-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">專案</button></th>
+                        <th><button type="button">採購原因</button></th>
+                        <th><button type="button">預算</button></th>
+                        <th><button type="button">已支出</button></th>
+                        <th><button type="button">本月預估</button></th>
+                        <th><button type="button">來源預算</button></th>
+                        <th><button type="button">階段</button></th>
+                        <th><button type="button">負責人</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">B AI Token 費用</a></td>
+                        <td><a class="tag blue" href="46_費用項目關聯詳情.html">計畫外採購</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">3,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">0</a></td>
+                        <td><a href="35_上簽清單.html">1,200,000</a></td>
+                        <td><a href="20_待確認案件.html">A 專案釋出</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">轉用簽核中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                        <td><a href="35_上簽清單.html">確認轉用簽呈</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">資安掃描額外授權</a></td>
+                        <td><a class="tag blue" href="46_費用項目關聯詳情.html">計畫外採購</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,200,000</a></td>
+                        <td><a href="16_付款計費檢核.html">300,000</a></td>
+                        <td><a href="35_上簽清單.html">300,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">年度預備金</a></td>
+                        <td><a class="tag blue" href="36_合約續約.html">請購中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                        <td><a href="49_發票付款條件詳情.html">確認付款條件</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">監控通知簡訊費</a></td>
+                        <td><a class="tag blue" href="46_費用項目關聯詳情.html">計畫外採購</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">600,000</a></td>
+                        <td><a href="16_付款計費檢核.html">120,000</a></td>
+                        <td><a href="35_上簽清單.html">80,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">維運預備金</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">可送審</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="22_可送審案件.html">列入送審</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="budget-frozen-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">專案</button></th>
+                        <th><button type="button">狀態</button></th>
+                        <th><button type="button">原預算</button></th>
+                        <th><button type="button">已支出</button></th>
+                        <th><button type="button">釋出 / 保留</button></th>
+                        <th><button type="button">原因</button></th>
+                        <th><button type="button">承辦申請</button></th>
+                        <th><button type="button">負責人</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="20_待確認案件.html">A 專案年度採購</a></td>
+                        <td><a class="tag red" href="20_待確認案件.html">取消</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">10,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">0</a></td>
+                        <td><a class="tag red" href="07_角色畫面_承辦.html">保留未申請</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">需求終止</a></td>
+                        <td><a class="tag red" href="07_角色畫面_承辦.html">待承辦</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="07_角色畫面_承辦.html">補預算保留</a> / <a href="06_角色畫面_處長.html">送處長</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">E 備援設備汰換</a></td>
+                        <td><a class="tag amber" href="20_待確認案件.html">凍結</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">2,000,000</a></td>
+                        <td><a href="16_付款計費檢核.html">800,000</a></td>
+                        <td><a class="tag amber" href="20_待確認案件.html">餘額 120萬待確認</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">交期與規格待定</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">申請中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                        <td><a href="35_上簽清單.html">追保留進度</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="budget-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">案件</button></th>
+                        <th><button type="button">異動類型</button></th>
+                        <th><button type="button">金額</button></th>
+                        <th><button type="button">來源 / 去向</button></th>
+                        <th><button type="button">預算保留</button></th>
+                        <th><button type="button">承辦申請</button></th>
+                        <th><button type="button">責任人</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="20_待確認案件.html">A 專案年度採購</a></td>
+                        <td><a class="tag red" href="20_待確認案件.html">終止釋出</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">10,000,000</a></td>
+                        <td><a href="11_EXCEL欄位盤點與系統化設計.html">去年編列 1000萬</a> → <a href="41_新增專案付款明細.html">B 300萬</a> / <a href="24_費用差異案件.html">C 100萬</a> / <a href="11_EXCEL欄位盤點與系統化設計.html">剩餘 600萬</a></td>
+                        <td><a class="tag red" href="20_待確認案件.html">未申請</a></td>
+                        <td><a class="tag red" href="07_角色畫面_承辦.html">待承辦</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                        <td><a href="07_角色畫面_承辦.html">補預算保留</a> / <a href="06_角色畫面_處長.html">送處長</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">B AI Token 費用</a></td>
+                        <td><a class="tag blue" href="41_新增專案付款明細.html">計畫外採購</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">3,000,000</a></td>
+                        <td><a href="20_待確認案件.html">A 專案釋出</a></td>
+                        <td><a class="tag" href="41_新增專案付款明細.html">不適用</a></td>
+                        <td><a class="tag amber" href="35_上簽清單.html">簽核中</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                        <td><a href="35_上簽清單.html">確認轉用簽呈</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="24_費用差異案件.html">C 專案授權費</a></td>
+                        <td><a class="tag amber" href="24_費用差異案件.html">漲價補差</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">6,000,000</a></td>
+                        <td><a href="20_待確認案件.html">A 專案釋出 100萬</a></td>
+                        <td><a class="tag" href="24_費用差異案件.html">不適用</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">已補差異</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                        <td><a href="24_費用差異案件.html">確認漲價原因</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section class="section tab-panel" id="manager-expense" hidden>
+              <div class="section-header">
+                <h2>支出費用</h2>
+                <div class="tag-row">
+                  <a class="tag blue" href="16_付款計費檢核.html">本月核銷 18</a>
+                  <a class="tag amber" href="23_計費期間待確認.html">期間待確認 6</a>
+                  <a class="tag red" href="24_費用差異案件.html">金額差異 5</a>
+                  <a class="tag green" href="#expense-type">例行性 12</a>
+                  <a class="tag blue" href="#expense-type">一次性 6</a>
+                  <a class="tag green" href="22_可送審案件.html">已備齊 12</a>
+                </div>
+              </div>
+              <nav class="sheet-tabs" data-tabs aria-label="支出費用切換">
+                <button class="sheet-tab active" type="button" data-tab-target="expense-chart">差異圖</button>
+                <button class="sheet-tab" type="button" data-tab-target="expense-type">費用類型</button>
+                <button class="sheet-tab" type="button" data-tab-target="expense-list">費用清單</button>
+              </nav>
+              <div class="section-body tab-panel" id="expense-chart">
+                <div class="compare-board">
+                  <a class="compare-row" href="40_新增例行性維護項目.html">
+                    <strong>中華電信數據線路月租費</strong>
+                    <span>上次 120,000</span>
+                    <span class="compare-bars">
+                      <span class="compare-base" style="--value: 54%;"></span>
+                      <span class="compare-now" style="--value: 54%;"></span>
+                    </span>
+                    <span class="tag green">0</span>
+                  </a>
+                  <a class="compare-row" href="41_新增專案付款明細.html">
+                    <strong>網路基礎建設第四期</strong>
+                    <span>上次 1,600,000</span>
+                    <span class="compare-bars">
+                      <span class="compare-base" style="--value: 68%;"></span>
+                      <span class="compare-now" style="--value: 81%;"></span>
+                    </span>
+                    <span class="tag red">+300,000</span>
+                  </a>
+                  <a class="compare-row" href="24_費用差異案件.html">
+                    <strong>例行維護費用彙整</strong>
+                    <span>上次 820,000</span>
+                    <span class="compare-bars">
+                      <span class="compare-base" style="--value: 45%;"></span>
+                      <span class="compare-now" style="--value: 48%;"></span>
+                    </span>
+                    <span class="tag amber">+40,000</span>
+                  </a>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="expense-type" hidden>
+                <div class="budget-usage-board">
+                  <div class="budget-usage-panel">
+                    <h3>例行性費用</h3>
+                    <a class="usage-row green" href="40_新增例行性維護項目.html" style="--value: 72%;">
+                      <span>中華電信線路月租</span>
+                      <strong>120,000 / 月｜12期｜維護付款</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row green" href="36_合約續約.html" style="--value: 64%;">
+                      <span>D 維護合約</span>
+                      <strong>1,000,000 / 月｜12期｜合約中</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row green" href="41_新增專案付款明細.html" style="--value: 42%;">
+                      <span>監控通知簡訊費</span>
+                      <strong>80,000 / 月｜臨時例行</strong>
+                      <i><b></b></i>
+                    </a>
+                  </div>
+                  <div class="budget-usage-panel">
+                    <h3>一次性費用</h3>
+                    <a class="usage-row" href="41_新增專案付款明細.html" style="--value: 55%;">
+                      <span>B AI Token</span>
+                      <strong>3,000,000｜計畫外採購｜轉用簽核中</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row amber" href="24_費用差異案件.html" style="--value: 92%;">
+                      <span>C 專案授權費</span>
+                      <strong>6,000,000｜一次性授權｜漲價補差</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row" href="41_新增專案付款明細.html" style="--value: 48%;">
+                      <span>資安掃描額外授權</span>
+                      <strong>1,200,000｜一次性加購｜請購中</strong>
+                      <i><b></b></i>
+                    </a>
+                  </div>
+                  <div class="budget-usage-panel">
+                    <h3>本月支出</h3>
+                    <a class="usage-row green" href="16_付款計費檢核.html" style="--value: 68%;">
+                      <span>例行性</span>
+                      <strong>2,180,000</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row" href="16_付款計費檢核.html" style="--value: 38%;">
+                      <span>一次性</span>
+                      <strong>1,500,000</strong>
+                      <i><b></b></i>
+                    </a>
+                    <a class="usage-row amber" href="23_計費期間待確認.html" style="--value: 22%;">
+                      <span>類型待確認</span>
+                      <strong>6件</strong>
+                      <i><b></b></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="expense-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">費用項目</button></th>
+                        <th><button type="button">費用類型</button></th>
+                        <th><button type="button">本次金額</button></th>
+                        <th><button type="button">上次價格</button></th>
+                        <th><button type="button">差異</button></th>
+                        <th><button type="button">來源</button></th>
+                        <th><button type="button">主管交辦</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="40_新增例行性維護項目.html">中華電信數據線路月租費</a></td>
+                        <td><a class="tag green" href="#expense-type">例行性</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">120,000</a></td>
+                        <td><a href="43_廠商統編詳情.html">120,000</a></td>
+                        <td><a class="tag green" href="24_費用差異案件.html">0</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">PDF / Excel</a></td>
+                        <td><a href="23_計費期間待確認.html">補計費期間</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">網路基礎建設第四期</a></td>
+                        <td><a class="tag blue" href="#expense-type">一次性</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,900,000</a></td>
+                        <td><a href="44_廠商統編詳情_52858911.html">1,600,000</a></td>
+                        <td><a class="tag red" href="24_費用差異案件.html">+300,000</a></td>
+                        <td><a href="45_請購編號詳情_36E100011400235.html">請購 / PDF</a></td>
+                        <td><a href="49_發票付款條件詳情.html">確認付款條件</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section class="section tab-panel" id="manager-sign" hidden>
+              <div class="section-header">
+                <h2>每月預計上簽</h2>
+                <div class="tag-row">
+                  <select class="mini-select" aria-label="上簽月份">
+                    <option>2026/06</option>
+                    <option>2026/05</option>
+                    <option>2026/04</option>
+                    <option>2026/03</option>
+                  </select>
+                  <a class="tag blue" href="35_上簽清單.html">本月 9</a>
+                  <a class="tag amber" href="23_計費期間待確認.html">待確認 6</a>
+                  <a class="tag blue" href="#sign-signed-list">已簽 5</a>
+                  <a class="tag green" href="22_可送審案件.html">可送審 12</a>
+                </div>
+              </div>
+              <nav class="sheet-tabs" data-tabs aria-label="每月預計上簽切換">
+                <button class="sheet-tab active" type="button" data-tab-target="sign-chart">排程圖</button>
+                <button class="sheet-tab" type="button" data-tab-target="sign-list">上簽清單</button>
+                <button class="sheet-tab" type="button" data-tab-target="sign-signed-list">已簽紀錄</button>
+              </nav>
+              <div class="section-body tab-panel" id="sign-chart">
+                <div class="calendar-board">
+                  <a class="calendar-day" href="35_上簽清單.html">
+                    <span>06/18</span>
+                    <strong>內湖機房建置</strong>
+                    <span class="tag amber">待確認</span>
+                  </a>
+                  <a class="calendar-day" href="22_可送審案件.html">
+                    <span>06/21</span>
+                    <strong>例行維護彙整</strong>
+                    <span class="tag green">可送審</span>
+                  </a>
+                  <a class="calendar-day" href="35_上簽清單.html">
+                    <span>06/25</span>
+                    <strong>授權請款</strong>
+                    <span class="tag blue">進行中</span>
+                  </a>
+                  <a class="calendar-day late" href="20_待確認案件.html">
+                    <span>06/17</span>
+                    <strong>系統維護續約</strong>
+                    <span class="tag red">逾期</span>
+                  </a>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="sign-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">預計上簽</button></th>
+                        <th><button type="button">案件</button></th>
+                        <th><button type="button">金額</button></th>
+                        <th><button type="button">文件</button></th>
+                        <th><button type="button">狀態</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="35_上簽清單.html">2026/06/18</a></td>
+                        <td><a href="41_新增專案付款明細.html">內湖延伸機房網路基礎建設採購建置案</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,900,000</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">PDF / 請購 / 廠商</a></td>
+                        <td><a class="tag amber" href="23_計費期間待確認.html">待主管確認</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">確認期別後送審</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="35_上簽清單.html">2026/06/21</a></td>
+                        <td><a href="22_可送審案件.html">例行維護費用彙整</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">860,000</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">已備齊</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">可送審</a></td>
+                        <td><a href="35_上簽清單.html">列入上簽清單</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="sign-signed-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">簽核日期</button></th>
+                        <th><button type="button">案件</button></th>
+                        <th><button type="button">金額</button></th>
+                        <th><button type="button">費用類型</button></th>
+                        <th><button type="button">簽呈編號</button></th>
+                        <th><button type="button">來源</button></th>
+                        <th><button type="button">狀態</button></th>
+                        <th><button type="button">負責人</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="35_上簽清單.html">2026/06/05</a></td>
+                        <td><a href="40_新增例行性維護項目.html">中華電信線路月租</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">120,000</a></td>
+                        <td><a class="tag green" href="#expense-type">例行性</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">簽-1150605-001</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">PDF / Excel</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">已簽</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">王小明</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="35_上簽清單.html">2026/06/10</a></td>
+                        <td><a href="36_合約續約.html">D 維護合約</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,000,000</a></td>
+                        <td><a class="tag green" href="#expense-type">例行性</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">簽-1150610-003</a></td>
+                        <td><a href="36_合約續約.html">合約 / PDF</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">已簽</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">李小華</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="35_上簽清單.html">2026/06/12</a></td>
+                        <td><a href="41_新增專案付款明細.html">資安掃描額外授權</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,200,000</a></td>
+                        <td><a class="tag blue" href="#expense-type">一次性</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">簽-1150612-006</a></td>
+                        <td><a href="45_請購編號詳情_36E100011400235.html">請購 / PDF</a></td>
+                        <td><a class="tag green" href="22_可送審案件.html">已簽</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">吳季凌</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section class="section tab-panel" id="manager-contract" hidden>
+              <div class="section-header">
+                <h2>合約</h2>
+                <div class="tag-row">
+                  <a class="tag red" href="36_合約續約.html">30天內到期 6</a>
+                  <a class="tag amber" href="20_待確認案件.html">合約待補 4</a>
+                  <a class="tag amber" href="#contract-confirmation">待主管確認 3</a>
+                  <a class="tag blue" href="43_廠商統編詳情.html">廠商關聯 12</a>
+                  <a class="tag green" href="22_可送審案件.html">可續作 8</a>
+                </div>
+              </div>
+              <nav class="sheet-tabs" data-tabs aria-label="合約切換">
+                <button class="sheet-tab active" type="button" data-tab-target="contract-chart">期限圖</button>
+                <button class="sheet-tab" type="button" data-tab-target="contract-list">合約清單</button>
+                <button class="sheet-tab" type="button" data-tab-target="contract-confirmation">主管確認</button>
+              </nav>
+              <div class="section-body tab-panel" id="contract-chart">
+                <div class="deadline-board">
+                  <a class="deadline-row red" href="36_合約續約.html">
+                    <span>2026/06/17</span>
+                    <strong>系統維護續約</strong>
+                    <span>中華電信｜27950876｜1500萬</span>
+                    <span class="tag red">30天內</span>
+                  </a>
+                  <a class="deadline-row amber" href="41_新增專案付款明細.html">
+                    <span>2026/06/18</span>
+                    <strong>網路基礎建設採購建置案</strong>
+                    <span>聚誠國際｜52858911｜190萬</span>
+                    <span class="tag amber">待付款條件</span>
+                  </a>
+                  <a class="deadline-row green" href="43_廠商統編詳情.html">
+                    <span>2026/07/31</span>
+                    <strong>資料庫維護服務</strong>
+                    <span>中華電信｜27950876｜86萬</span>
+                    <span class="tag green">可續作</span>
+                  </a>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="contract-list" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">合約 / 案件</button></th>
+                        <th><button type="button">廠商</button></th>
+                        <th><button type="button">統編</button></th>
+                        <th><button type="button">金額</button></th>
+                        <th><button type="button">期限</button></th>
+                        <th><button type="button">主管交辦</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="36_合約續約.html">系統維護續約</a></td>
+                        <td><a href="43_廠商統編詳情.html">中華電信</a></td>
+                        <td><a href="43_廠商統編詳情.html">27950876</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">15,000,000</a></td>
+                        <td><a href="36_合約續約.html">2026/06/17</a></td>
+                        <td><a href="17_PDF簽呈關聯.html">補續約簽呈</a> / <a href="36_合約續約.html">確認期限</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="41_新增專案付款明細.html">網路基礎建設採購建置案</a></td>
+                        <td><a href="44_廠商統編詳情_52858911.html">聚誠國際</a></td>
+                        <td><a href="44_廠商統編詳情_52858911.html">52858911</a></td>
+                        <td><a href="46_費用項目關聯詳情.html">1,900,000</a></td>
+                        <td><a href="35_上簽清單.html">2026/06/18</a></td>
+                        <td><a href="49_發票付款條件詳情.html">確認付款條件</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="section-body tab-panel" id="contract-confirmation" hidden>
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">合約編號</button></th>
+                        <th><button type="button">合約名稱</button></th>
+                        <th><button type="button">承辦人</button></th>
+                        <th><button type="button">合約迄日</button></th>
+                        <th><button type="button">合約進度</button></th>
+                        <th><button type="button">進度詳情</button></th>
+                        <th><button type="button">主管處理</button></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><a href="36_合約續約.html">EF-20220824-005</a></td>
+                        <td><a href="36_合約續約.html">網路基礎架構服務契約書</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">穗宗</a></td>
+                        <td><a href="36_合約續約.html">2026/4/30</a></td>
+                        <td><a class="tag red" href="36_合約續約.html">延遲</a></td>
+                        <td><a href="36_合約續約.html">合約廠商用印中</a></td>
+                        <td><a href="36_合約續約.html">確認期限</a> / <a href="21_需補件案件.html">退回補件</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">EF-20241231-003</a></td>
+                        <td><a href="36_合約續約.html">設備維護合約書-資訊系統日誌管理系統維護</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">文照</a></td>
+                        <td><a href="36_合約續約.html">2026/5/31</a></td>
+                        <td><a class="tag red" href="36_合約續約.html">延遲</a></td>
+                        <td><a href="36_合約續約.html">集團聯合議價結果簽呈已核決，行管準備進行採購申請</a></td>
+                        <td><a href="35_上簽清單.html">確認上簽月份</a> / <a href="36_合約續約.html">新增交辦</a></td>
+                      </tr>
+                      <tr>
+                        <td><a href="36_合約續約.html">EF-20250805-001</a></td>
+                        <td><a href="36_合約續約.html">字霸中文-集保資料轉碼模組維護合約書</a></td>
+                        <td><a href="47_人員組別關聯詳情.html">宏喜</a></td>
+                        <td><a href="36_合約續約.html">2026/7/22</a></td>
+                        <td><a class="tag green" href="36_合約續約.html">如期進行</a></td>
+                        <td><a href="36_合約續約.html">合約簽呈已到維仁資副</a></td>
+                        <td><a href="22_可送審案件.html">確認可續作</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="mockup-v2-2.js"></script>
+</body>
+</html>

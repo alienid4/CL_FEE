@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>費用合約控管系統 - 業主討論包 HTML 版</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">FeeContractControl / 業主討論包 HTML 版</div>
+    <h1>費用合約控管系統討論資料</h1>
+    <p class="lead">這一包只放業主會議需要看的 HTML 頁面。會議重點是先確認既有 Excel 欄位與 PDF 簽呈內容，再確認流程、角色責任與決策規則。</p>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>建議會議順序</h2>
+          <p class="lead">先對齊資料現況，再討論流程與畫面，最後收斂需要業主判斷的規則。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">HTML 會議版</span>
+          <span class="tag green">先資料</span>
+          <span class="tag amber">再流程</span>
+          <span class="tag red">最後決策</span>
+        </div>
+      </div>
+      <div class="panel-body steps">
+        <div class="step">
+          <span class="num">0</span>
+          <div>
+            <h3>先看 PPT 專案概述單頁</h3>
+            <p>用一頁先說清楚：目前是 Excel / PDF 人工控管，目標是系統化、可檢核、可追溯與全文檢索。</p>
+          </div>
+          <a class="button" href="13_PPT專案概述單頁.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">1</span>
+          <div>
+            <h3>看第一階段 MVP 模擬畫面</h3>
+            <p>先確認基本功能：Excel 承接、Case_ID 自建、檢核、PDF 關聯、搜尋與來源追溯。</p>
+          </div>
+          <a class="button" href="15_第一階段MVP模擬畫面.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">2</span>
+          <div>
+            <h3>看 Excel / PDF 系統化工作台</h3>
+            <p>先確認既有 Excel 欄位和 PDF 簽呈內容要怎麼進系統，避免誤解成全新系統。</p>
+          </div>
+          <a class="button" href="01_Excel與PDF系統化工作台.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">3</span>
+          <div>
+            <h3>看助理作業現況</h3>
+            <p>確認最常用 Excel、主要作業、容易錯漏欄位與常用查詢條件。</p>
+          </div>
+          <a class="button" href="14_助理作業現況整理.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">4</span>
+          <div>
+            <h3>看全文檢索設計</h3>
+            <p>確認全域搜尋要能查 Excel 原列、PDF 簽呈內容、案名、合約、廠商、人員與公文編號。</p>
+          </div>
+          <a class="button" href="12_全文檢索設計.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">5</span>
+          <div>
+            <h3>看欄位確認問題與我方建議</h3>
+            <p>先講我方設計建議，只把來源、業務意義、責任人與例外規則交給業主確認。</p>
+          </div>
+          <a class="button" href="09_欄位確認問題與建議.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">6</span>
+          <div>
+            <h3>看案例紅線流程</h3>
+            <p>用中華電信電力費調整案例確認真實作業是否沿著紅線走。</p>
+          </div>
+          <a class="button" href="02_案例流程_中華電信電力費調整.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">7</span>
+          <div>
+            <h3>看系統資料流整合模擬</h3>
+            <p>確認 Case、Contract、Payment、Budget、Expense、Invoice、Audit 如何串在一起。</p>
+          </div>
+          <a class="button" href="03_系統資料流整合模擬.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">8</span>
+          <div>
+            <h3>看角色畫面</h3>
+            <p>只確認責任與操作想像，不先討論顏色、字體或排版細節。</p>
+          </div>
+          <a class="button" href="#roles">往下看</a>
+        </div>
+        <div class="step">
+          <span class="num">9</span>
+          <div>
+            <h3>照訪談清單收斂規則</h3>
+            <p>確認 Release_Gate、角色權限、資料來源、PDF 簽呈內容與代表案例。</p>
+          </div>
+          <a class="button" href="10_業主訪談問題清單.html">開啟</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>開場說法</h2>
+        <span class="tag blue">可直接照念</span>
+      </div>
+      <div class="panel-body">
+        <div class="script">
+          這次不是要確認正式系統畫面，也不是要推翻現有 Excel。<br />
+          我們先確認目前 Excel 欄位和 PDF 簽呈內容哪些要變成系統正式資料、哪些只做來源追溯。<br />
+          資料庫怎麼拆表、流程怎麼保留稽核，這部分我們會先給建議。今天主要請您確認的是來源、欄位意義、責任人和例外規則。
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="roles">
+      <div class="panel-head">
+        <div>
+          <h2>角色畫面</h2>
+          <p class="lead">四個角色頁都已補 L1 摘要、L2 清單、L3 單案、L4 來源紀錄。</p>
+        </div>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag blue">助理 / 管理者</span>
+          <h3>案件進件與 Intake 初判</h3>
+          <p>確認助理是否負責建立 Case、候選合約、付款期程與預算外原因。</p>
+          <a href="04_角色畫面_助理管理者.html">開啟畫面</a>
+        </div>
+        <div class="card">
+          <span class="tag green">主管</span>
+          <h3>管理面向與風險追蹤</h3>
+          <p>確認主管看的是預算、費用、合約、專案、逾期與差異，而不只是 PM 線。</p>
+          <a href="05_角色畫面_主管.html">開啟畫面</a>
+        </div>
+        <div class="card">
+          <span class="tag red">處長</span>
+          <h3>Release_Gate 與高風險決策</h3>
+          <p>確認哪些案件才應進處長頁，避免處長頁變成所有案件清單。</p>
+          <a href="06_角色畫面_處長.html">開啟畫面</a>
+        </div>
+        <div class="card">
+          <span class="tag amber">承辦</span>
+          <h3>待辦、補件、核銷與發票</h3>
+          <p>確認承辦能處理自己的待辦、付款期數、帳單、核銷與發票資料。</p>
+          <a href="07_角色畫面_承辦.html">開啟畫面</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>其他 HTML 參考頁</h2>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag">完整流程圖</span>
+          <h3>系統完整分支</h3>
+          <p>可用瀏覽器開啟 SVG 看完整流程，會議中優先看紅線案例。</p>
+          <a href="08_完整流程圖_v2.3.svg">開啟 SVG</a>
+        </div>
+        <div class="card">
+          <span class="tag">Excel / PDF</span>
+          <h3>欄位盤點與系統化設計</h3>
+          <p>內含既有 Excel 欄位、PDF 簽呈內容、系統模組與第一階段限制。</p>
+          <a href="11_EXCEL欄位盤點與系統化設計.html">開啟頁面</a>
+        </div>
+        <div class="card">
+          <span class="tag blue">全文檢索</span>
+          <h3>全域搜尋與索引</h3>
+          <p>說明搜尋框、搜尋範圍、結果分類、PDF 頁碼命中與 Excel 原列命中。</p>
+          <a href="12_全文檢索設計.html">開啟頁面</a>
+        </div>
+        <div class="card">
+          <span class="tag green">PPT</span>
+          <h3>專案概述單頁</h3>
+          <p>可作為簡報第一張專案概述，說明導入前痛點與系統化效益。</p>
+          <a href="13_PPT專案概述單頁.html">開啟頁面</a>
+        </div>
+        <div class="card">
+          <span class="tag amber">助理現況</span>
+          <h3>作業頻率與痛點</h3>
+          <p>整理常用 Excel、日常作業、易錯欄位與第一階段功能優先順序。</p>
+          <a href="14_助理作業現況整理.html">開啟頁面</a>
+        </div>
+        <div class="card">
+          <span class="tag red">MVP</span>
+          <h3>第一階段模擬畫面</h3>
+          <p>保守呈現基本功能，避免承諾 PDF 自動解析或 AI 自動判斷。</p>
+          <a href="15_第一階段MVP模擬畫面.html">開啟頁面</a>
+        </div>
+        <div class="card">
+          <span class="tag blue">開發前</span>
+          <h3>MVP 開發前資料準備清單</h3>
+          <p>整理進入開發前需要提供的 Excel、PDF、代表案例、規則、欄位對照與驗收資料。</p>
+          <a href="50_開發前資料準備清單.html">開啟頁面</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

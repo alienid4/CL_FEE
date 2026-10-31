@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>主管角度 - 管理面向 Dashboard v2.2</title>
+  <link rel="stylesheet" href="mockup-v2-2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="四角度切換">
+      <div class="brand">費控</div>
+      <a class="rail-link" href="assistant-intake-v2-2.html">助理</a>
+      <a class="rail-link active" href="manager-dashboard-v2-2.html">主管</a>
+      <a class="rail-link" href="executive-release-v2-2.html">處長</a>
+      <a class="rail-link" href="handler-workbench-v2-2.html">承辦</a>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">主管角度</div>
+          <h1>預算 / 費用 / 合約 / 專案管理面向</h1>
+          <p class="subline">主管看同一批 Case 的管理風險，不只看 PM 時間線。</p>
+        </div>
+        <div class="toolbar">
+          <select aria-label="月份"><option>2026-07 次月追蹤</option><option>2026-06 本月</option></select>
+          <select aria-label="組別"><option>全部組別</option><option>網路基礎架構</option></select>
+          <button class="primary" type="button">產出主管追蹤表</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>管理面向總覽</h2>
+              <p class="subline">主狀態維持平衡：全部 = 未啟動 + 進行中 + 逾期 + 完成；風險標籤不混入主狀態。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">全部 42</span>
+              <span class="tag green">進行中 24</span>
+              <span class="tag amber">逾期 5</span>
+              <span class="tag">完成 13</span>
+            </div>
+          </div>
+          <div class="section-body grid four">
+            <button class="summary-card selected" type="button">
+              <span class="tag blue">預算</span>
+              <span class="metric">8</span>
+              <span class="label">預算外、待確認或需年度預算調整。</span>
+            </button>
+            <button class="summary-card" type="button">
+              <span class="tag amber">費用</span>
+              <span class="metric">16</span>
+              <span class="label">下月預計付款、核銷或帳單待處理。</span>
+            </button>
+            <button class="summary-card" type="button">
+              <span class="tag green">合約</span>
+              <span class="metric">11</span>
+              <span class="label">續約、增購、整併、補充或費用調整。</span>
+            </button>
+            <button class="summary-card" type="button">
+              <span class="tag purple">專案</span>
+              <span class="metric">7</span>
+              <span class="label">正式專案、跨子公司或主管關注案件。</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>主管下鑽路徑</h2>
+              <p class="subline">主管不能只停在第一層數字，必須能從摘要一路看到案件履歷、來源與動作紀錄。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">L1 摘要</span>
+              <span class="tag amber">L2 清單</span>
+              <span class="tag green">L3 履歷</span>
+              <span class="tag">L4 來源</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="flow-item">
+                <strong>L1 摘要</strong>
+                <span>主管先看預算、費用、合約、專案四個面向的數量與風險。</span>
+                <span class="tag blue">預算 8</span>
+              </div>
+              <div class="flow-item">
+                <strong>L2 條件清單</strong>
+                <span>點「預算 8」後，看哪些 Case 預算外、待確認、需處長 Release_Gate。</span>
+                <span class="tag amber">8 筆</span>
+              </div>
+              <div class="flow-item">
+                <strong>L3 案件履歷</strong>
+                <span>點單一 Case，看判斷結果、目前卡點、責任人、期限與主管建議。</span>
+                <span class="tag green">Case</span>
+              </div>
+              <div class="flow-item">
+                <strong>L4 來源與紀錄</strong>
+                <span>必要時查 Email、Excel、PDF、AI 建議、前後值與誰在何時做了什麼。</span>
+                <span class="tag">Audit</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L2 條件清單：預算外與待確認</h2>
+              <p class="subline">此處模擬主管點進「預算 8」後看到的清單，不只是總覽數字。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag red">需決策</span>
+              <span class="tag amber">待勾稽</span>
+              <span class="tag green">可上簽</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">Case_ID</button></th>
+                    <th><button type="button">案件</button></th>
+                    <th><button type="button">面向</button></th>
+                    <th><button type="button">主狀態</button></th>
+                    <th><button type="button">金額</button></th>
+                    <th><button type="button">卡點</button></th>
+                    <th><button type="button">責任人</button></th>
+                    <th><button type="button">主管判斷</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CASE-20260612-003</td>
+                    <td>中華電信板橋機櫃電力費調整</td>
+                    <td><span class="tag blue">預算</span> <span class="tag amber">費用</span> <span class="tag green">合約</span></td>
+                    <td><span class="tag amber">進行中</span></td>
+                    <td>3,000 / 月</td>
+                    <td>預算外原因、是否送處長</td>
+                    <td>王小明 / 主管待覆核</td>
+                    <td>屬合約關聯費用調整，需確認預算外原因與是否送處長。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260611-009</td>
+                    <td>年度維運續約與增購整併</td>
+                    <td><span class="tag green">合約</span> <span class="tag purple">專案</span></td>
+                    <td><span class="tag red">逾期</span></td>
+                    <td>2,480,000</td>
+                    <td>子合約是否拆新 Case</td>
+                    <td>李美玲 / 合約窗口</td>
+                    <td>子合約是否新 Case 需確認，合約編號待勾稽。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260610-012</td>
+                    <td>跨子公司資安專案付款</td>
+                    <td><span class="tag purple">專案</span> <span class="tag amber">費用</span></td>
+                    <td><span class="tag green">進行中</span></td>
+                    <td>900,000</td>
+                    <td>跨子公司分攤比例</td>
+                    <td>陳怡君 / 專案窗口</td>
+                    <td>需保留金控、跨子公司與主管關注標籤。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260608-015</td>
+                    <td>非合約臨時軟體授權費</td>
+                    <td><span class="tag blue">預算</span> <span class="tag amber">費用</span></td>
+                    <td><span class="tag">未啟動</span></td>
+                    <td>120,000</td>
+                    <td>是否可走非合約費用</td>
+                    <td>林志豪 / 承辦待補來源</td>
+                    <td>Contract_ID 可空白，但需確認是否超過預算外門檻。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L3 案件履歷：中華電信板橋機櫃電力費調整</h2>
+              <p class="subline">主管點進 Case 後，需要看到可決策的上下文，而不是只看到一列資料。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">CASE-20260612-003</span>
+              <span class="tag red">預算外</span>
+              <span class="tag amber">待主管覆核</span>
+            </div>
+          </div>
+          <div class="section-body grid two">
+            <div class="panel">
+              <span class="tag blue">主管判斷資料</span>
+              <h3>本案目前結論</h3>
+              <p class="label">中華電信因台電漲價通知板橋機櫃電力費追加，每月 3,000 元，預估年度影響 36,000 元。屬既有合約關聯費用調整，Project_ID 暫不建立。</p>
+              <div class="tag-row" style="justify-content:flex-start;margin-top:10px;">
+                <span class="tag green">候選 Contract_ID</span>
+                <span class="tag">Project_ID 空白</span>
+                <span class="tag amber">Payment 12 期</span>
+                <span class="tag red">Budget 外</span>
+              </div>
+            </div>
+            <div class="panel">
+              <span class="tag amber">主管要決定</span>
+              <h3>需要主管確認的點</h3>
+              <p class="label">1. 是否同意以「費用調整」建立 Contract_Relation。<br>2. 是否要求承辦補正式合約系統編號。<br>3. 是否送處長 Release_Gate，或主管確認即可。<br>4. 是否列入次月上簽追蹤。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L4 來源、附件與動作紀錄</h2>
+              <p class="subline">主管做判斷時，至少要看得到來源與異動紀錄，避免只靠口頭描述。</p>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">類型</button></th>
+                    <th><button type="button">內容</button></th>
+                    <th><button type="button">狀態</button></th>
+                    <th><button type="button">責任人</button></th>
+                    <th><button type="button">時間</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>來源 Email</td>
+                    <td>中華電信通知板橋機櫃電力費追加，每月 3,000 元。</td>
+                    <td><span class="tag green">已附</span></td>
+                    <td>王小明</td>
+                    <td>2026-06-12</td>
+                  </tr>
+                  <tr>
+                    <td>候選合約</td>
+                    <td>依廠商、地點、期間、原月費建立候選 Contract_ID。</td>
+                    <td><span class="tag amber">待勾稽</span></td>
+                    <td>助理 / 合約窗口</td>
+                    <td>2026-06-12</td>
+                  </tr>
+                  <tr>
+                    <td>預算檢核</td>
+                    <td>年度影響 36,000，預算外原因待主管覆核。</td>
+                    <td><span class="tag red">待確認</span></td>
+                    <td>主管</td>
+                    <td>2026-06-13</td>
+                  </tr>
+                  <tr>
+                    <td>動作紀錄</td>
+                    <td>承辦補來源、助理建立候選合約、系統產生 Payment_Schedule。</td>
+                    <td><span class="tag">已記錄</span></td>
+                    <td>系統</td>
+                    <td>持續更新</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>主管看板欄位</h2>
+          </div>
+          <div class="section-body grid three">
+            <div class="panel">
+              <span class="tag blue">預算</span>
+              <h3>預算內 / 外 / 待確認</h3>
+              <p class="label">年度預算、Budget_ID、預算外原因、是否需處長放行。</p>
+            </div>
+            <div class="panel">
+              <span class="tag amber">費用</span>
+              <h3>付款與核銷</h3>
+              <p class="label">Payment_ID、期數、付款頻率、帳單、Expense_Claim。</p>
+            </div>
+            <div class="panel">
+              <span class="tag green">合約</span>
+              <h3>合約關聯</h3>
+              <p class="label">Contract_ID、Contract_Relation、增購、續約、整併、補充。</p>
+            </div>
+            <div class="panel">
+              <span class="tag purple">專案</span>
+              <h3>專案歸屬</h3>
+              <p class="label">Project_ID、公司級、處級、部級、金控、跨子公司。</p>
+            </div>
+            <div class="panel">
+              <span class="tag red">風險</span>
+              <h3>差異與逾期</h3>
+              <p class="label">去年同月、去年同期、同案上次價格、卡關天數。</p>
+            </div>
+            <div class="panel">
+              <span class="tag">稽核</span>
+              <h3>追溯鏈</h3>
+              <p class="label">Case → Contract → Payment → Expense → Invoice → Audit。</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="mockup-v2-2.js"></script>
+</body>
+</html>

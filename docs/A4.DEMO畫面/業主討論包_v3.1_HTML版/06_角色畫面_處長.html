@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>處長角度 - 高風險決策看板</title>
+  <link rel="stylesheet" href="mockup-v2-2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="四角度切換">
+      <div class="brand">費控</div>
+      <a class="rail-link" href="04_角色畫面_助理管理者.html">助理</a>
+      <a class="rail-link" href="05_角色畫面_主管.html">主管</a>
+      <a class="rail-link active" href="06_角色畫面_處長.html">處長</a>
+      <a class="rail-link" href="07_角色畫面_承辦.html">承辦</a>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">處長角度</div>
+          <h1>高風險決策看板</h1>
+          <p class="subline">更新時間：2026/06/15 14:30　待決策：預算外、重大金額、逾期停滯、跨組責任</p>
+        </div>
+        <div class="toolbar">
+          <select aria-label="決策狀態"><option>待決策</option><option>待補資料</option><option>已放行</option></select>
+          <select aria-label="風險類型"><option>全部風險</option><option>預算外</option><option>逾期</option><option>重大金額</option></select>
+          <button class="primary" type="button">產出決策紀錄</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <div class="section-header">
+            <h2>決策摘要</h2>
+            <div class="tag-row">
+              <span class="tag red">待決策 5</span>
+              <span class="tag amber">待補資料 4</span>
+              <span class="tag blue">本週到期 7</span>
+              <span class="tag green">可放行 3</span>
+            </div>
+          </div>
+          <div class="section-body grid four">
+            <a class="summary-card selected" href="20_待確認案件.html">
+              <span class="tag red">優先決策</span>
+              <span class="metric">5</span>
+              <span class="label">逾期、金額大、付款時程逼近、主管已標示需處長決策。</span>
+            </a>
+            <a class="summary-card" href="24_費用差異案件.html">
+              <span class="tag amber">金額 / 期間異常</span>
+              <span class="metric">6</span>
+              <span class="label">費用差異、簽呈金額不一致、計費期間需覆核。</span>
+            </a>
+            <a class="summary-card" href="36_合約續約.html">
+              <span class="tag blue">合約 / 付款風險</span>
+              <span class="metric">7</span>
+              <span class="label">續約期限、付款前置、合約編號未補齊。</span>
+            </a>
+            <a class="summary-card" href="22_可送審案件.html">
+              <span class="tag green">可決策</span>
+              <span class="metric">3</span>
+              <span class="label">主管建議、來源文件、金額與責任人已齊備。</span>
+            </a>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>主管送審事項</h2>
+            <div class="tag-row">
+              <span class="tag red">主管建議退回 1</span>
+              <span class="tag amber">主管建議補件 2</span>
+              <span class="tag green">主管建議放行 3</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">來源主管</button></th>
+                    <th><button type="button">案件</button></th>
+                    <th><button type="button">主管交辦</button></th>
+                    <th><button type="button">風險</button></th>
+                    <th><button type="button">處長決策</button></th>
+                    <th><button type="button">期限</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>主機組主管</td>
+                    <td><a href="40_新增例行性維護項目.html">中華電信數據線路月租費</a></td>
+                    <td>確認期間後放行送審</td>
+                    <td><span class="tag amber">PDF / 期間</span></td>
+                    <td>放行 / 退回補件</td>
+                    <td>2026/06/20</td>
+                  </tr>
+                  <tr>
+                    <td>網路組主管</td>
+                    <td><a href="41_新增專案付款明細.html">內湖延伸機房網路基礎建設採購建置案</a></td>
+                    <td>第四期付款條件待處長確認</td>
+                    <td><span class="tag red">重大金額</span></td>
+                    <td>放行 / 補期別</td>
+                    <td>2026/06/18</td>
+                  </tr>
+                  <tr>
+                    <td>架構部主管</td>
+                    <td><a href="36_合約續約.html">架構部續約合約進度</a></td>
+                    <td>續約期限列本週追蹤</td>
+                    <td><span class="tag amber">合約期限</span></td>
+                    <td>要求補件 / 排入追蹤</td>
+                    <td>2026/07/05</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>決策佇列</h2>
+            <div class="tag-row">
+              <span class="tag red">P1 立即處理</span>
+              <span class="tag amber">P2 本週處理</span>
+              <span class="tag blue">P3 追蹤</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">優先</button></th>
+                    <th><button type="button">案件</button></th>
+                    <th><button type="button">進處長原因</button></th>
+                    <th><button type="button">金額</button></th>
+                    <th><button type="button">主管建議</button></th>
+                    <th><button type="button">期限</button></th>
+                    <th><button type="button">決策</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="tag red">P1</span></td>
+                    <td><a href="41_新增專案付款明細.html">內湖延伸機房網路基礎建設採購建置案</a></td>
+                    <td><span class="tag red">重大金額</span> <span class="tag amber">期別待覆核</span></td>
+                    <td><a href="46_費用項目關聯詳情.html">1,900,000</a></td>
+                    <td>確認第四期付款條件後放行</td>
+                    <td>2026/06/18</td>
+                    <td>放行 / 退回補件</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tag red">P1</span></td>
+                    <td><a href="40_新增例行性維護項目.html">中華電信數據線路月租費</a></td>
+                    <td><span class="tag amber">計費期間待確認</span> <span class="tag blue">PDF 待比對</span></td>
+                    <td><a href="46_費用項目關聯詳情.html">120,000</a></td>
+                    <td>確認計費期間後列入送審</td>
+                    <td>2026/06/20</td>
+                    <td>放行 / 補期間</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tag amber">P2</span></td>
+                    <td><a href="36_合約續約.html">架構部續約合約進度</a></td>
+                    <td><span class="tag amber">合約期限接近</span></td>
+                    <td>2,480,000</td>
+                    <td>指定承辦補續約簽呈</td>
+                    <td>2026/07/05</td>
+                    <td>要求補件 / 排入追蹤</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tag amber">P2</span></td>
+                    <td><a href="25_PDF待關聯案件.html">PDF 簽呈未關聯清單</a></td>
+                    <td><span class="tag blue">來源文件斷鏈</span></td>
+                    <td>360,000</td>
+                    <td>退回助理補來源</td>
+                    <td>2026/06/24</td>
+                    <td>退回補件</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>單案決策包</h2>
+            <div class="tag-row">
+              <a class="tag blue" href="45_請購編號詳情_36E100011400235.html">請購編號</a>
+              <a class="tag green" href="44_廠商統編詳情_52858911.html">廠商統編</a>
+              <a class="tag" href="18_來源追溯.html">來源</a>
+            </div>
+          </div>
+          <div class="section-body grid three">
+            <div class="panel">
+              <span class="tag red">風險</span>
+              <h3>第四期付款 1,900,000</h3>
+              <p class="label">付款期別與付款備註需一致，金額達主管決策門檻。</p>
+            </div>
+            <div class="panel">
+              <span class="tag amber">主管建議</span>
+              <h3>確認後放行</h3>
+              <p class="label">請購編號、廠商統編、付款備註已串接；仍需確認期別。</p>
+            </div>
+            <div class="panel">
+              <span class="tag blue">決策選項</span>
+              <h3>放行 / 退回 / 追蹤</h3>
+              <p class="label">放行送審、退回補期別、列入本週處長追蹤。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>放行後影響</h2>
+            <div class="tag-row">
+              <span class="tag blue">送審</span>
+              <span class="tag amber">付款</span>
+              <span class="tag green">稽核</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="timeline-row">
+                <strong>放行</strong>
+                <span>案件進入可送審清單，保留處長決策紀錄。</span>
+                <span class="tag green">可執行</span>
+              </div>
+              <div class="timeline-row">
+                <strong>退回補件</strong>
+                <span>回到助理待補件，指定缺少欄位、PDF 或付款條件。</span>
+                <span class="tag amber">可執行</span>
+              </div>
+              <div class="timeline-row">
+                <strong>持續追蹤</strong>
+                <span>維持高風險標記，列入本週處長追蹤清單。</span>
+                <span class="tag blue">可執行</span>
+              </div>
+              <div class="timeline-row">
+                <strong>稽核留痕</strong>
+                <span>決策人、時間、原因、來源文件與異動前後值同步保留。</span>
+                <span class="tag">自動記錄</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="mockup-v2-2.js"></script>
+</body>
+</html>

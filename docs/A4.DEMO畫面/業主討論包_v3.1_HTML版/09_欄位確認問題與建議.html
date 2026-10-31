@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>欄位確認問題與系統建議</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Field Confirmation / 我方建議版</div>
+    <h1>欄位確認問題與系統建議</h1>
+    <p class="lead">這頁用來跟業主確認欄位規則。系統設計問題由我方先給建議，只有來源、業務意義、責任人與例外規則才交給業主判斷。</p>
+    <a class="back" href="00_會議導覽.html">回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>討論原則</h2>
+          <p class="lead">不要請業主設計資料庫；請業主確認業務事實。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag red">不要問 DB 拆表</span>
+          <span class="tag blue">要問來源與意義</span>
+        </div>
+      </div>
+      <div class="panel-body grid">
+        <div class="callout">
+          <strong>我方直接建議：</strong><br />
+          Excel 全欄位先接住，原始資料進匯入暫存區。每個欄位都要有去處，正式資料再拆成 Case、Contract、Budget、Payment、Document、Audit 等資料表。
+        </div>
+        <div class="callout warning">
+          <strong>不要做歪：</strong><br />
+          不建議把 150 個 Excel 欄位做成一張 150 欄大表。那會變成網頁版 Excel，後續流程、權限、報表、稽核都會卡住。
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>欄位去處的我方建議</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>欄位類型</th>
+                <th>我方建議</th>
+                <th>業主要確認什麼</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>穩定主檔欄位</td>
+                <td>進正式主檔，例如費用項目、廠商、統編、合約期間、負責人。</td>
+                <td>欄位定義與哪一份 Excel 是主來源。</td>
+              </tr>
+              <tr>
+                <td>交易 / 明細欄位</td>
+                <td>拆成明細表，例如付款年度、月份、金額、期別、計費期間。</td>
+                <td>付款與核銷的業務規則。</td>
+              </tr>
+              <tr>
+                <td>1 月到 12 月欄位</td>
+                <td>正式資料轉成 year + month + amount；報表輸出時再轉回 12 欄格式。</td>
+                <td>報表是否仍要維持舊 Excel 樣式。</td>
+              </tr>
+              <tr>
+                <td>文件 checklist 欄位</td>
+                <td>轉成文件需求與文件狀態，不當一般文字欄位。</td>
+                <td>哪些文件必備、哪些可選、缺件時誰處理。</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈欄位</td>
+                <td>轉成簽呈文件、文字摘錄、頁碼與來源追溯。</td>
+                <td>PDF 內哪些內容必須抓出來給主管或處長看。</td>
+              </tr>
+              <tr>
+                <td>備註 / 差異說明</td>
+                <td>保留原文；若備註其實代表固定狀態，應拉成正式欄位。</td>
+                <td>哪些備註文字有固定流程意義。</td>
+              </tr>
+              <tr>
+                <td>計算欄位</td>
+                <td>由系統計算，例如未付款金額、完成度、合約天數、逾期與否。</td>
+                <td>計算公式與例外條件。</td>
+              </tr>
+              <tr>
+                <td>舊欄位 / 不再使用欄位</td>
+                <td>原始匯入保留，正式資料可標記不使用。</td>
+                <td>是否仍有人使用、是否要出現在報表。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>各 Excel 來源的我方定位</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>來源檔</th>
+                <th>我方建議定位</th>
+                <th>請業主確認</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>費用項目整合23.xlsx</td>
+                <td>第一候選主來源，作為費用項目、廠商、付款、文件檢核、核銷工作清單的主要依據。</td>
+                <td>是否為目前最新、最可信的主檔。</td>
+              </tr>
+              <tr>
+                <td>費用合約整合(舊).xlsx</td>
+                <td>歷史資料與欄位對照，不建議覆蓋新版主檔。</td>
+                <td>哪些 Sheet 還在用，哪些只留歷史。</td>
+              </tr>
+              <tr>
+                <td>2026次月預計上簽項目.xlsx</td>
+                <td>上簽計畫來源，匯入成 Case / Signing Plan。</td>
+                <td>每月 Sheet 是否就是當月正式上簽計畫。</td>
+              </tr>
+              <tr>
+                <td>架構部續約合約進度.xlsx</td>
+                <td>續約任務看板來源，關聯合約到期與續約狀態。</td>
+                <td>續約狀態文字是否有固定定義。</td>
+              </tr>
+              <tr>
+                <td>資訊架構部處級專案進度追蹤總表</td>
+                <td>專案進度來源，只在正式 Project_ID 成立時關聯，不當費用主檔。</td>
+                <td>哪些費用案件需要連到專案。</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈檔</td>
+                <td>簽呈內容與決策依據，不是一般附件。</td>
+                <td>要抓哪些欄位、是否需頁碼追溯。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>欄位問題的建議答案</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>問題</th>
+                <th>我方建議</th>
+                <th>只需要業主決定的部分</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Excel 欄位是否全部進 DB？</td>
+                <td>全部先進匯入暫存與來源紀錄；正式 DB 只存有業務意義的欄位。</td>
+                <td>哪些欄位仍有業務用途。</td>
+              </tr>
+              <tr>
+                <td>是否做一張 150 欄大表？</td>
+                <td>不建議。會變成網頁版 Excel。</td>
+                <td>不需要問業主。</td>
+              </tr>
+              <tr>
+                <td>欄位同名但來源不同怎麼辦？</td>
+                <td>建立來源優先順序與欄位對照表，不自動覆蓋。</td>
+                <td>哪一份檔案是主來源。</td>
+              </tr>
+              <tr>
+                <td>金額欄位很多怎麼辦？</td>
+                <td>拆成預算金額、合約總金額、付款金額、核銷金額、發票金額、議價費用。</td>
+                <td>每個金額是否含稅、幣別、取數來源。</td>
+              </tr>
+              <tr>
+                <td>日期欄位很多怎麼辦？</td>
+                <td>拆成合約期間、計費期間、申請日、付款月份、簽呈月份、專案起迄。</td>
+                <td>日期的業務定義。</td>
+              </tr>
+              <tr>
+                <td>狀態欄怎麼處理？</td>
+                <td>統一狀態字典；原 Excel 狀態文字保留在來源欄位。</td>
+                <td>現有狀態文字如何對應。</td>
+              </tr>
+              <tr>
+                <td>PDF 怎麼處理？</td>
+                <td>作為簽呈內容，需存頁碼、文字摘錄、關聯案件與人工確認。</td>
+                <td>PDF 內必抓欄位。</td>
+              </tr>
+              <tr>
+                <td>全文檢索怎麼處理？</td>
+                <td>建議納入第一版核心能力，搜尋 Excel 原列、正式資料、PDF 簽呈內容與稽核紀錄。</td>
+                <td>哪些角色能搜到哪些資料，金額與簽呈是否要遮蔽。</td>
+              </tr>
+              <tr>
+                <td>AI 解析欄位可否自動寫入？</td>
+                <td>不可。AI / PDF 解析只進建議區，人工確認後才寫正式資料。</td>
+                <td>誰有權確認。</td>
+              </tr>
+              <tr>
+                <td>Excel 回匯要不要保留？</td>
+                <td>第一版建議保留，但回匯也要先進暫存與差異比對。</td>
+                <td>哪些報表或清單要回匯。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>會議必問問題</h2>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag blue">來源</span>
+          <h3>來源優先順序</h3>
+          <p>如果同一個案件、合約或費用項目在多份 Excel 都出現，以哪份為準？</p>
+        </div>
+        <div class="card">
+          <span class="tag green">欄位</span>
+          <h3>欄位是否正式使用</h3>
+          <p>每個欄位是正式使用、只做參考、只保留來源，還是不再使用？</p>
+        </div>
+        <div class="card">
+          <span class="tag amber">金額</span>
+          <h3>金額定義</h3>
+          <p>預算、合約、付款、核銷、發票、分攤金額是否含稅，來源是哪裡？</p>
+        </div>
+        <div class="card">
+          <span class="tag">日期</span>
+          <h3>日期定義</h3>
+          <p>合約期間、計費期間、付款月份、簽呈月份、專案期間各代表什麼？</p>
+        </div>
+        <div class="card">
+          <span class="tag red">PDF</span>
+          <h3>簽呈內容</h3>
+          <p>簽呈案號、主旨、廠商、金額、期間、付款條件、決策結論、頁碼是否必抓？</p>
+        </div>
+        <div class="card">
+          <span class="tag blue">權限</span>
+          <h3>責任人</h3>
+          <p>誰可以建立、修改、確認、退回、作廢？哪些資料處長能看？</p>
+        </div>
+        <div class="card">
+          <span class="tag green">搜尋</span>
+          <h3>全文檢索權限</h3>
+          <p>同一個搜尋框要搜哪些資料？承辦是否能搜其他組別？PDF 與金額是否要遮蔽？</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>會議說法</h2>
+        <span class="tag blue">可直接照念</span>
+      </div>
+      <div class="panel-body">
+        <div class="script">
+          我們不是要請您設計資料庫。資料庫怎麼拆表、欄位怎麼正規化，這部分我們會負責。<br />
+          今天要請您確認的是三件事：第一，哪份 Excel 是正式來源；第二，這些欄位的業務意義與責任人是什麼；第三，PDF 簽呈裡哪些內容必須成為決策依據。<br />
+          我們的建議是 Excel 全欄位先保留，正式資料再拆成案件、合約、預算、付款、核銷、文件與稽核，所以不會漏欄位，也不會把系統做成一張難維護的大 Excel。
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

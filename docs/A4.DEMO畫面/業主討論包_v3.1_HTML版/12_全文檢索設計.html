@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>全文檢索設計</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Full-text Search / 全域搜尋</div>
+    <h1>全文檢索設計</h1>
+    <p class="lead">搜尋不是每個頁面的局部篩選，而是系統共用能力。使用者應能用同一個搜尋框查到 Excel 原始欄位、正式案件、合約、廠商、人員、PDF 簽呈內容與來源紀錄。</p>
+    <a class="back" href="00_會議導覽.html">回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>搜尋框型態</h2>
+          <p class="lead">可參考既有系統的全域搜尋列，但搜尋範圍要改成費用合約控管資料。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">全域搜尋</span>
+          <span class="tag green">權限過濾</span>
+          <span class="tag red">PDF 內容</span>
+        </div>
+      </div>
+      <div class="panel-body search-preview">
+        <div class="search-box">
+          <span class="search-icon">⌕</span>
+          <span>搜尋案名 / 合約 / 廠商 / 統編 / 公文編號 / 人員 / PDF 簽呈內容 / Excel 原列</span>
+        </div>
+        <div class="callout">
+          如果業主已習慣「搜尋資產 / Hostname / IP / 人員 / AP」這種搜尋列，費用系統也應提供同等級的全域搜尋。但搜尋結果必須依角色權限過濾，不能因為全文檢索就看到不該看的金額或簽呈。
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>搜尋範圍</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>搜尋類別</th>
+                <th>可搜尋內容</th>
+                <th>結果應顯示</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>案件 Case</td>
+                <td>Case_ID、案名、類別、簡述、狀態、Release_Gate 原因。</td>
+                <td>案件摘要、目前狀態、責任人、下一步。</td>
+              </tr>
+              <tr>
+                <td>合約 Contract</td>
+                <td>合約編號、合約名稱、廠商、統編、合約起迄日、付款方式。</td>
+                <td>合約摘要、到期日、續約狀態、關聯案件。</td>
+              </tr>
+              <tr>
+                <td>費用 / 預算</td>
+                <td>費用項目名稱、主分類、子分類、預算金額、預算內外、差異說明。</td>
+                <td>費用項目、預算線、差異與來源。</td>
+              </tr>
+              <tr>
+                <td>付款 / 核銷 / 發票</td>
+                <td>付款年度、月份、金額、期別、核銷編號、發票日期、付款備註。</td>
+                <td>付款期程、核銷進度、發票狀態。</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈內容</td>
+                <td>簽呈案號、主旨、廠商、金額、期間、付款條件、決策結論、文字摘錄。</td>
+                <td>命中頁碼、摘錄文字、關聯 Case、人工確認狀態。</td>
+              </tr>
+              <tr>
+                <td>Excel 原始來源</td>
+                <td>檔名、Sheet、Row No、原欄位、原值、匯入批次。</td>
+                <td>來源檔、Sheet、Row、欄位名稱、對應後正式資料。</td>
+              </tr>
+              <tr>
+                <td>人員 / 組別</td>
+                <td>承辦人、負責窗口、核銷者、組別、確認人。</td>
+                <td>人員相關案件、待辦、確認紀錄。</td>
+              </tr>
+              <tr>
+                <td>稽核紀錄</td>
+                <td>建立、修改、退回、作廢、人工確認、回匯套用紀錄。</td>
+                <td>動作時間、人員、前後值與來源。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>搜尋結果示意</h2>
+      </div>
+      <div class="panel-body result-list">
+        <div class="result-item">
+          <span class="tag blue">Case</span>
+          <h3>CASE-2026-0718 中華電信板橋機櫃電力費調整</h3>
+          <p>命中：案名、簡述、PDF 簽呈第 2 頁。狀態：預算外待主管確認。責任人：架構部 / 王小明。</p>
+        </div>
+        <div class="result-item">
+          <span class="tag red">PDF 簽呈</span>
+          <h3>36E100011500234.pdf，第 3 頁</h3>
+          <p>命中摘錄：本案年度費用 <span class="hit">3,000</span> 元 / 月，期間為 2026/07 至 2026/12。需人工確認金額是否與 Excel 一致。</p>
+        </div>
+        <div class="result-item">
+          <span class="tag green">Excel Row</span>
+          <h3>2026次月預計上簽項目.xlsx / 202607 / Row 18</h3>
+          <p>命中欄位：案名、金額、簡述說明。已對應 Case，但 PDF 金額與 Excel 金額待比對。</p>
+        </div>
+        <div class="result-item">
+          <span class="tag amber">合約</span>
+          <h3>中華電信機房電力服務合約</h3>
+          <p>命中：合約名稱、廠商、統編。合約迄日：2026/12/31，續約狀態：進行中。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>資料設計建議</h2>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag blue">搜尋索引</span>
+          <h3>search_index</h3>
+          <p>建立共用搜尋索引，存 object_type、object_id、title、snippet、keywords、source_type、permission_scope。</p>
+        </div>
+        <div class="card">
+          <span class="tag red">PDF 文字</span>
+          <h3>document_texts</h3>
+          <p>PDF 文字依 document_id、page_no、text_content、parse_status 保存，搜尋結果可回到頁碼。</p>
+        </div>
+        <div class="card">
+          <span class="tag green">Excel 原值</span>
+          <h3>import_rows / import_cells</h3>
+          <p>原始 Excel 欄位與值要能被搜尋，結果可回到檔名、Sheet、Row、欄位。</p>
+        </div>
+        <div class="card">
+          <span class="tag amber">權限</span>
+          <h3>permission_scope</h3>
+          <p>搜尋結果必須先套角色權限；處長、主管、承辦、助理看到的結果和金額欄位不一定相同。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>業主需要確認</h2>
+      </div>
+      <div class="panel-body">
+        <div class="checklist">
+          <div class="check"><span class="box"></span><span>搜尋框提示文字是否採用：案名 / 合約 / 廠商 / 統編 / 公文編號 / 人員 / PDF 簽呈內容 / Excel 原列。</span></div>
+          <div class="check"><span class="box"></span><span>PDF 搜尋結果是否必須顯示頁碼與文字摘錄。</span></div>
+          <div class="check"><span class="box"></span><span>Excel 搜尋結果是否必須顯示檔名、Sheet、Row 與原欄位。</span></div>
+          <div class="check"><span class="box"></span><span>承辦是否能搜尋到其他組別案件，或只看自己 / 本組範圍。</span></div>
+          <div class="check"><span class="box"></span><span>金額、PDF 簽呈、稽核紀錄是否需要依角色遮蔽。</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>PM 提醒</h2>
+      </div>
+      <div class="panel-body">
+        <div class="callout warning">
+          全文檢索不能只是搜尋畫面上的資料。真正要做的是把 Excel 原始資料、正式資料、PDF 文字、人工確認與稽核紀錄都納入索引，並且每筆結果都能追回來源。否則搜尋會變成漂亮但不可信的入口。
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

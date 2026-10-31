@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>承辦角度 - 待辦與核銷 v2.2</title>
+  <link rel="stylesheet" href="mockup-v2-2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="四角度切換">
+      <div class="brand">費控</div>
+      <a class="rail-link" href="04_角色畫面_助理管理者.html">助理</a>
+      <a class="rail-link" href="05_角色畫面_主管.html">主管</a>
+      <a class="rail-link" href="06_角色畫面_處長.html">處長</a>
+      <a class="rail-link active" href="07_角色畫面_承辦.html">承辦</a>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">承辦角度</div>
+          <h1>我的待辦、付款期數、文件補件與核銷更新</h1>
+          <p class="subline">承辦聚焦自己案件的補件、上簽、帳單、核銷與發票分攤。</p>
+        </div>
+        <div class="toolbar">
+          <select aria-label="待辦狀態"><option>我的待辦</option><option>待補件</option><option>待核銷</option></select>
+          <button class="primary" type="button">新增案件</button>
+          <button class="secondary" type="button">上傳附件</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>我的案件</h2>
+              <p class="subline">承辦可新增 Case，也可補齊合約、帳單、核銷與發票資訊。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag red">待補件 4</span>
+              <span class="tag amber">待核銷 6</span>
+              <span class="tag green">已完成 12</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">Case_ID</button></th>
+                    <th><button type="button">案件</button></th>
+                    <th><button type="button">待辦</button></th>
+                    <th><button type="button">到期日</button></th>
+                    <th><button type="button">關聯</button></th>
+                    <th><button type="button">下一步</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CASE-20260615-008</td>
+                    <td>A 專案年度採購終止</td>
+                    <td><span class="tag red">預算保留申請</span></td>
+                    <td>2026-06-18</td>
+                    <td>預算 1000萬、B 300萬、C 100萬</td>
+                    <td>補預算保留申請。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260612-003</td>
+                    <td>中華電信板橋機櫃電力費調整</td>
+                    <td><span class="tag red">補來源 mail</span> <span class="tag amber">預算原因</span></td>
+                    <td>2026-07-05</td>
+                    <td>Contract 候選、Payment 12 期</td>
+                    <td>補附件後送主管確認。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260609-004</td>
+                    <td>維運月費核銷</td>
+                    <td><span class="tag amber">待核銷</span></td>
+                    <td>2026-06-25</td>
+                    <td>Payment_ID 已建立</td>
+                    <td>建立 Expense_Claim 並關聯發票。</td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260607-006</td>
+                    <td>合約續約補件</td>
+                    <td><span class="tag green">待上簽</span></td>
+                    <td>2026-06-30</td>
+                    <td>Contract_ID 已確認</td>
+                    <td>確認上簽規劃與附件齊備。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>承辦下鑽路徑</h2>
+              <p class="subline">承辦頁要能從待辦摘要一路進到單案處理、補件、核銷、發票與來源紀錄。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">L1 我的待辦</span>
+              <span class="tag amber">L2 任務清單</span>
+              <span class="tag green">L3 作業表單</span>
+              <span class="tag">L4 來源紀錄</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="flow-item">
+                <strong>L1 我的待辦</strong>
+                <span>看待補件、待核銷、待上簽、已完成等工作量。</span>
+                <span class="tag red">待補件 3</span>
+              </div>
+              <div class="flow-item">
+                <strong>L2 任務清單</strong>
+                <span>點進待補件後，看每筆 Case 缺哪些來源、附件、預算原因或發票。</span>
+                <span class="tag amber">待核銷 6</span>
+              </div>
+              <div class="flow-item">
+                <strong>L3 作業表單</strong>
+                <span>補 Payment、Expense、Invoice、附件與核銷備註。</span>
+                <span class="tag green">填寫</span>
+              </div>
+              <div class="flow-item">
+                <strong>L4 來源紀錄</strong>
+                <span>查看自己上傳了什麼、主管退回什麼、哪些資料仍待補。</span>
+                <span class="tag">Audit</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L3 作業表單：付款與核銷更新</h2>
+              <p class="subline">承辦點進單案後，要能補齊付款、帳單、核銷與發票資料。</p>
+            </div>
+          </div>
+          <div class="section-body grid two">
+            <div class="panel">
+              <h3>Payment_Schedule</h3>
+              <div class="form-grid">
+                <div class="field">
+                  <label>Payment_ID</label>
+                  <input value="PAY-20260612-003-01" readonly />
+                </div>
+                <div class="field">
+                  <label>付款頻率</label>
+                  <select><option>定期付款</option><option>里程碑付款</option></select>
+                </div>
+                <div class="field">
+                  <label>期數</label>
+                  <input value="12" />
+                </div>
+                <div class="field">
+                  <label>每期金額</label>
+                  <input value="3,000" />
+                </div>
+                <div class="field wide">
+                  <label>付款依據</label>
+                  <input value="Email 來函 + 帳單" />
+                </div>
+                <div class="field wide">
+                  <label>核銷狀態</label>
+                  <select><option>未開始</option><option>核銷中</option><option>已完成</option></select>
+                </div>
+              </div>
+            </div>
+            <div class="panel">
+              <h3>Expense_Claim / Invoice</h3>
+              <div class="form-grid">
+                <div class="field">
+                  <label>Expense_ID</label>
+                  <input value="EXP-待建立" readonly />
+                </div>
+                <div class="field">
+                  <label>Invoice_ID</label>
+                  <input value="INV-待建立" readonly />
+                </div>
+                <div class="field">
+                  <label>發票分攤</label>
+                  <select><option>不分攤</option><option>需分攤</option></select>
+                </div>
+                <div class="field">
+                  <label>附件狀態</label>
+                  <select><option>待補帳單</option><option>已補齊</option></select>
+                </div>
+                <div class="field full">
+                  <label>核銷備註</label>
+                  <textarea>收到帳單後，需關聯 Payment_ID 與來源 mail；若一張發票含多筆費用，再建立 Invoice_Allocation。</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>L3 案件履歷追溯</h2>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="timeline-row">
+                <strong>Case</strong>
+                <span>建立案件並記錄來源 Email、組別、負責人與目標日。</span>
+                <span class="tag blue">已建立</span>
+              </div>
+              <div class="timeline-row">
+                <strong>Contract</strong>
+                <span>候選關聯原中華電信機櫃服務合約；外部系統編號待確認。</span>
+                <span class="tag amber">待勾稽</span>
+              </div>
+              <div class="timeline-row">
+                <strong>Payment</strong>
+                <span>每月 3,000 元，12 期，付款依據為 Email 與帳單。</span>
+                <span class="tag green">已建立</span>
+              </div>
+              <div class="timeline-row">
+                <strong>Budget</strong>
+                <span>預算外原因待補；補齊後送主管確認。</span>
+                <span class="tag red">待補</span>
+              </div>
+              <div class="timeline-row">
+                <strong>Invoice</strong>
+                <span>收到帳單或發票後建立，必要時進分攤。</span>
+                <span class="tag">未開始</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L4 補件、來源與退回紀錄</h2>
+              <p class="subline">承辦需要知道自己還缺什麼，以及主管或助理退回的原因。</p>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">項目</button></th>
+                    <th><button type="button">內容</button></th>
+                    <th><button type="button">狀態</button></th>
+                    <th><button type="button">下一步</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>來源 Email</td>
+                    <td>中華電信電力費追加通知。</td>
+                    <td><span class="tag green">已上傳</span></td>
+                    <td>等待主管確認。</td>
+                  </tr>
+                  <tr>
+                    <td>帳單附件</td>
+                    <td>收到 7 月帳單後補 PDF。</td>
+                    <td><span class="tag amber">待補</span></td>
+                    <td>上傳後建立 Expense_Claim。</td>
+                  </tr>
+                  <tr>
+                    <td>預算外原因</td>
+                    <td>台電漲價造成機櫃電力成本追加。</td>
+                    <td><span class="tag red">待主管覆核</span></td>
+                    <td>主管確認後送處長或留在主管層。</td>
+                  </tr>
+                  <tr>
+                    <td>退回紀錄</td>
+                    <td>若主管要求補合約編號，需回到合約候選勾稽。</td>
+                    <td><span class="tag">預留</span></td>
+                    <td>補齊後再次送出。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="mockup-v2-2.js"></script>
+</body>
+</html>

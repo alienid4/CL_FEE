@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>處長角度 - 案件確認放行 v2.2</title>
+  <link rel="stylesheet" href="mockup-v2-2.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="rail" aria-label="四角度切換">
+      <div class="brand">費控</div>
+      <a class="rail-link" href="assistant-intake-v2-2.html">助理</a>
+      <a class="rail-link" href="manager-dashboard-v2-2.html">主管</a>
+      <a class="rail-link active" href="executive-release-v2-2.html">處長</a>
+      <a class="rail-link" href="handler-workbench-v2-2.html">承辦</a>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">處長角度</div>
+          <h1>確認放行、預算外決策與高風險案件</h1>
+          <p class="subline">處長頁只收 Release_Gate 標記案件，避免一般作業案件進入決策頁。</p>
+        </div>
+        <div class="toolbar">
+          <select aria-label="決策狀態"><option>待決策</option><option>已放行</option><option>退回補件</option></select>
+          <button class="primary" type="button">批次放行</button>
+          <button class="ghost" type="button">退回補件</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>待決策摘要</h2>
+              <p class="subline">只顯示已由助理或主管確認需要處長看的案件。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag red">需決策 3</span>
+              <span class="tag amber">待補資料 2</span>
+              <span class="tag green">可放行 5</span>
+            </div>
+          </div>
+          <div class="section-body grid three">
+            <button class="summary-card selected" type="button">
+              <span class="tag red">預算外</span>
+              <span class="metric">36,000</span>
+              <span class="label">中華電信板橋機櫃電力費調整，需確認年度預算處理方式。</span>
+            </button>
+            <button class="summary-card" type="button">
+              <span class="tag amber">合約不明</span>
+              <span class="metric">2</span>
+              <span class="label">合約系統編號尚未勾稽，但付款時程逼近。</span>
+            </button>
+            <button class="summary-card" type="button">
+              <span class="tag purple">跨子公司</span>
+              <span class="metric">1</span>
+              <span class="label">需確認歸屬、分攤與主管備註。</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>處長下鑽路徑</h2>
+              <p class="subline">處長頁不能只是待決策數字，必須能看到決策包、主管建議、來源與放行後影響。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag red">L1 待決策</span>
+              <span class="tag amber">L2 佇列</span>
+              <span class="tag green">L3 決策包</span>
+              <span class="tag">L4 留痕</span>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="flow-item">
+                <strong>L1 待決策摘要</strong>
+                <span>只呈現 Release_Gate 案件，不讓一般作業案件進入處長視野。</span>
+                <span class="tag red">需決策 3</span>
+              </div>
+              <div class="flow-item">
+                <strong>L2 放行佇列</strong>
+                <span>按預算外、合約不明、跨子公司、逾期等條件排列優先順序。</span>
+                <span class="tag amber">待補資料 2</span>
+              </div>
+              <div class="flow-item">
+                <strong>L3 單案決策包</strong>
+                <span>看金額影響、主管建議、風險、可選決策與退回補件原因。</span>
+                <span class="tag green">決策包</span>
+              </div>
+              <div class="flow-item">
+                <strong>L4 放行留痕</strong>
+                <span>放行、退回、轉預算調整或要求補簽都要保留時間、人員與理由。</span>
+                <span class="tag">Audit</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L2 處長放行佇列</h2>
+              <p class="subline">處長點進摘要後，先看需要決策的案件清單與主管建議。</p>
+            </div>
+          </div>
+          <div class="section-body">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">Case_ID</button></th>
+                    <th><button type="button">案件</button></th>
+                    <th><button type="button">原因</button></th>
+                    <th><button type="button">金額</button></th>
+                    <th><button type="button">主管建議</button></th>
+                    <th><button type="button">放行選項</button></th>
+                    <th><button type="button">決策</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>CASE-20260612-003</td>
+                    <td>中華電信板橋機櫃電力費調整</td>
+                    <td><span class="tag red">預算外</span> <span class="tag green">合約相關</span></td>
+                    <td>36,000 / 年</td>
+                    <td>以帳單核銷，保留補充關聯，年度預算註記追加原因。</td>
+                    <td>放行 / 退回補件 / 轉年度預算調整</td>
+                    <td><span class="tag amber">待決策</span></td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260611-009</td>
+                    <td>年度維運續約與增購整併</td>
+                    <td><span class="tag amber">子合約判斷</span></td>
+                    <td>2,480,000</td>
+                    <td>先拆子 Case，再進上簽規劃。</td>
+                    <td>退回補件 / 要求拆案 / 暫緩</td>
+                    <td><span class="tag amber">待補資料</span></td>
+                  </tr>
+                  <tr>
+                    <td>CASE-20260610-012</td>
+                    <td>跨子公司資安專案付款</td>
+                    <td><span class="tag purple">跨子公司</span></td>
+                    <td>900,000</td>
+                    <td>確認分攤比例後放行。</td>
+                    <td>放行 / 補分攤比例 / 退回</td>
+                    <td><span class="tag green">可放行</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2>L3 決策包：中華電信板橋機櫃電力費調整</h2>
+              <p class="subline">處長點進單案後，要看到足以決定放行或退回的資料。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag red">預算外</span>
+              <span class="tag green">合約相關</span>
+              <span class="tag amber">主管建議放行</span>
+            </div>
+          </div>
+          <div class="section-body grid three">
+            <div class="panel">
+              <span class="tag blue">案件摘要</span>
+              <h3>為什麼進處長頁</h3>
+              <p class="label">台電漲價造成中華電信機櫃電力費追加，每月 3,000 元，年度影響 36,000 元，屬預算外費用調整。</p>
+            </div>
+            <div class="panel">
+              <span class="tag amber">主管建議</span>
+              <h3>建議處理方式</h3>
+              <p class="label">以帳單核銷，保留 Contract_Relation「費用調整」，並要求承辦補正式合約系統編號。</p>
+            </div>
+            <div class="panel">
+              <span class="tag red">處長選項</span>
+              <h3>決策動作</h3>
+              <p class="label">放行並列入年度預算註記；退回補合約編號；轉年度預算調整；要求正式補簽。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <h2>L4 決策履歷與來源留痕</h2>
+          </div>
+          <div class="section-body">
+            <div class="timeline">
+              <div class="timeline-row">
+                <strong>助理送出</strong>
+                <span>補齊 Case、來源 mail、候選合約、付款期數與預算外原因。</span>
+                <span class="tag green">2026-06-12</span>
+              </div>
+              <div class="timeline-row">
+                <strong>主管確認</strong>
+                <span>確認屬合約關聯費用調整，建議以帳單核銷並保留補充關聯。</span>
+                <span class="tag amber">待處長</span>
+              </div>
+              <div class="timeline-row">
+                <strong>處長決策</strong>
+                <span>放行、退回補件、轉年度預算調整或要求正式補簽。</span>
+                <span class="tag red">未決</span>
+              </div>
+              <div class="timeline-row">
+                <strong>來源附件</strong>
+                <span>Email 通知、帳單 PDF、候選合約比對結果、主管確認紀錄。</span>
+                <span class="tag">可追溯</span>
+              </div>
+              <div class="timeline-row">
+                <strong>放行後影響</strong>
+                <span>更新 Payment_Schedule、Budget_Check、報表快照與 audit_logs。</span>
+                <span class="tag blue">待產生</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="mockup-v2-2.js"></script>
+</body>
+</html>

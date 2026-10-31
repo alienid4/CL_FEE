@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理作業現況整理</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Assistant Workflow / 會議前整理</div>
+    <h1>助理作業現況整理</h1>
+    <p class="lead">這頁整理目前 Excel 使用頻率、主要作業、常見錯漏與查詢方式，用來確認第一階段功能優先順序。</p>
+    <a class="back" href="00_會議導覽.html">回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>常用 Excel 與頻率</h2>
+          <p class="lead">第一階段應優先處理高頻、容易出錯、會影響付款與上簽的 Excel。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag red">發票觸發</span>
+          <span class="tag blue">月度上簽</span>
+          <span class="tag green">週度續約</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Excel</th>
+                <th>使用頻率</th>
+                <th>主要用途</th>
+                <th>第一階段建議</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>費用項目整合23.xlsx</td>
+                <td>不固定；收到發票時最常使用</td>
+                <td>核對費用、付款、核銷、發票、文件與負責窗口。</td>
+                <td>列為第一優先系統化來源；匯入由管理介面處理。</td>
+              </tr>
+              <tr>
+                <td>次月預計上簽項目.xlsx</td>
+                <td>每月一次</td>
+                <td>整理預計上簽項目、案名、金額、簡述與上簽類型。</td>
+                <td>轉成每月上簽計畫與 Case 候選清單。</td>
+              </tr>
+              <tr>
+                <td>架構部續約合約進度.xlsx</td>
+                <td>每週一次</td>
+                <td>追蹤合約到期、續約進度、承辦人與進度詳情。</td>
+                <td>轉成續約提醒與續約任務看板。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>助理主要作業</h2>
+      </div>
+      <div class="panel-body grid three">
+        <div class="card">
+          <span class="tag blue">新增</span>
+          <h3>新增案件</h3>
+          <p>從上簽清單、發票或續約資訊建立案件，補案名、負責人、金額、月份與來源。</p>
+        </div>
+        <div class="card">
+          <span class="tag green">更新</span>
+          <h3>付款狀態</h3>
+          <p>依發票與核銷進度更新付款月份、付款金額、期別與處理狀態。</p>
+        </div>
+        <div class="card">
+          <span class="tag amber">查詢</span>
+          <h3>合約到期</h3>
+          <p>每週查看續約合約進度，確認是否即將到期、是否需要提醒或補資料。</p>
+        </div>
+        <div class="card">
+          <span class="tag red">整理</span>
+          <h3>上簽清單</h3>
+          <p>每月整理次月預計上簽項目，確認案名、類別、金額與說明。</p>
+        </div>
+        <div class="card">
+          <span class="tag blue">核對</span>
+          <h3>金額差異</h3>
+          <p>核對本月費用與上月費用差異，避免付款或上簽金額錯誤。</p>
+        </div>
+        <div class="card">
+          <span class="tag">追溯</span>
+          <h3>來源查找</h3>
+          <p>用案名、公文編號、負責人、月份與金額找資料來源與歷史紀錄。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>最容易錯漏的地方</h2>
+      </div>
+      <div class="panel-body grid">
+        <div class="callout warning">
+          <strong>付款計費期間</strong><br />
+          期間容易填錯、漏填或與合約期間不一致。第一階段應做格式檢核與合約期間比對。
+        </div>
+        <div class="callout warning">
+          <strong>上月費用差異</strong><br />
+          金額差異目前需要人工比對。第一階段應至少提示本月 / 上月差異，並保留差異說明。
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>常用查詢條件</h2>
+      </div>
+      <div class="panel-body grid three">
+        <div class="card"><span class="tag blue">案名</span><h3>案件查詢</h3><p>用案名找費用、上簽、PDF 或付款紀錄。</p></div>
+        <div class="card"><span class="tag green">公文編號</span><h3>簽呈查詢</h3><p>用公文編號追 PDF 簽呈與核銷紀錄。</p></div>
+        <div class="card"><span class="tag amber">負責人</span><h3>責任查詢</h3><p>用負責人找待辦、補件、續約與付款狀態。</p></div>
+        <div class="card"><span class="tag red">月份</span><h3>月度查詢</h3><p>用付款月份或上簽月份查當月應處理項目。</p></div>
+        <div class="card"><span class="tag">金額</span><h3>差異查詢</h3><p>用金額查付款、核銷、發票與上月差異。</p></div>
+        <div class="card"><span class="tag blue">全文</span><h3>全域搜尋</h3><p>上述條件都應納入基本搜尋，後續再擴充 PDF 全文命中。</p></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>第一階段功能優先順序</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>優先</th>
+                <th>功能</th>
+                <th>理由</th>
+                <th>保守說法</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>費用項目整合23 資料承接與檢核</td>
+                <td>收到發票時使用頻率最高，最直接影響付款與核銷。</td>
+                <td>匯入放管理介面；助理日常使用清單與檢核結果。</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>付款計費期間檢核</td>
+                <td>目前最容易填錯或漏填。</td>
+                <td>先做格式與區間提示，由人確認。</td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td>上月費用差異提示</td>
+                <td>可降低人工比對錯誤。</td>
+                <td>先提示差異，不自動判定原因。</td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td>基本搜尋</td>
+                <td>目前常用案名、公文編號、負責人、月份、金額查資料。</td>
+                <td>先搜正式欄位與來源資訊，PDF 全文後續擴充。</td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td>次月上簽清單與續約進度</td>
+                <td>分別是每月與每週固定作業。</td>
+                <td>先形成清單與提醒，不承諾自動簽核。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>接下來要確認：建議答案與優缺點</h2>
+          <p class="lead">後續問題不空問業主，先提供我方建議，再請業主判斷是否符合實務。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">有建議</span>
+          <span class="tag amber">有取捨</span>
+          <span class="tag green">好判斷</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>問題</th>
+                <th>我方建議答案</th>
+                <th>優點</th>
+                <th>缺點 / 代價</th>
+                <th>其他選項</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>付款計費期間要怎麼填？</td>
+                <td>建議用起訖日：`計費起日` + `計費迄日`，畫面可顯示為 2026/01/01-2026/01/31。</td>
+                <td>可精準檢核合約期間、跨月、跨年度與發票期間。</td>
+                <td>助理需要補完整日期；舊資料若只有月份，需先補值或用月底推估。</td>
+                <td>只填年月：較簡單，但無法處理跨月或非整月計費。</td>
+              </tr>
+              <tr>
+                <td>付款計費期間的正確來源看哪裡？</td>
+                <td>建議優先順序：發票 / 帳單 → 合約 → PDF 簽呈 → Excel 既有值。</td>
+                <td>最貼近實際請款，且能回到原始憑證。</td>
+                <td>發票或帳單若格式不一致，初期仍需人工確認。</td>
+                <td>以 Excel 為準：最快，但容易把既有錯誤帶進系統。</td>
+              </tr>
+              <tr>
+                <td>上月費用差異要跟誰比？</td>
+                <td>建議以「同費用項目 + 同廠商 + 同計費週期」比對。</td>
+                <td>比單純案名更穩，能避免案名改寫造成比對失準。</td>
+                <td>需要先把費用項目與廠商資料整理乾淨。</td>
+                <td>以案名比：容易理解，但案名只要改字就可能比不到。</td>
+              </tr>
+              <tr>
+                <td>差異多少要提醒？</td>
+                <td>建議第一階段「只要不同就提醒」，但分成低 / 中 / 高差異。</td>
+                <td>不漏掉異常，適合初期建立信任。</td>
+                <td>提醒數量可能偏多，助理初期需要多判斷。</td>
+                <td>設定門檻：較少干擾，但可能漏掉小額卻重要的錯誤。</td>
+              </tr>
+              <tr>
+                <td>公文編號能不能當唯一查詢鍵？</td>
+                <td>建議不要當唯一鍵，只作為重要查詢條件之一。</td>
+                <td>可避免尚未上簽、補件、同案多公文時找不到資料。</td>
+                <td>系統仍需 Case_ID 作主軸，多一層關聯設計。</td>
+                <td>以公文編號為主：查簽呈方便，但不適合所有案件生命週期。</td>
+              </tr>
+              <tr>
+                <td>收到發票後第一步要查什麼？</td>
+                <td>建議搜尋順序：廠商 / 費用項目 → 月份 → 金額 → 公文編號或案名。</td>
+                <td>符合發票作業情境，也能快速找到應付款項。</td>
+                <td>需要費用項目與廠商名稱先標準化。</td>
+                <td>先查案名：適合專案型費用，但例行費用常常案名不穩。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>費用合約控管系統 - 業主討論包 v2.6</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d0d7e2;
+      --paper: #ffffff;
+      --canvas: #f4f7fb;
+      --blue: #1f6aa5;
+      --blue-soft: #e7f2fb;
+      --green: #2f7a48;
+      --green-soft: #e8f5ec;
+      --amber: #9a6200;
+      --amber-soft: #fff3d6;
+      --red: #b42318;
+      --red-soft: #fde8e7;
+      --shadow: 0 12px 28px rgba(16, 24, 40, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .hero {
+      padding: 32px 40px 24px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      margin-top: 8px;
+      font-size: 32px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 21px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 16px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 980px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .content {
+      padding: 24px 40px 40px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .num {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--blue);
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+
+    .step p {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .button {
+      min-height: 36px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #fff;
+      background: var(--blue);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #f5f7fa;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tag.blue { color: var(--blue); background: var(--blue-soft); border-color: #bad4ee; }
+    .tag.green { color: var(--green); background: var(--green-soft); border-color: #b9ddb9; }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); border-color: #f0cf88; }
+    .tag.red { color: var(--red); background: var(--red-soft); border-color: #f2b8b2; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      min-height: 130px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .card p {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .card a {
+      display: inline-block;
+      margin-top: 12px;
+      color: var(--blue);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    .script {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      color: #344054;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .content {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .grid,
+      .step {
+        grid-template-columns: 1fr;
+      }
+
+      .tag-row {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">FeeContractControl / 業主討論包 v2.6</div>
+    <h1>費用合約控管系統討論資料</h1>
+    <p class="lead">這包資料用來確認既有 Excel / PDF 簽呈內容如何系統化，不是正式 UI 驗收。會議重點是先對齊現有欄位與來源，再判斷 Case、合約、專案、付款、預算、核銷、發票和處長放行怎麼走。</p>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>建議會議順序</h2>
+          <p class="lead">先確認既有 Excel / PDF 簽呈內容，再鎖定流程，最後看模擬畫面與收集真實案例。</p>
+        </div>
+        <div class="tag-row">
+          <span class="tag blue">先現況</span>
+          <span class="tag red">再規則</span>
+          <span class="tag amber">再操作</span>
+          <span class="tag green">最後案例</span>
+        </div>
+      </div>
+      <div class="panel-body steps">
+        <div class="step">
+          <span class="num">1</span>
+          <div>
+            <h3>看 Excel / PDF 系統化工作台</h3>
+            <p>先確認既有 Excel 欄位和 PDF 簽呈內容要怎麼進系統，不要直接跳成全新系統。</p>
+          </div>
+          <a class="button" href="01_Excel與PDF系統化工作台.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">2</span>
+          <div>
+            <h3>看案例紅線流程</h3>
+            <p>用中華電信電力費調整案例確認：如果真實發生，紅線是不是這樣走。</p>
+          </div>
+          <a class="button" href="02_案例流程_中華電信電力費調整.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">3</span>
+          <div>
+            <h3>看系統資料流整合模擬</h3>
+            <p>確認 Case、Contract、Payment、Budget、Expense、Invoice、Audit 如何串在一起。</p>
+          </div>
+          <a class="button" href="03_系統資料流整合模擬.html">開啟</a>
+        </div>
+        <div class="step">
+          <span class="num">4</span>
+          <div>
+            <h3>看角色畫面</h3>
+            <p>只看操作想像，不討論顏色與排版細節。重點是角色責任是否正確。</p>
+          </div>
+          <a class="button" href="#roles">往下看</a>
+        </div>
+        <div class="step">
+          <span class="num">5</span>
+          <div>
+            <h3>照訪談清單問規則</h3>
+            <p>確認 Release_Gate、角色權限、資料來源、代表案例，避免系統做歪。</p>
+          </div>
+          <a class="button" href="docs/業主訪談問題清單_v2.5.md">開啟</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>開場說法</h2>
+        <span class="tag blue">可直接照念</span>
+      </div>
+      <div class="panel-body">
+        <div class="script">
+          這次不是要確認正式系統畫面，也不是要推翻現有 Excel。<br>
+          我們先確認目前 Excel 欄位和 PDF 簽呈內容哪些要變成系統正式資料、哪些只做來源追溯。<br>
+          再看一個案例流程圖：每一件事情先建立 Case_ID，再判斷是否需要合約、專案、付款、預算、核銷、發票和放行。<br>
+          請您幫忙看：如果這個案例發生在我們單位，紅線是不是這樣走？如果不是，請直接指出哪一步應該改。
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="roles">
+      <div class="panel-head">
+        <div>
+          <h2>角色畫面</h2>
+          <p class="lead">這些是操作想像稿，不是正式 UI 定稿。四個角色頁都已補 L1 摘要、L2 清單、L3 單案、L4 來源紀錄。</p>
+        </div>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag blue">助理 / 管理者</span>
+          <h3>案件進件與 Intake 初判</h3>
+          <p>確認助理是否負責建立 Case、候選合約、付款期程與預算外原因。</p>
+          <a href="04_角色畫面_助理管理者.html">開啟畫面</a>
+        </div>
+        <div class="card">
+          <span class="tag green">主管</span>
+          <h3>管理面向與風險追蹤</h3>
+          <p>確認主管看的是預算、費用、合約、專案、逾期與差異，而不只是 PM 線。</p>
+          <a href="05_角色畫面_主管.html">開啟畫面</a>
+        </div>
+        <div class="card">
+          <span class="tag red">處長</span>
+          <h3>Release_Gate 與高風險決策</h3>
+          <p>確認哪些案件才應進處長頁，避免處長頁變成所有案件的垃圾桶。</p>
+          <a href="06_角色畫面_處長.html">開啟畫面</a>
+        </div>
+        <div class="card">
+          <span class="tag amber">承辦</span>
+          <h3>待辦、補件、核銷與發票</h3>
+          <p>確認承辦能處理自己的待辦、付款期數、帳單、核銷與發票資料。</p>
+          <a href="07_角色畫面_承辦.html">開啟畫面</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>其他參考資料</h2>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <span class="tag">完整流程圖</span>
+          <h3>系統完整分支</h3>
+          <p>可用瀏覽器開啟 SVG 看完整流程，但會議優先看紅線案例。</p>
+          <a href="08_完整流程圖_v2.3.svg">開啟 SVG</a>
+        </div>
+        <div class="card">
+          <span class="tag">Excel / PDF</span>
+          <h3>欄位盤點與系統化設計</h3>
+          <p>內含既有 Excel 欄位、PDF 簽呈內容、系統模組與第一階段限制。</p>
+          <a href="docs/EXCEL欄位盤點與系統化設計_v2.9.md">開啟文件</a>
+        </div>
+        <div class="card">
+          <span class="tag blue">欄位確認</span>
+          <h3>問題與我方建議</h3>
+          <p>先給系統設計建議，只把來源、業務意義、責任人與例外規則交給業主確認。</p>
+          <a href="docs/欄位確認問題與建議_v3.0.md">開啟文件</a>
+        </div>
+        <div class="card">
+          <span class="tag">WBS</span>
+          <h3>專案進度與交付紀錄</h3>
+          <p>留給內部追蹤用，業主不一定需要逐頁看。</p>
+          <a href="docs/WBS_專案進度_v2.1.md">開啟 WBS</a>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

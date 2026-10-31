@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PPT 專案概述單頁</title>
+  <style>
+    :root {
+      --green: #009f7a;
+      --green-dark: #006b57;
+      --green-soft: #e7f5ef;
+      --teal-soft: #dff3ee;
+      --orange: #e49122;
+      --ink: #2f3440;
+      --muted: #626b7a;
+      --line: #d6dde5;
+      --paper: #ffffff;
+      --gray: #d9d9d9;
+      --shadow: 0 8px 18px rgba(16, 24, 40, .18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #eef2f5;
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+
+    .slide {
+      width: 1240px;
+      min-height: 700px;
+      padding: 34px 44px 38px;
+      background:
+        linear-gradient(90deg, rgba(0, 159, 122, .03), rgba(0, 159, 122, 0) 26%),
+        #fff;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 16px 38px rgba(16, 24, 40, .22);
+    }
+
+    .watermark {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      color: rgba(0, 0, 0, .045);
+      font-size: 28px;
+      font-weight: 700;
+      transform: rotate(-18deg);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 64px;
+      align-content: center;
+    }
+
+    .watermark span {
+      white-space: nowrap;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--green);
+      font-size: 50px;
+      line-height: 1;
+      letter-spacing: 0;
+      font-weight: 900;
+    }
+
+    .top-row {
+      margin-top: 52px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 150px;
+      padding: 0 38px;
+      align-items: start;
+    }
+
+    .owner-card {
+      min-height: 188px;
+      padding: 22px 18px 20px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      display: grid;
+      place-items: center;
+      text-align: center;
+    }
+
+    .owner-card .icon {
+      width: 92px;
+      height: 82px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: var(--green-dark);
+      background: var(--green-soft);
+      border: 2px solid rgba(0, 107, 87, .24);
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .owner-card strong {
+      margin-top: 14px;
+      color: var(--green-dark);
+      font-size: 25px;
+      line-height: 1.25;
+      font-weight: 900;
+    }
+
+    .stat-row {
+      margin: 10px 56px 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 174px;
+      align-items: start;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 154px);
+      gap: 12px;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+    }
+
+    .stat {
+      min-height: 60px;
+      padding: 6px 10px 8px;
+      border: 1px solid #b7dfc7;
+      border-radius: 8px;
+      background: #eef9ed;
+      color: var(--green-dark);
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(16, 24, 40, .04);
+    }
+
+    .stat b {
+      display: block;
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 2px;
+      color: #52605d;
+      font-size: 17px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+
+    .bottom-row {
+      margin-top: -36px;
+      display: grid;
+      grid-template-columns: 1fr 120px 1fr;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .block-wrap {
+      min-height: 302px;
+      padding: 39px 14px 30px;
+      background: var(--gray);
+      display: flex;
+      align-items: center;
+    }
+
+    .block-wrap.after {
+      background: var(--teal-soft);
+    }
+
+    .pain-card,
+    .benefit-card {
+      width: 100%;
+      min-height: 228px;
+      padding: 20px 26px;
+      border-radius: 0 32px 32px 0;
+      background: var(--paper);
+      border-left: 5px solid var(--orange);
+    }
+
+    .benefit-card {
+      border-left-color: var(--green);
+    }
+
+    .pain-card h2,
+    .benefit-card h2 {
+      margin: 0 0 14px;
+      color: var(--green-dark);
+      font-size: 21px;
+      line-height: 1.35;
+      letter-spacing: 0;
+      font-weight: 900;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 0;
+      list-style: none;
+      color: #303642;
+      font-size: 25px;
+      line-height: 1.32;
+      font-weight: 500;
+    }
+
+    li + li {
+      margin-top: 3px;
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 78px;
+      font-weight: 400;
+    }
+
+    .note {
+      position: absolute;
+      right: 46px;
+      bottom: 16px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .slide {
+        width: 100vw;
+        min-height: 56.25vw;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="slide" aria-label="專案概述投影片">
+    <div class="watermark" aria-hidden="true">
+      <span>費用合約控管</span><span>Excel 系統化</span><span>PDF 簽呈追溯</span><span>全文檢索</span>
+      <span>費用合約控管</span><span>Excel 系統化</span><span>PDF 簽呈追溯</span><span>全文檢索</span>
+      <span>費用合約控管</span><span>Excel 系統化</span><span>PDF 簽呈追溯</span><span>全文檢索</span>
+    </div>
+
+    <div class="content">
+      <h1>專案概述</h1>
+
+      <div class="top-row">
+        <div class="owner-card">
+          <div class="icon">EXCEL</div>
+          <strong>既有費用<br />控管資料</strong>
+        </div>
+        <div class="owner-card">
+          <div class="icon">USER</div>
+          <strong>助理 / 承辦<br />主管 / 處長</strong>
+        </div>
+        <div class="owner-card">
+          <div class="icon">SYSTEM</div>
+          <strong>費用合約<br />控管系統</strong>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stats">
+          <div class="stat">
+            <b>6</b>
+            <span>主要 Excel 來源</span>
+          </div>
+          <div class="stat">
+            <b>150+</b>
+            <span>欄位需承接</span>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat">
+            <b>5</b>
+            <span>第一階段功能</span>
+          </div>
+          <div class="stat">
+            <b>1</b>
+            <span>全域全文檢索</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-row">
+        <div class="block-wrap">
+          <div class="pain-card">
+            <h2>導入前主要痛點（Before）</h2>
+            <ul>
+              <li>多份 Excel 分散管理</li>
+              <li>人工維護易錯漏</li>
+              <li>PDF 簽呈需人工比對</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="arrow" aria-hidden="true">→</div>
+
+        <div class="block-wrap after">
+          <div class="benefit-card">
+            <h2>系統化預期效益（After）</h2>
+            <ul>
+              <li>Excel 欄位系統承接</li>
+              <li>PDF 簽呈來源追溯</li>
+              <li>流程標準化、可查詢</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">註：150+ 欄位為既有 Excel 欄位承接概念，實際欄位數需於逐欄 mapping 階段確認。</div>
+  </section>
+</body>
+</html>

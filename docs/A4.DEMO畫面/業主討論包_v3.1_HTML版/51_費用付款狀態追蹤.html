@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理工作台 - 費用付款狀態追蹤</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">助理工作台</div>
+    <h1>費用付款狀態追蹤</h1>
+    <a class="back" href="15_第一階段MVP模擬畫面.html">返回案件清單</a>
+  </header>
+
+  <main class="content">
+    <section class="mvp-shell">
+      <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item active" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+
+      <section class="mock-app">
+        <div class="screen-title">
+          <div>
+            <h2>費用付款狀態追蹤</h2>
+            <div class="meta">
+              <span>費用核銷月份：2026/06</span>
+              <span>來源：費用項目整合23.xlsx</span>
+            </div>
+          </div>
+          <div class="action-row">
+            <button class="btn primary" type="button">發送提醒</button>
+            <button class="btn" type="button">匯出追蹤清單</button>
+          </div>
+        </div>
+
+        <div class="tag-row">
+          <a class="tag red tag-link" href="#payment-list">發票尚未收到 7</a>
+          <a class="tag amber tag-link" href="#payment-list">資料蒐集中 3</a>
+          <a class="tag blue tag-link" href="#payment-list">可預備上簽 2</a>
+          <a class="tag amber tag-link" href="#payment-list">款項簽核中 4</a>
+          <a class="tag green tag-link" href="#payment-list">款項已簽准 5</a>
+          <a class="tag green tag-link" href="#payment-list">提交會計部 9</a>
+        </div>
+
+        <div class="tab-row" data-tabs>
+          <button class="tab active" type="button" data-tab-target="payment-list">付款清單</button>
+          <button class="tab" type="button" data-tab-target="room-power-detail">機房用電費</button>
+          <button class="tab" type="button" data-tab-target="attachment-rule">附件規則</button>
+          <button class="tab" type="button" data-tab-target="reminder-log">提醒紀錄</button>
+        </div>
+
+        <section class="panel tab-panel" id="payment-list">
+          <div class="panel-head"><h2>付款清單</h2><span class="tag red">發票尚未收到 7</span></div>
+          <div class="panel-body form-stack">
+            <div class="filter-bar">
+              <label>費用核銷月份<select><option>2026/06</option><option>2026/05</option><option>2026/04</option></select></label>
+              <label>處理進度<select><option>全部</option><option>發票尚未收到</option><option>資料蒐集中</option><option>可預備上簽</option><option>款項簽核中</option><option>款項已簽准</option><option>提交會計部(結案)</option></select></label>
+              <label>窗口<input value="蔡維庭" /></label>
+              <button class="btn primary" type="button">查詢</button>
+            </div>
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">費用核銷月份</button></th>
+                    <th><button type="button">費用項目</button></th>
+                    <th><button type="button">窗口</button></th>
+                    <th><button type="button">繳別</button></th>
+                    <th><button type="button">項目請購編號</button></th>
+                    <th><button type="button">項目驗收編號</button></th>
+                    <th><button type="button">處理進度</button></th>
+                    <th><button type="button">核銷編號</button></th>
+                    <th><button type="button">提醒</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><a href="#payment-list">2026年6月份</a></td>
+                    <td><a href="#room-power-detail">機房用電費</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">蔡維庭</a></td>
+                    <td>季</td>
+                    <td><a href="42_請購編號詳情.html">36E100011400308</a></td>
+                    <td><a href="45_請購編號詳情_36E100011400235.html">IACE02025110055</a></td>
+                    <td><a class="tag red tag-link" href="#room-power-detail">發票尚未收到</a></td>
+                    <td>-</td>
+                    <td><a class="entity-link" href="#reminder-log">通知承辦 / 助理</a></td>
+                  </tr>
+                  <tr>
+                    <td><a href="#payment-list">2026年6月份</a></td>
+                    <td><a href="46_費用項目關聯詳情.html">網路線路費</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">游穗宗</a></td>
+                    <td>月</td>
+                    <td><a href="42_請購編號詳情.html">36E100011100037</a></td>
+                    <td>-</td>
+                    <td><a class="tag blue tag-link" href="#payment-list">可預備上簽</a></td>
+                    <td>-</td>
+                    <td><a class="entity-link" href="#reminder-log">待上簽提醒</a></td>
+                  </tr>
+                  <tr>
+                    <td><a href="#payment-list">2026年6月份</a></td>
+                    <td><a href="#room-power-detail">機房用電費</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">蔡維庭</a></td>
+                    <td>季</td>
+                    <td><a href="42_請購編號詳情.html">36E100011400308</a></td>
+                    <td><a href="45_請購編號詳情_36E100011400235.html">IACE02025110055</a></td>
+                    <td><a class="tag amber tag-link" href="#room-power-detail">款項簽核中</a></td>
+                    <td><a href="16_付款計費檢核.html">EXP-202606-014</a></td>
+                    <td><a class="entity-link" href="#reminder-log">追簽核狀態</a></td>
+                  </tr>
+                  <tr>
+                    <td><a href="#payment-list">2026年6月份</a></td>
+                    <td><a href="46_費用項目關聯詳情.html">設備維護費</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">謝世雄</a></td>
+                    <td>季</td>
+                    <td><a href="42_請購編號詳情.html">36E100011300324</a></td>
+                    <td>-</td>
+                    <td><a class="tag red tag-link" href="#payment-list">發票尚未收到</a></td>
+                    <td>-</td>
+                    <td><a class="entity-link" href="#reminder-log">通知承辦 / 助理</a></td>
+                  </tr>
+                  <tr>
+                    <td><a href="#payment-list">2026年6月份</a></td>
+                    <td><a href="46_費用項目關聯詳情.html">機房租賃費</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">林楚諺</a></td>
+                    <td>半年</td>
+                    <td><a href="42_請購編號詳情.html">36E100011300085</a></td>
+                    <td>-</td>
+                    <td><a class="tag red tag-link" href="#payment-list">發票尚未收到</a></td>
+                    <td>-</td>
+                    <td><a class="entity-link" href="#reminder-log">通知承辦 / 助理</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel tab-panel" id="room-power-detail" hidden>
+          <div class="panel-head"><h2>機房用電費</h2><span class="tag red">發票尚未收到</span></div>
+          <div class="panel-body form-stack">
+            <div class="compact-fields">
+              <div class="compact-field"><span>Tracking_ID</span><b>PAY-202606-014</b></div>
+              <div class="compact-field"><span>Case_ID</span><b><a class="entity-link" href="46_費用項目關聯詳情.html">CASE-202606-014</a></b></div>
+              <div class="compact-field"><span>費用核銷月份</span><b>2026年6月份</b></div>
+              <div class="compact-field"><span>處理進度</span><b>發票尚未收到</b></div>
+              <div class="compact-field"><span>窗口</span><b><a class="entity-link" href="47_人員組別關聯詳情.html">蔡維庭</a></b></div>
+              <div class="compact-field"><span>繳別</span><b>季</b></div>
+              <div class="compact-field"><span>項目請購編號</span><b><a class="entity-link" href="42_請購編號詳情.html">36E100011400308</a></b></div>
+              <div class="compact-field"><span>項目驗收編號</span><b><a class="entity-link" href="45_請購編號詳情_36E100011400235.html">IACE02025110055</a></b></div>
+              <div class="compact-field wide"><span>核銷編號</span><b>-</b></div>
+              <div class="compact-field wide"><span>下一步</span><b><a class="entity-link" href="#reminder-log">通知承辦 / 助理</a></b></div>
+            </div>
+
+            <div class="status-flow">
+              <a class="status-step red active" href="#room-power-detail"><span>1</span><strong>發票尚未收到</strong></a>
+              <a class="status-step" href="#room-power-detail"><span>2</span><strong>資料蒐集中</strong></a>
+              <a class="status-step" href="#room-power-detail"><span>3</span><strong>可預備上簽</strong></a>
+              <a class="status-step" href="#room-power-detail"><span>4</span><strong>款項簽核中</strong></a>
+              <a class="status-step" href="#room-power-detail"><span>5</span><strong>款項已簽准</strong></a>
+              <a class="status-step green" href="#room-power-detail"><span>6</span><strong>提交會計部(結案)</strong></a>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>附件類型</th>
+                    <th>必要性</th>
+                    <th>狀態</th>
+                    <th>檔案 / 來源</th>
+                    <th>負責人</th>
+                    <th>動作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>發票</td>
+                    <td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td>
+                    <td><span class="tag red">尚未收到</span></td>
+                    <td>-</td>
+                    <td><a href="47_人員組別關聯詳情.html">蔡維庭</a></td>
+                    <td><a class="entity-link" href="#reminder-log">通知承辦</a></td>
+                  </tr>
+                  <tr>
+                    <td>費用核銷申請書</td>
+                    <td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td>
+                    <td><span class="tag green">已上傳</span></td>
+                    <td><a href="18_來源追溯.html">EXP-202606-014.docx</a></td>
+                    <td>助理</td>
+                    <td><a class="entity-link" href="18_來源追溯.html">查看</a></td>
+                  </tr>
+                  <tr>
+                    <td>費用分攤表</td>
+                    <td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td>
+                    <td><span class="tag green">已上傳</span></td>
+                    <td><a href="18_來源追溯.html">附件二、中華電信板橋IDC機房五樓機櫃租賃費用分攤表.xlsx</a></td>
+                    <td>助理</td>
+                    <td><a class="entity-link" href="18_來源追溯.html">查看</a></td>
+                  </tr>
+                  <tr>
+                    <td>簽核簽擬單</td>
+                    <td><select class="inline-select"><option>必填</option><option selected>選填</option></select></td>
+                    <td><span class="tag amber">待確認</span></td>
+                    <td><a href="17_PDF簽呈關聯.html">36E100011400471.pdf</a></td>
+                    <td>助理</td>
+                    <td><a class="entity-link" href="17_PDF簽呈關聯.html">關聯 PDF</a></td>
+                  </tr>
+                  <tr>
+                    <td>合約</td>
+                    <td><select class="inline-select"><option>必填</option><option selected>選填</option></select></td>
+                    <td><span class="tag green">已關聯</span></td>
+                    <td><a href="36_合約續約.html">網路基礎架構服務契約書</a></td>
+                    <td>助理</td>
+                    <td><a class="entity-link" href="36_合約續約.html">查看合約</a></td>
+                  </tr>
+                  <tr>
+                    <td>維護紀錄</td>
+                    <td><select class="inline-select"><option>必填</option><option selected>選填</option></select></td>
+                    <td><span class="tag">未上傳</span></td>
+                    <td>-</td>
+                    <td>承辦</td>
+                    <td><a class="entity-link" href="#reminder-log">列入提醒</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="compact-actions">
+              <div class="compact-action-left"><span class="tag red">必填附件缺 1</span><span class="tag amber">Email 待發送</span></div>
+              <div class="compact-action-right"><button class="btn" type="button">上傳附件</button><button class="btn" type="button">更新狀態</button><button class="btn primary" type="button">發送提醒</button></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel tab-panel" id="attachment-rule" hidden>
+          <div class="panel-head"><h2>附件規則</h2><span class="tag blue">助理自訂</span></div>
+          <div class="panel-body form-stack">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">費用項目</button></th>
+                    <th><button type="button">附件類型</button></th>
+                    <th><button type="button">必要性</button></th>
+                    <th><button type="button">適用月份</button></th>
+                    <th><button type="button">維護者</button></th>
+                    <th><button type="button">狀態檢核</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><a href="#room-power-detail">機房用電費</a></td><td>發票</td><td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td><td>2026/06</td><td>助理</td><td><span class="tag red">缺件阻擋結案</span></td></tr>
+                  <tr><td><a href="#room-power-detail">機房用電費</a></td><td>費用核銷申請書</td><td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td><td>2026/06</td><td>助理</td><td><span class="tag red">缺件阻擋結案</span></td></tr>
+                  <tr><td><a href="#room-power-detail">機房用電費</a></td><td>費用分攤表</td><td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td><td>2026/06</td><td>助理</td><td><span class="tag amber">待確認</span></td></tr>
+                  <tr><td><a href="#room-power-detail">機房用電費</a></td><td>簽核簽擬單</td><td><select class="inline-select"><option>必填</option><option selected>選填</option></select></td><td>2026/06</td><td>助理</td><td><span class="tag">不阻擋</span></td></tr>
+                  <tr><td><a href="46_費用項目關聯詳情.html">網路線路費</a></td><td>發票</td><td><select class="inline-select"><option selected>必填</option><option>選填</option></select></td><td>2026/06</td><td>助理</td><td><span class="tag red">缺件阻擋結案</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel tab-panel" id="reminder-log" hidden>
+          <div class="panel-head"><h2>提醒紀錄</h2><span class="tag amber">Email + 系統</span></div>
+          <div class="panel-body form-stack">
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">觸發狀態</button></th>
+                    <th><button type="button">提醒對象</button></th>
+                    <th><button type="button">方式</button></th>
+                    <th><button type="button">上次提醒</button></th>
+                    <th><button type="button">次數</button></th>
+                    <th><button type="button">處理結果</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><a class="tag red tag-link" href="#room-power-detail">發票尚未收到</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">蔡維庭</a> / 助理</td>
+                    <td>Email / 系統提醒</td>
+                    <td>2026/06/16 09:00</td>
+                    <td>1</td>
+                    <td><a class="entity-link" href="#room-power-detail">待回覆</a></td>
+                  </tr>
+                  <tr>
+                    <td><a class="tag amber tag-link" href="#payment-list">款項簽核中</a></td>
+                    <td>助理</td>
+                    <td>系統提醒</td>
+                    <td>2026/06/15 14:30</td>
+                    <td>1</td>
+                    <td><a class="entity-link" href="16_付款計費檢核.html">核銷編號已填</a></td>
+                  </tr>
+                  <tr>
+                    <td><a class="tag blue tag-link" href="#payment-list">可預備上簽</a></td>
+                    <td>助理</td>
+                    <td>系統提醒</td>
+                    <td>2026/06/14 10:10</td>
+                    <td>2</td>
+                    <td><a class="entity-link" href="35_上簽清單.html">列入上簽</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="compact-fields">
+              <div class="compact-field"><span>狀態</span><b>款項簽核中</b></div>
+              <div class="compact-field"><span>必填欄位</span><b>核銷編號</b></div>
+              <div class="compact-field"><span>發票尚未收到</span><b>承辦 / 助理</b></div>
+              <div class="compact-field"><span>結案狀態</span><b>提交會計部(結案)</b></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>

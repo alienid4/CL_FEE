@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>費用合約控管系統 | 流程與程式設計藍圖</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d7dde8;
+      --paper: #ffffff;
+      --canvas: #f3f6fa;
+      --blue: #1f6aa5;
+      --blue-bg: #e7f2fb;
+      --amber: #a96800;
+      --amber-bg: #fff4d9;
+      --green: #2f7a48;
+      --green-bg: #e8f6ec;
+      --violet: #6a4ca3;
+      --violet-bg: #f0ecfb;
+      --red: #b42318;
+      --red-bg: #fdeceb;
+      --slate: #44546a;
+      --slate-bg: #eef2f6;
+      --teal: #13706d;
+      --teal-bg: #e5f7f5;
+      --shadow: 0 14px 34px rgba(20, 32, 54, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 22px 16px;
+      color: #ffffff;
+      background: #21314a;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .brand {
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .08);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 4px;
+      color: rgba(255, 255, 255, .72);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .nav a {
+      min-height: 38px;
+      padding: 9px 10px;
+      border-radius: 7px;
+      color: rgba(255, 255, 255, .84);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .nav a:hover,
+    .nav a:focus-visible {
+      color: #ffffff;
+      background: rgba(255, 255, 255, .12);
+      outline: none;
+    }
+
+    .content {
+      min-width: 0;
+    }
+
+    .hero {
+      padding: 34px 42px 24px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .kicker {
+      color: var(--blue);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      margin-top: 8px;
+      max-width: 940px;
+      font-size: 34px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 980px;
+      margin-top: 13px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.75;
+    }
+
+    .hero-meta {
+      margin-top: 18px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 3px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #344054;
+      background: var(--slate-bg);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tag.blue { color: var(--blue); background: var(--blue-bg); border-color: #b7d7ee; }
+    .tag.amber { color: var(--amber); background: var(--amber-bg); border-color: #f0cf88; }
+    .tag.green { color: var(--green); background: var(--green-bg); border-color: #b7ddb9; }
+    .tag.violet { color: var(--violet); background: var(--violet-bg); border-color: #d2c8ee; }
+    .tag.red { color: var(--red); background: var(--red-bg); border-color: #f0b7b0; }
+    .tag.teal { color: var(--teal); background: var(--teal-bg); border-color: #a9deda; }
+
+    .band {
+      padding: 30px 42px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .band.white {
+      background: var(--paper);
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .section-head h2 {
+      font-size: 23px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .section-head p {
+      max-width: 780px;
+      margin-top: 6px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      min-height: 148px;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .card h3 {
+      margin-top: 10px;
+      font-size: 17px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    .card p,
+    .card li {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .card p {
+      margin-top: 8px;
+    }
+
+    .card ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+    }
+
+    .diagram-frame {
+      overflow-x: auto;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    svg.diagram {
+      display: block;
+      width: 100%;
+      min-width: 1180px;
+      height: auto;
+    }
+
+    .svg-title {
+      fill: var(--ink);
+      font-size: 20px;
+      font-weight: 900;
+    }
+
+    .svg-note {
+      fill: #667085;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .node-title {
+      font-size: 16px;
+      font-weight: 900;
+    }
+
+    .node-copy {
+      fill: #344054;
+      font-size: 12.7px;
+      font-weight: 700;
+    }
+
+    .lane-label {
+      fill: #667085;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .matrix,
+    .schema {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .matrix th,
+    .matrix td,
+    .schema th,
+    .schema td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .matrix th,
+    .schema th {
+      color: #344054;
+      background: #f7f9fc;
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .matrix tr:last-child td,
+    .schema tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, .95fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+    }
+
+    .step b {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #ffffff;
+      background: var(--blue);
+      font-size: 14px;
+    }
+
+    .step strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .step span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .footer-note {
+      padding: 20px 42px 34px;
+      color: #667085;
+      font-size: 13px;
+      line-height: 1.65;
+      background: var(--paper);
+    }
+
+    @media (max-width: 980px) {
+      .shell {
+        display: block;
+      }
+
+      .nav {
+        position: static;
+        height: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        padding: 12px;
+      }
+
+      .brand {
+        width: 100%;
+      }
+
+      .nav a {
+        flex: 1 1 120px;
+        text-align: center;
+      }
+
+      .hero,
+      .band,
+      .footer-note {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      h1 {
+        font-size: 27px;
+      }
+
+      .section-head,
+      .split {
+        display: block;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .table-wrap,
+      .split > * + * {
+        margin-top: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav" aria-label="頁面導覽">
+      <div class="brand">
+        <strong>費控系統</strong>
+        <span>流程與程式設計藍圖 v3</span>
+      </div>
+      <a href="#why">為什麼畫圖</a>
+      <a href="#business-flow">業務流程圖</a>
+      <a href="#decision">決策分流</a>
+      <a href="#program-flow">程式設計流程圖</a>
+      <a href="#api-db">API / DB 對照</a>
+      <a href="#build-plan">開發切分</a>
+    </nav>
+
+    <main class="content">
+      <header class="hero">
+        <div class="kicker">FeeContractControl / FCCS</div>
+        <h1>把「案件、合約、專案、付款、預算、核銷、發票」整理成可開發、可稽核、可驗收的流程藍圖</h1>
+        <p class="lead">這份 HTML 不是把既有流程圖重新美化而已，而是把助理畫圖的目的落到工程語言：Case_ID 是事件主軸，Contract / Project / Payment / Budget / Expense / Invoice 是被條件建立的資料節點，每一次人工確認、匯入、回匯、核銷與發票分攤都要留下來源與 audit_logs。</p>
+        <div class="hero-meta">
+          <span class="tag blue">Case_ID 主軸</span>
+          <span class="tag green">Python FastAPI</span>
+          <span class="tag teal">Microsoft SQL Server</span>
+          <span class="tag amber">人工確認優先</span>
+          <span class="tag red">AI 不直接寫正式金額</span>
+        </div>
+      </header>
+
+      <section id="why" class="band white">
+        <div class="section-head">
+          <div>
+            <h2>為什麼助理要畫這張圖</h2>
+            <p>因為這個系統真正難的不是畫面，而是「一筆請款或簽呈到底要不要建立合約、專案、付款、預算、核銷與發票資料」。圖的價值是把隱性判斷規則變成工程可以實作的分流器。</p>
+          </div>
+        </div>
+        <div class="cards">
+          <article class="card">
+            <span class="tag blue">目的 1</span>
+            <h3>建立共同語言</h3>
+            <p>業務用「案件」說明需求，工程用 Case_ID 串起資料、API、附件、audit_logs 與 Dashboard。先定主軸，後面才不會各模組各說各話。</p>
+          </article>
+          <article class="card">
+            <span class="tag amber">目的 2</span>
+            <h3>把判斷前移</h3>
+            <p>先在 Intake 判斷是否與合約、專案、付款、預算有關，避免所有資料都被塞成同一種表單，也避免非正式專案被誤建 Project_ID。</p>
+          </article>
+          <article class="card">
+            <span class="tag green">目的 3</span>
+            <h3>定義交易邊界</h3>
+            <p>合約、付款、核銷、發票不是單純畫面欄位，而是不同 Service 與資料表的寫入交易。流程圖要讓後端知道哪一步要開 transaction、哪一步只做查詢與提示。</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="business-flow" class="band">
+        <div class="section-head">
+          <div>
+            <h2>業務流程圖</h2>
+            <p>實線是主要作業鏈，虛線是條件關聯或資料來源。重點是「發票不直接掛合約」，而是由 Contract → Payment → Expense → Invoice 形成核銷追溯鏈。</p>
+          </div>
+          <div class="hero-meta" aria-label="流程圖圖例">
+            <span class="tag blue">Case / Budget</span>
+            <span class="tag amber">判斷 / Payment</span>
+            <span class="tag green">Contract / Project</span>
+            <span class="tag violet">Expense</span>
+            <span class="tag red">Invoice</span>
+          </div>
+        </div>
+
+        <div class="diagram-frame">
+          <svg class="diagram" viewBox="0 0 1320 720" role="img" aria-labelledby="businessTitle businessDesc">
+            <title id="businessTitle">費用合約控管業務流程圖</title>
+            <desc id="businessDesc">案件由 Case_ID 進件，經 Intake 判斷後建立合約、專案、付款、預算、核銷、發票、分攤、稽核與 Dashboard。</desc>
+            <defs>
+              <marker id="arrowDark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#263244"></path>
+              </marker>
+              <marker id="arrowSoft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#667085"></path>
+              </marker>
+              <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+                <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#101828" flood-opacity=".10"></feDropShadow>
+              </filter>
+            </defs>
+
+            <text x="24" y="32" class="svg-title">正式資料主線</text>
+            <text x="24" y="54" class="svg-note">Case_ID 是所有事件主軸；Project_ID 只用於正式專案；Contract_Relation 只在特殊合約關聯時建立。</text>
+
+            <path d="M 196 118 H 260" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 428 118 H 492" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 660 118 H 724" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 608 198 V 260" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 608 358 V 420" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 724 308 H 792" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 960 308 H 1028" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 1140 358 V 420" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 220 198 V 420" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrowSoft)"></path>
+            <path d="M 376 198 V 238 H 220 V 420" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none"></path>
+            <path d="M 840 198 V 238 H 724" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrowSoft)"></path>
+            <path d="M 1080 198 V 238 H 724" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none"></path>
+            <path d="M 492 308 H 444" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrowSoft)"></path>
+            <path d="M 608 358 V 390 H 376 V 420" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrowSoft)"></path>
+            <path d="M 376 518 H 492" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 660 518 H 792" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowDark)"></path>
+            <path d="M 1140 518 V 570 H 960" stroke="#667085" stroke-width="3" stroke-dasharray="10 8" fill="none" marker-end="url(#arrowSoft)"></path>
+
+            <g filter="url(#softShadow)">
+              <rect x="24" y="78" width="172" height="120" rx="8" fill="#e7f2fb" stroke="#1f6aa5" stroke-width="2"></rect>
+              <text x="42" y="106" class="node-title" fill="#1f6aa5">1. 案件進件 Case</text>
+              <text x="42" y="132" class="node-copy"><tspan x="42" dy="0">建立 Case_ID</tspan><tspan x="42" dy="20">來源 / 組別 / 負責人</tspan><tspan x="42" dy="20">目標日與優先等級</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="260" y="78" width="168" height="120" rx="8" fill="#fff4d9" stroke="#a96800" stroke-width="2"></rect>
+              <text x="278" y="106" class="node-title" fill="#a96800">2. Intake 判斷</text>
+              <text x="278" y="132" class="node-copy"><tspan x="278" dy="0">是否與合約相關</tspan><tspan x="278" dy="20">是否與專案相關</tspan><tspan x="278" dy="20">是否產生付款需求</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="492" y="78" width="168" height="120" rx="8" fill="#e8f6ec" stroke="#2f7a48" stroke-width="2"></rect>
+              <text x="510" y="106" class="node-title" fill="#2f7a48">3. 合約 Contract</text>
+              <text x="510" y="132" class="node-copy"><tspan x="510" dy="0">建立 / 關聯 Contract_ID</tspan><tspan x="510" dy="20">新約 / 續約 / 增購</tspan><tspan x="510" dy="20">廠商 / 期間 / 金額</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="724" y="78" width="180" height="120" rx="8" fill="#e8f6ec" stroke="#2f7a48" stroke-width="2"></rect>
+              <text x="742" y="106" class="node-title" fill="#2f7a48">5. 專案 Project</text>
+              <text x="742" y="132" class="node-copy"><tspan x="742" dy="0">符合條件才建立 Project_ID</tspan><tspan x="742" dy="20">公司級 / 處級 / 部級</tspan><tspan x="742" dy="20">金控 / 跨子公司 / 主管關注</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="24" y="420" width="196" height="118" rx="8" fill="#e7f2fb" stroke="#1f6aa5" stroke-width="2"></rect>
+              <text x="42" y="448" class="node-title" fill="#1f6aa5">10. 年度預算 Budget</text>
+              <text x="42" y="474" class="node-copy"><tspan x="42" dy="0">建立 Budget_ID</tspan><tspan x="42" dy="20">來源：合約 / 付款 / 歷史核銷</tspan><tspan x="42" dy="20">可無 Project_ID 但需 Case_ID</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="292" y="260" width="152" height="98" rx="8" fill="#f4f6f8" stroke="#667085" stroke-width="2"></rect>
+              <text x="310" y="288" class="node-title" fill="#667085">4. Relation</text>
+              <text x="310" y="314" class="node-copy"><tspan x="310" dy="0">增購 / 續約 / 整併</tspan><tspan x="310" dy="20">來源合約與目標合約</tspan><tspan x="310" dy="20">特殊情境才建立</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="492" y="260" width="232" height="98" rx="8" fill="#fff4d9" stroke="#a96800" stroke-width="2"></rect>
+              <text x="510" y="288" class="node-title" fill="#a96800">6. 付款明細 Payment</text>
+              <text x="510" y="314" class="node-copy"><tspan x="510" dy="0">建立 Payment_ID</tspan><tspan x="510" dy="20">由合約條件展開</tspan><tspan x="510" dy="20">非合約費用可手動建立</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="792" y="260" width="168" height="98" rx="8" fill="#f0ecfb" stroke="#6a4ca3" stroke-width="2"></rect>
+              <text x="810" y="288" class="node-title" fill="#6a4ca3">7. 費用核銷</text>
+              <text x="810" y="314" class="node-copy"><tspan x="810" dy="0">建立 Expense_ID</tspan><tspan x="810" dy="20">對應 Payment_ID</tspan><tspan x="810" dy="20">請款狀態與責任人</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="1028" y="260" width="170" height="98" rx="8" fill="#fdeceb" stroke="#b42318" stroke-width="2"></rect>
+              <text x="1046" y="288" class="node-title" fill="#b42318">8. 發票 Invoice</text>
+              <text x="1046" y="314" class="node-copy"><tspan x="1046" dy="0">建立 Invoice_ID</tspan><tspan x="1046" dy="20">由費用核銷關聯</tspan><tspan x="1046" dy="20">號碼 / 日期 / 金額</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="1028" y="420" width="170" height="98" rx="8" fill="#fdeceb" stroke="#b42318" stroke-width="2"></rect>
+              <text x="1046" y="448" class="node-title" fill="#b42318">9. 發票分攤</text>
+              <text x="1046" y="474" class="node-copy"><tspan x="1046" dy="0">多合約一張發票使用</tspan><tspan x="1046" dy="20">分攤至 Payment_ID</tspan><tspan x="1046" dy="20">金額需勾稽平衡</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="492" y="470" width="168" height="98" rx="8" fill="#e8f6ec" stroke="#2f7a48" stroke-width="2"></rect>
+              <text x="510" y="498" class="node-title" fill="#2f7a48">11. Dashboard</text>
+              <text x="510" y="524" class="node-copy"><tspan x="510" dy="0">次月上簽費用</tspan><tspan x="510" dy="20">合約到期與續約提醒</tspan><tspan x="510" dy="20">預算內外控管</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="792" y="470" width="168" height="98" rx="8" fill="#f4f6f8" stroke="#667085" stroke-width="2"></rect>
+              <text x="810" y="498" class="node-title" fill="#667085">12. 稽核追溯</text>
+              <text x="810" y="524" class="node-copy"><tspan x="810" dy="0">異動紀錄</tspan><tspan x="810" dy="20">附件與簽呈連結</tspan><tspan x="810" dy="20">金額與權限追蹤</tspan></text>
+            </g>
+
+            <g>
+              <rect x="24" y="612" width="1174" height="66" rx="8" fill="#eef7ff" stroke="#1f6aa5" stroke-width="2"></rect>
+              <text x="42" y="640" class="node-title" fill="#1f6aa5">核心設計原則</text>
+              <text x="42" y="664" class="node-copy"><tspan x="42" dy="0">Case_ID 是所有事項的事件主軸；Project_ID 僅適用正式專案；發票不直接接合約，應由 Contract → Payment → Expense → Invoice 形成核銷追溯鏈。</tspan></text>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <section id="decision" class="band white">
+        <div class="section-head">
+          <div>
+            <h2>決策分流矩陣</h2>
+            <p>Intake 的本質是分流器。助理畫圖是為了把「什麼情況要建什麼 ID」先講清楚，讓 UI、API、DB、測試可以共用同一套判斷。</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>判斷問題</th>
+                <th>是</th>
+                <th>否</th>
+                <th>工程輸出</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>是否與合約相關？</td>
+                <td>建立或關聯 Contract_ID，必要時建立 Contract_Relation。</td>
+                <td>Contract_ID 可空，但 Case_ID 必填。</td>
+                <td>contract_service.resolve_contract_scope()</td>
+              </tr>
+              <tr>
+                <td>是否符合正式專案？</td>
+                <td>建立 Project_ID，記錄公司級 / 處級 / 部級、跨公司、主管關注。</td>
+                <td>維持非正式專案，不建立 Project_ID。</td>
+                <td>project_policy.should_create_project()</td>
+              </tr>
+              <tr>
+                <td>是否產生付款或預算需求？</td>
+                <td>建立 Payment_ID，展開期數，觸發 Budget_Check。</td>
+                <td>僅保留案件、合約或專案說明，暫不建立付款。</td>
+                <td>payment_service.create_schedule_with_budget_check()</td>
+              </tr>
+              <tr>
+                <td>是否需要核銷與發票？</td>
+                <td>建立 Expense_ID 與 Invoice_ID，必要時建立 Invoice_Allocation。</td>
+                <td>僅列入上簽規劃與 Dashboard 追蹤。</td>
+                <td>expense_service.claim_and_invoice()</td>
+              </tr>
+              <tr>
+                <td>是否來自 Excel / PDF / AI？</td>
+                <td>寫入 source_references，AI 建議需人工確認。</td>
+                <td>記錄系統建立人與時間。</td>
+                <td>source_service.attach_evidence()</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="program-flow" class="band">
+        <div class="section-head">
+          <div>
+            <h2>程式設計流程圖</h2>
+            <p>這張圖是給工程實作看的。左到右代表 request 進入系統後的分層：前端表單送出，API 驗證角色與資料，Service 做業務判斷，Repository 在同一個 transaction 內寫入核心表，最後產生 audit_logs 與 Dashboard 投影。</p>
+          </div>
+        </div>
+        <div class="diagram-frame">
+          <svg class="diagram" viewBox="0 0 1320 780" role="img" aria-labelledby="programTitle programDesc">
+            <title id="programTitle">程式設計流程圖</title>
+            <desc id="programDesc">前端、API、權限、驗證、服務、交易、資料表、稽核與回應的程式設計流程。</desc>
+            <defs>
+              <marker id="arrowCode" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#263244"></path>
+              </marker>
+              <marker id="arrowCodeSoft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#667085"></path>
+              </marker>
+            </defs>
+
+            <text x="24" y="34" class="svg-title">FastAPI + MSSQL 程式分層</text>
+            <text x="24" y="56" class="svg-note">每個寫入型動作都要經過角色權限、DTO 驗證、業務規則、DB transaction 與 audit_logs。</text>
+
+            <text x="36" y="92" class="lane-label">Frontend</text>
+            <text x="238" y="92" class="lane-label">API Layer</text>
+            <text x="452" y="92" class="lane-label">Decision Engine</text>
+            <text x="690" y="92" class="lane-label">Service / Transaction</text>
+            <text x="946" y="92" class="lane-label">MSSQL Tables</text>
+            <text x="1168" y="92" class="lane-label">Outputs</text>
+
+            <path d="M 178 154 H 232" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowCode)"></path>
+            <path d="M 382 154 H 436" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowCode)"></path>
+            <path d="M 610 154 H 664" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowCode)"></path>
+            <path d="M 850 154 H 904" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowCode)"></path>
+            <path d="M 1088 154 H 1142" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowCode)"></path>
+
+            <path d="M 748 222 V 258" stroke="#667085" stroke-width="3" fill="none" marker-end="url(#arrowCodeSoft)"></path>
+            <path d="M 748 326 V 362" stroke="#667085" stroke-width="3" fill="none" marker-end="url(#arrowCodeSoft)"></path>
+            <path d="M 748 430 V 466" stroke="#667085" stroke-width="3" fill="none" marker-end="url(#arrowCodeSoft)"></path>
+            <path d="M 848 518 H 904" stroke="#263244" stroke-width="3" fill="none" marker-end="url(#arrowCode)"></path>
+            <path d="M 1034 518 V 594 H 1142" stroke="#667085" stroke-width="3" stroke-dasharray="9 7" fill="none" marker-end="url(#arrowCodeSoft)"></path>
+            <path d="M 1034 518 V 660 H 1142" stroke="#667085" stroke-width="3" stroke-dasharray="9 7" fill="none" marker-end="url(#arrowCodeSoft)"></path>
+
+            <g filter="url(#softShadow)">
+              <rect x="24" y="112" width="154" height="110" rx="8" fill="#e7f2fb" stroke="#1f6aa5" stroke-width="2"></rect>
+              <text x="42" y="140" class="node-title" fill="#1f6aa5">角色入口 UI</text>
+              <text x="42" y="166" class="node-copy"><tspan x="42" dy="0">管理者 / 助理</tspan><tspan x="42" dy="20">承辦新增案件</tspan><tspan x="42" dy="20">主管與處長查詢</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="232" y="112" width="150" height="110" rx="8" fill="#eef2f6" stroke="#44546a" stroke-width="2"></rect>
+              <text x="250" y="140" class="node-title" fill="#44546a">API Router</text>
+              <text x="250" y="166" class="node-copy"><tspan x="250" dy="0">POST /signing-cases</tspan><tspan x="250" dy="20">POST /payments</tspan><tspan x="250" dy="20">GET /dashboard/*</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="436" y="112" width="174" height="110" rx="8" fill="#fff4d9" stroke="#a96800" stroke-width="2"></rect>
+              <text x="454" y="140" class="node-title" fill="#a96800">權限與 DTO 驗證</text>
+              <text x="454" y="166" class="node-copy"><tspan x="454" dy="0">role guard</tspan><tspan x="454" dy="20">request schema</tspan><tspan x="454" dy="20">必填與金額格式</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="664" y="112" width="186" height="110" rx="8" fill="#fff4d9" stroke="#a96800" stroke-width="2"></rect>
+              <text x="682" y="140" class="node-title" fill="#a96800">Intake Rule Engine</text>
+              <text x="682" y="166" class="node-copy"><tspan x="682" dy="0">合約 / 專案 / 付款</tspan><tspan x="682" dy="20">預算 / 核銷 / 發票</tspan><tspan x="682" dy="20">決定要建立哪些 ID</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="904" y="112" width="184" height="110" rx="8" fill="#e8f6ec" stroke="#2f7a48" stroke-width="2"></rect>
+              <text x="922" y="140" class="node-title" fill="#2f7a48">Repository</text>
+              <text x="922" y="166" class="node-copy"><tspan x="922" dy="0">SQLAlchemy / pyodbc</tspan><tspan x="922" dy="20">row_version</tspan><tspan x="922" dy="20">source references</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="1142" y="112" width="154" height="110" rx="8" fill="#e5f7f5" stroke="#13706d" stroke-width="2"></rect>
+              <text x="1160" y="140" class="node-title" fill="#13706d">Response</text>
+              <text x="1160" y="166" class="node-copy"><tspan x="1160" dy="0">created IDs</tspan><tspan x="1160" dy="20">next actions</tspan><tspan x="1160" dy="20">warnings</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="646" y="258" width="204" height="68" rx="8" fill="#e7f2fb" stroke="#1f6aa5" stroke-width="2"></rect>
+              <text x="664" y="286" class="node-title" fill="#1f6aa5">CaseService</text>
+              <text x="664" y="310" class="node-copy">建立 Case_ID 與案件歷程</text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="646" y="362" width="204" height="68" rx="8" fill="#e8f6ec" stroke="#2f7a48" stroke-width="2"></rect>
+              <text x="664" y="390" class="node-title" fill="#2f7a48">ContractProjectService</text>
+              <text x="664" y="414" class="node-copy">建立合約、關聯、正式專案</text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="646" y="466" width="204" height="68" rx="8" fill="#f0ecfb" stroke="#6a4ca3" stroke-width="2"></rect>
+              <text x="664" y="494" class="node-title" fill="#6a4ca3">PaymentExpenseService</text>
+              <text x="664" y="518" class="node-copy">付款期程、預算檢核、核銷發票</text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="904" y="466" width="184" height="126" rx="8" fill="#ffffff" stroke="#44546a" stroke-width="2"></rect>
+              <text x="922" y="494" class="node-title" fill="#44546a">Transaction 寫入</text>
+              <text x="922" y="520" class="node-copy"><tspan x="922" dy="0">signing_cases</tspan><tspan x="922" dy="20">contracts / projects</tspan><tspan x="922" dy="20">payment_schedules</tspan><tspan x="922" dy="20">reimbursements / invoices</tspan></text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="1142" y="570" width="154" height="56" rx="8" fill="#fdeceb" stroke="#b42318" stroke-width="2"></rect>
+              <text x="1160" y="604" class="node-title" fill="#b42318">audit_logs</text>
+            </g>
+
+            <g filter="url(#softShadow)">
+              <rect x="1142" y="650" width="154" height="56" rx="8" fill="#e8f6ec" stroke="#2f7a48" stroke-width="2"></rect>
+              <text x="1160" y="684" class="node-title" fill="#2f7a48">Dashboard View</text>
+            </g>
+
+            <g>
+              <rect x="24" y="610" width="508" height="96" rx="8" fill="#ffffff" stroke="#d7dde8" stroke-width="2"></rect>
+              <text x="42" y="638" class="node-title" fill="#172033">錯誤與保護規則</text>
+              <text x="42" y="664" class="node-copy"><tspan x="42" dy="0">1. AI / PDF 解析結果只能進暫存或建議表，需人工確認才可寫正式金額。</tspan><tspan x="42" dy="20">2. Excel 回匯先比對 systemId、row_version、exportBatchId，不直接覆蓋。</tspan><tspan x="42" dy="20">3. 作廢採 soft delete / status change，所有異動保留前後值。</tspan></text>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <section id="api-db" class="band white">
+        <div class="section-head">
+          <div>
+            <h2>API / DB 對照</h2>
+            <p>這張對照表把流程圖拆到開發面，讓每一段流程都能找到 API、主要資料表與不可省略的稽核要求。</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="schema">
+            <thead>
+              <tr>
+                <th>流程段</th>
+                <th>API</th>
+                <th>核心表</th>
+                <th>必要規則</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>案件進件與 Intake</td>
+                <td>POST /api/signing-cases<br>GET /api/signing-cases/{id}</td>
+                <td>signing_cases<br>signing_case_logs<br>source_references</td>
+                <td>Case_ID 必填；來源、負責人、狀態、目標日都要可追溯。</td>
+              </tr>
+              <tr>
+                <td>合約與特殊關聯</td>
+                <td>POST /api/contracts<br>POST /api/contracts/{id}/relations</td>
+                <td>contracts<br>contract_relations<br>cost_contract_items</td>
+                <td>Contract_Relation 只在增購、續約、整併、補充等特殊情境建立。</td>
+              </tr>
+              <tr>
+                <td>專案關聯</td>
+                <td>POST /api/projects<br>PATCH /api/signing-cases/{id}/project</td>
+                <td>projects<br>signing_cases</td>
+                <td>Project_ID 僅適用正式專案；非正式專案保留文字說明即可。</td>
+              </tr>
+              <tr>
+                <td>付款、預算與核銷</td>
+                <td>POST /api/payments<br>POST /api/budget-checks<br>POST /api/reimbursements</td>
+                <td>payment_schedules<br>budget_checks<br>reimbursements</td>
+                <td>Payment_ID 串起預算與核銷；預算內外要可說明原因。</td>
+              </tr>
+              <tr>
+                <td>發票與分攤</td>
+                <td>POST /api/invoices<br>POST /api/invoices/{id}/allocations</td>
+                <td>invoices<br>invoice_allocations</td>
+                <td>發票由核銷關聯，不直接掛合約；分攤金額需與發票金額平衡。</td>
+              </tr>
+              <tr>
+                <td>Dashboard、搜尋、稽核</td>
+                <td>GET /api/dashboard/*<br>GET /api/search<br>GET /api/audit-logs</td>
+                <td>report_snapshots<br>document_texts<br>audit_logs</td>
+                <td>摘要可下鑽至清單、案件履歷、來源附件與動作紀錄。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="build-plan" class="band">
+        <div class="section-head">
+          <div>
+            <h2>開發切分</h2>
+            <p>依照流程圖，第一版不要先追求大而全，而是先把 Case_ID 主軸、Intake 分流、Payment / Budget / Expense 交易與 audit_logs 打通。</p>
+          </div>
+        </div>
+        <div class="split">
+          <div class="steps">
+            <div class="step">
+              <b>1</b>
+              <div>
+                <strong>建立 FastAPI 骨架與 /health</strong>
+                <span>設定 app/main.py、config、router、OpenAPI；DB 未設定時回傳可讀錯誤。</span>
+              </div>
+            </div>
+            <div class="step">
+              <b>2</b>
+              <div>
+                <strong>建立 Case / Intake API</strong>
+                <span>POST /api/signing-cases 回傳 Case_ID、建議建立的資料節點與下一步 action。</span>
+              </div>
+            </div>
+            <div class="step">
+              <b>3</b>
+              <div>
+                <strong>建立 Contract / Project / Payment Service</strong>
+                <span>用單一 Orchestrator 包裝交易，讓關聯資料與 audit_logs 一起成功或一起 rollback。</span>
+              </div>
+            </div>
+            <div class="step">
+              <b>4</b>
+              <div>
+                <strong>接上 Dashboard 與下鑽查詢</strong>
+                <span>每個摘要卡都能下鑽到條件清單，再進案件履歷與來源追溯。</span>
+              </div>
+            </div>
+            <div class="step">
+              <b>5</b>
+              <div>
+                <strong>補匯入、回匯、AI 建議暫存</strong>
+                <span>Excel / PDF / AI 都先進暫存與來源表，人工確認後才更新正式資料。</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cards" style="grid-template-columns: 1fr;">
+            <article class="card">
+              <span class="tag red">不可省略</span>
+              <h3>工程驗收條件</h3>
+              <ul>
+                <li>四角色入口仍要存在。</li>
+                <li>所有新增、修改、作廢、確認與回匯都寫入 audit_logs。</li>
+                <li>Dashboard 統計需符合：全部 = 未啟動 + 進行中 + 逾期 + 完成。</li>
+                <li>AI 建議與正式金額必須分離。</li>
+              </ul>
+            </article>
+            <article class="card">
+              <span class="tag teal">資料主線</span>
+              <h3>最小可落地資料鏈</h3>
+              <p>Case_ID → Contract_ID 或 Project_ID → Payment_ID → Budget_Check → Expense_ID → Invoice_ID → Invoice_Allocation → audit_logs。第一版只要這條鏈穩，後續匯入、搜尋、報表快照與 AI 建議都能接上。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer-note">
+        交付說明：此頁為可直接打開的單檔 HTML，圖面使用內嵌 SVG 與 CSS，不依賴外部套件。設計重點是讓業務流程、程式分層、API、DB 與驗收規則可以互相對照。
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

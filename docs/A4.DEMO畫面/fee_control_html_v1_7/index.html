@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>費用合約控管 HTML 原型 v1.6</title>
+  <style>
+    :root{--bg:#f5f7fb;--panel:#fff;--line:#d9e1ee;--text:#172033;--muted:#667085;--primary:#2563eb;--green:#14804a;--red:#c93434;--amber:#b7791f;--purple:#6941c6;--rail:64px;--radius:16px;--shadow:0 10px 26px rgba(15,23,42,.07)}
+    *{box-sizing:border-box} body{margin:0;font-family:"Microsoft JhengHei",Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}.rail{height:100vh;position:sticky;top:0;background:#101828;color:#fff;padding:10px 7px}.brand{height:42px;border-radius:12px;background:#1d2939;display:flex;align-items:center;justify-content:center;font-weight:800;margin-bottom:12px}.roleBtn{height:54px;width:100%;border:0;background:transparent;color:#cbd5e1;border-radius:14px;margin:6px 0;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px}.roleBtn b{font-size:16px}.roleBtn.active{background:var(--primary);color:#fff}.roleBtn:hover{background:#344054;color:#fff}
+    .main{padding:16px 22px}.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px}.title h1{font-size:22px;margin:0 0 4px}.title p{margin:0;color:var(--muted);font-size:13px}.badge{display:inline-flex;border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 10px;font-size:12px;color:#344054;white-space:nowrap}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px}.tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;cursor:pointer;color:#344054}.tab.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+    .crumb{font-size:13px;color:#475467;margin:4px 0 10px}.crumb span{color:var(--primary)}.grid{display:grid;gap:14px}.cards{grid-template-columns:repeat(5,minmax(140px,1fr))}.two{grid-template-columns:1.18fr .82fr}.three{grid-template-columns:repeat(3,1fr)}.card,.panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.card{padding:14px;cursor:pointer;position:relative}.card:hover,.rowClick:hover,.mini:hover,.sourceBox:hover{outline:2px solid #bfdbfe}.label{font-size:12px;color:var(--muted)}.num{font-size:25px;font-weight:800;margin:6px 0}.hint,.small{font-size:12px;color:var(--muted)}.go{position:absolute;right:12px;top:12px;color:#98a2b3}.panel{padding:16px;margin-bottom:14px}.panel h2{font-size:17px;margin:0 0 12px}.panel h3{font-size:14px;margin:0 0 10px}.filter{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:12px}.filter .left{display:flex;flex-wrap:wrap;gap:8px}.pill{border:1px solid var(--line);background:#f8fafc;border-radius:999px;padding:6px 10px;font-size:12px}.ok{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--amber)}.blue{color:var(--primary)}.purple{color:var(--purple)}
+    table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 10px;border-bottom:1px solid #eef2f7;font-size:13px}th{color:#475467;background:#f8fafc;font-weight:700}th.sortable{cursor:pointer;user-select:none;position:relative}th.sortable:after{content:"↕";font-size:10px;color:#98a2b3;margin-left:6px}th.sortable.asc:after{content:"↑";color:#2563eb}th.sortable.desc:after{content:"↓";color:#2563eb}.rowClick{cursor:pointer}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 11px;cursor:pointer;font-size:13px}.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}.btn.danger{border-color:#fecaca;color:#b91c1c;background:#fff5f5}.btn:hover{filter:brightness(.97)}
+    .monthLine{display:grid;gap:9px}.month{display:grid;grid-template-columns:84px 1fr 100px;gap:10px;align-items:center;cursor:pointer}.track{height:22px;background:#e5e7eb;border-radius:999px;overflow:hidden}.track span{display:block;height:100%;background:#93c5fd}.waterfall{display:grid;gap:9px}.bar{display:grid;grid-template-columns:130px 1fr 92px;gap:8px;align-items:center;cursor:pointer}.barFill{height:24px;background:#dbeafe;border-radius:999px}.bar.plus .barFill{background:#fed7aa}.bar.total .barFill{background:#bbf7d0}
+    .timeline{display:grid;gap:10px}.tlRow{display:grid;grid-template-columns:205px 1fr 92px;align-items:center;border:1px solid #e6ebf2;border-radius:14px;padding:10px;background:#fff;cursor:pointer}.tlName b{display:block}.steps{display:grid;grid-template-columns:repeat(7,1fr);align-items:center;gap:6px}.step{position:relative;text-align:center;font-size:11px;color:#667085}.step:before{content:"";display:block;height:3px;background:#d0d5dd;position:absolute;left:-50%;right:50%;top:11px;z-index:0}.step:first-child:before{display:none}.dot{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#e4e7ec;color:#667085;position:relative;z-index:1;font-size:12px}.done .dot{background:#dcfce7;color:#15803d}.activeStep .dot{background:#dbeafe;color:#1d4ed8;border:2px solid #2563eb}.late .dot{background:#fee2e2;color:#b91c1c}.done:before,.activeStep:before,.late:before{background:#93c5fd}.board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.col{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:10px;min-height:250px}.col h3{display:flex;justify-content:space-between}.mini{background:#fff;border:1px solid #e6ebf2;border-radius:12px;padding:10px;margin-bottom:8px;cursor:pointer}.mini b{display:block;margin-bottom:6px}.sourceBox{border:1px dashed #9ca3af;border-radius:12px;padding:10px;background:#fbfdff;cursor:pointer}.form{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.field label{display:block;font-size:12px;color:#475467;margin-bottom:4px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px;font-family:inherit}.field.full{grid-column:1/-1}.modal{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}.modal.show{display:flex}.modalCard{max-width:820px;width:100%;background:#fff;border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.25)}.modalCard pre{background:#0f172a;color:#e2e8f0;padding:14px;border-radius:12px;overflow:auto}.aiNotice{border-left:4px solid #f59e0b;background:#fffbeb;padding:10px;border-radius:10px;color:#92400e;font-size:13px}
+    @media(max-width:1100px){.cards{grid-template-columns:repeat(2,1fr)}.two,.three,.board{grid-template-columns:1fr}.tlRow{grid-template-columns:1fr}.steps{margin-top:12px}.main{padding:14px}.app{grid-template-columns:58px 1fr}.badge{display:none}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">費</div>
+    <button class="roleBtn active" data-role="exec" title="處長"><b>處</b><span>處長</span></button>
+    <button class="roleBtn" data-role="admin" title="管理者/助理"><b>管</b><span>管理</span></button>
+    <button class="roleBtn" data-role="manager" title="主管"><b>主</b><span>主管</span></button>
+    <button class="roleBtn" data-role="handler" title="承辦"><b>辦</b><span>承辦</span></button>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <div class="title"><h1 id="roleTitle">費用合約控管</h1><p id="roleDesc">月度支出、流程追蹤、差異比較與來源確認</p></div>
+      <div class="badge">v1.6｜只增不減｜表格可排序｜AI 僅輔助</div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+    <div id="content"></div>
+  </main>
+</div>
+<div class="modal" id="modal" onclick="closeModal(event)"><div class="modalCard" onclick="event.stopPropagation()"><div id="modalBody"></div><div style="text-align:right;margin-top:12px"><button class="btn primary" onclick="hideModal()">關閉</button></div></div></div>
+<script>
+const roleMeta={exec:['費用決策總覽','月度支出、待決策、已完成與案件履歷。'],admin:['資料管理中心','案件新增、修改、作廢、資料健檢、匯入回匯與動作紀錄。'],manager:['流程追蹤中心','PM時間線、簽呈看板、差異比較、明細與已完成。'],handler:['承辦工作台','新增案件、我的待辦、PM時間線、文件與核銷。']};
+const tabs={exec:['總覽','支出時間線','待決策','已完成','案件履歷'],admin:['總覽','案件管理','PM時間線','匯入回匯','全文搜尋','動作紀錄','案件履歷'],manager:['總覽','PM時間線','簽呈看板','差異比較','明細','已完成','案件履歷'],handler:['我的待辦','新增案件','PM時間線','簽呈看板','文件核銷','案件履歷']};
+const cases=[
+{id:'C001',name:'A 系統維護續約',type:'續約',nature:'例行性',amount:1500,prev:1000,month:'2026-06',owner:'王小明',status:'簽核中',main:'進行中',step:3,late:false,block:true,done:false},
+{id:'C002',name:'B 授權請款',type:'請款',nature:'例行性',amount:500,prev:480,month:'2026-06',owner:'李小華',status:'待建立',main:'未啟動',step:0,late:true,block:false,done:false},
+{id:'C003',name:'C 資安新購',type:'新購',nature:'非計畫性',amount:800,prev:0,month:'2026-07',owner:'陳大明',status:'資料準備中',main:'逾期',step:1,late:true,block:true,done:false},
+{id:'C004',name:'D 平台續約',type:'續約',nature:'例行性',amount:950,prev:800,month:'2026-08',owner:'林小美',status:'草稿中',main:'進行中',step:2,late:false,block:false,done:false},
+{id:'C005',name:'E 監控工具核銷',type:'核銷',nature:'例行性',amount:300,prev:300,month:'2026-06',owner:'許志明',status:'已完成',main:'完成',step:6,late:false,block:false,done:true},
+{id:'C006',name:'F 備援設備汰換',type:'汰換',nature:'計畫性',amount:1200,prev:1100,month:'2026-07',owner:'黃怡君',status:'簽核中',main:'進行中',step:3,late:false,block:false,done:false},
+{id:'C007',name:'G 合約請款',type:'請款',nature:'例行性',amount:600,prev:600,month:'2026-08',owner:'周承辦',status:'已完成',main:'完成',step:6,late:false,block:false,done:true}
+];
+const balanced={total:40,notStarted:10,doing:15,late:5,done:10};
+let role='exec', tab='總覽';
+function money(n){return n>=10000?(n/10000)+'億':n+'萬'}
+function setRole(r){role=r;tab=tabs[r][0];document.querySelectorAll('.roleBtn').forEach(b=>b.classList.toggle('active',b.dataset.role===r));render()}
+function setTab(t){tab=t;render()}
+function render(){document.getElementById('roleTitle').textContent=roleMeta[role][0];document.getElementById('roleDesc').textContent=roleMeta[role][1];document.getElementById('tabs').innerHTML=tabs[role].map(t=>`<button class="tab ${t===tab?'active':''}" onclick="setTab('${t}')">${t}</button>`).join('');document.getElementById('content').innerHTML=page();enhanceTables(document.getElementById('content'))}
+function page(){if(role==='exec')return execPage();if(role==='admin')return adminPage();if(role==='manager')return managerPage();return handlerPage()}
+function card(label,num,hint,q){return `<div class="card" onclick="showList('${q||label}')"><span class="go">›</span><div class="label">${label}</div><div class="num">${num}</div><div class="hint">${hint||'點擊查看明細'}</div></div>`}
+function filterBar(scope,total,balance){return ``}
+function execPage(){if(tab==='總覽')return `<div class="crumb">處長入口 > <span>總覽</span></div><div class="grid cards">${card('本月預計支出','1,700萬','點擊看 6 月支出清單','本月預計支出')}${card('次月預計支出','1,200萬','點擊看 7 月支出清單','次月預計支出')}${card('已完成金額','900萬','完成案件與來源','已完成')}${card('待決策金額','1,100萬','需決策清單','待決策')}${card('金額變更','+500萬','原金額 vs 新金額','金額變更')}</div><div class="grid two"><div class="panel"><h2>月度支出時間線</h2>${monthLine()}</div><div class="panel"><h2>金額變更瀑布</h2>${waterfall()}</div></div><div class="panel"><h2>需要注意</h2>${table(cases.slice(0,3))}</div>`;if(tab==='支出時間線')return `<div class="crumb">處長入口 > <span>支出時間線</span></div>${filterBar('2026年度｜已確認 + 待確認金額','12','月度合計可追溯')}<div class="panel"><h2>每月預計支出</h2>${monthLine()}</div>`;if(tab==='待決策')return listPage('待決策事項','all');if(tab==='已完成')return listPage('已完成案件','done');return detailPage('C001')}
+function adminPage(){if(tab==='總覽')return `<div class="crumb">管理者入口 > <span>總覽</span></div><div class="grid cards">${card('待處理','12','資料品質問題可能重複','待處理')}${card('金額待確認','3','金額驗證中心','金額待確認')}${card('缺文件','4','補件清單','缺文件')}${card('匯入待確認','2批','匯入批次','匯入待確認')}${card('PDF 未索引','5','附件搜尋前需索引','PDF未索引')}</div><div class="panel"><h2>案件管理捷徑</h2><div class="actions"><button class="btn primary" onclick="showCreate()">新增案件</button><button class="btn" onclick="showList('案件管理')">編輯案件</button><button class="btn danger" onclick="showList('作廢區')">作廢區</button><button class="btn" onclick="showAudit('ALL')">動作紀錄</button></div></div><div class="panel"><h2>待處理佇列</h2>${table(cases.slice(0,5))}</div>`;if(tab==='案件管理')return caseManagePage();if(tab==='PM時間線')return timelinePage('管理者入口 > PM時間線',false,true);if(tab==='匯入回匯')return importPage();if(tab==='全文搜尋')return searchPage();if(tab==='動作紀錄')return auditPage();return detailPage('C001')}
+function managerPage(){if(tab==='總覽')return `<div class="crumb">主管入口 > <span>總覽</span></div><div class="grid cards">${card('全部列管','40','統計母數','全部列管')}${card('未啟動','10','主狀態之一','未啟動')}${card('進行中','15','不含逾期','進行中')}${card('逾期','5','逾期另列以平衡','逾期')}${card('完成','10','已完成案件','完成')}</div><div class="grid cards">${card('較去年同月','+500萬','可下鑽差異來源','去年同月')}${card('較去年同期','+1,400萬','累計差異','去年同期')}${card('卡關','3','風險標籤，可重複','卡關')}${card('缺文件','6','風險標籤，可重複','缺文件')}${card('金額待確認','4','風險標籤，可重複','金額待確認')}</div>`;if(tab==='PM時間線')return timelinePage('主管入口 > PM時間線',true,false);if(tab==='簽呈看板')return boardPage('主管入口 > 簽呈看板');if(tab==='差異比較')return diffPage();if(tab==='明細')return listPage('主管明細清單','all');if(tab==='已完成')return listPage('已完成案件','done');return detailPage('C001')}
+function handlerPage(){if(tab==='我的待辦')return `<div class="crumb">承辦入口 > <span>我的待辦</span></div><div class="grid cards">${card('我的待建立','3','點擊建立簽呈','我的待建立')}${card('待補文件','2','文件缺漏','待補文件')}${card('核銷待處理','4','核銷付款更新','核銷待處理')}${card('我的逾期','1','需優先處理','我的逾期')}${card('今日到期','2','今日待辦','今日到期')}</div><div class="panel"><div class="actions"><button class="btn primary" onclick="showCreate()">新增案件</button><button class="btn" onclick="showList('我的案件')">我的案件</button></div></div><div class="panel"><h2>我的案件</h2>${table(cases.slice(0,4))}</div>`;if(tab==='新增案件')return createForm();if(tab==='PM時間線')return timelinePage('承辦入口 > PM時間線',false,false);if(tab==='簽呈看板')return boardPage('承辦入口 > 簽呈看板');if(tab==='文件核銷')return listPage('文件與核銷待處理','all');return detailPage('C001')}
+function monthLine(){const months=[['06',1700,78],['07',1200,55],['08',2200,100],['09',1300,60]];return `<div class="monthLine">${months.map(m=>`<div class="month" onclick="showList('2026-${m[0]} 月度支出')"><b>2026-${m[0]}</b><div class="track"><span style="width:${m[2]}%"></span></div><b>${m[1]}萬</b></div>`).join('')}</div>`}
+function waterfall(){return `<div class="waterfall">${[['原金額','1000W',60,''],['授權數增加','+300W',35,'plus'],['原廠漲價','+150W',20,'plus'],['範圍增加','+50W',10,'plus'],['本次金額','1500W',85,'total']].map(b=>`<div class="bar ${b[3]}" onclick="showList('${b[0]}')"><b>${b[0]}</b><div class="barFill" style="width:${b[2]}%"></div><b>${b[1]}</b></div>`).join('')}</div>`}
+function timelineRows(){const labels=['需求','報價','簽呈','簽核','合約','核銷','完成'];return `<div class="timeline">${cases.map(c=>`<div class="tlRow" onclick="showDetail('${c.id}')"><div class="tlName"><b>${c.name}</b><span class="small">${money(c.amount)}｜${c.month}｜${c.owner}</span></div><div class="steps">${labels.map((l,i)=>`<div class="step ${i<c.step?'done':i===c.step?(c.late?'late':'activeStep'):''}"><span class="dot">${i<c.step?'✓':i===c.step?'●':'○'}</span><div>${l}</div></div>`).join('')}</div><div class="small ${c.late?'bad':c.done?'ok':'blue'}">${c.late?'逾期':c.done?'完成':'進行中'}</div></div>`).join('')}</div>`}
+function timelinePage(title,manager,admin){return `<div class="crumb">${title}</div><div class="panel"><h2>PM 線性進度圖</h2>${timelineRows()}</div>`}
+function boardPage(title){const cols=[['未啟動',10],['進行中',15],['逾期',5],['完成',10]];return `<div class="crumb">${title}</div><div class="board">${cols.map(([col,count])=>`<div class="col" onclick="showList('${col}')"><h3>${col}<span>${count}</span></h3>${cases.filter(c=>c.main===col).map(c=>`<div class="mini" onclick="event.stopPropagation();showDetail('${c.id}')"><b>${c.name}</b><span class="small">${money(c.amount)}｜${c.status}</span></div>`).join('')}<div class="mini"><b>查看全部 ${count} 件</b><span class="small">點欄位可下鑽</span></div></div>`).join('')}</div>`}
+function listPage(title,kind){const rows=kind==='done'?cases.filter(c=>c.done):cases;return `<div class="crumb">首頁 > <span>${title}</span></div><div class="panel"><h2>${title}</h2>${table(rows)}</div>`}
+function table(rows){return `<table><thead><tr><th>案名</th><th>月份</th><th>性質</th><th>金額</th><th>狀態</th><th>負責人</th><th>動作</th></tr></thead><tbody>${rows.map(c=>`<tr class="rowClick" onclick="showDetail('${c.id}')"><td>${c.name}</td><td>${c.month}</td><td>${c.nature}</td><td>${money(c.amount)}</td><td>${c.status}</td><td>${c.owner}</td><td><button class="btn" onclick="event.stopPropagation();showDetail('${c.id}')">查看</button></td></tr>`).join('')}</tbody></table>`}
+function diffPage(){return `<div class="crumb">主管入口 > <span>差異比較</span></div>${filterBar('2026-06～08｜架構部｜不含作廢','40','比較對象已連結 34 / 40')}<div class="grid cards">${card('較去年同月','+500萬','2026-06 vs 2025-06','去年同月')}${card('較去年同期','+1,400萬','1–6 月累計比較','去年同期')}${card('同案上次價格','6件上升','需看差異原因','同案上次價格')}</div><div class="panel"><h2>差異案件</h2><table><thead><tr><th>案名</th><th>上次/去年</th><th>本次/今年</th><th>差異</th><th>原因</th><th>來源</th></tr></thead><tbody>${cases.slice(0,4).map(c=>`<tr class="rowClick" onclick="showDetail('${c.id}')"><td>${c.name}</td><td>${money(c.prev)}</td><td>${money(c.amount)}</td><td class="${c.amount-c.prev>100?'bad':'ok'}">+${money(c.amount-c.prev)}</td><td>${c.amount-c.prev>100?'原廠漲價 / 授權增加':'例行差異'}</td><td><button class="btn" onclick="event.stopPropagation();showSource('歷史價格來源')">來源</button></td></tr>`).join('')}</tbody></table></div>`}
+function caseManagePage(){return `<div class="crumb">管理者入口 > <span>案件管理</span></div><div class="panel"><div class="actions"><button class="btn primary" onclick="showCreate()">新增案件</button><button class="btn">批次修改</button><button class="btn">匯出可回匯檔</button><button class="btn">查看作廢區</button></div></div><div class="panel"><h2>案件清單</h2><table><thead><tr><th>案名</th><th>金額</th><th>狀態</th><th>最後更新</th><th>操作</th></tr></thead><tbody>${cases.map(c=>`<tr><td class="rowClick" onclick="showDetail('${c.id}')">${c.name}</td><td>${money(c.amount)}</td><td>${c.status}</td><td>06/08</td><td class="actions"><button class="btn" onclick="showEdit('${c.id}')">編輯</button><button class="btn danger" onclick="voidCase('${c.id}')">作廢</button><button class="btn" onclick="showAudit('${c.id}')">動作紀錄</button></td></tr>`).join('')}</tbody></table></div>`}
+function importPage(){return `<div class="crumb">管理者入口 > <span>匯入回匯</span></div><div class="grid cards">${card('匯入待確認','3批','Excel 初始/批次匯入','匯入待確認')}${card('回匯差異','12筆','助理改 Excel 回匯','回匯差異')}${card('版本衝突','2筆','避免舊檔覆蓋新資料','版本衝突')}</div><div class="panel"><h2>匯入批次</h2><table><thead><tr><th>批次</th><th>來源</th><th>成功</th><th>警告</th><th>錯誤</th><th>動作</th></tr></thead><tbody><tr><td>IMP-0608</td><td>費用合約整合(舊)</td><td>280</td><td>15</td><td>5</td><td><button class="btn" onclick="showSource('Excel Sheet / Row')">查看來源列</button></td></tr></tbody></table></div>`}
+function searchPage(){return `<div class="crumb">管理者入口 > <span>全文搜尋</span></div><div class="panel"><h2>搜尋證據卡</h2><div class="filter"><input style="width:100%;border:0;font-size:16px" value="A 系統維護"></div><div class="grid three"><div class="sourceBox" onclick="showDetail('C001')"><b>案件：A 系統維護續約</b><p class="small">正式資料｜金額 1500萬｜簽核中</p></div><div class="sourceBox" onclick="showSource('PDF 第 2 頁')"><b>PDF：A系統簽呈.pdf</b><p class="small">命中：壹仟伍佰萬元整。AI 可能出錯，請開原檔確認。</p></div><div class="sourceBox" onclick="showSource('Excel Sheet 合約明細 Row 32')"><b>Excel：費用合約整合(舊)</b><p class="small">Sheet 合約明細，第 32 列</p></div></div></div>`}
+function auditPage(){return `<div class="crumb">管理者入口 > <span>動作紀錄</span></div><div class="panel"><h2>全域動作紀錄</h2>${auditTable()}</div>`}
+function auditTable(){return `<table><thead><tr><th>時間</th><th>動作</th><th>案件</th><th>欄位</th><th>原值</th><th>新值</th><th>操作人</th><th>原因</th></tr></thead><tbody><tr><td>06/08 15:30</td><td>新增</td><td>A 系統續約</td><td>-</td><td>-</td><td>新案件</td><td>助理</td><td>手動補登</td></tr><tr><td>06/08 15:35</td><td>修改</td><td>A 系統續約</td><td>金額</td><td>1000萬</td><td>1500萬</td><td>助理</td><td>原廠漲價</td></tr><tr><td>06/08 15:40</td><td>狀態變更</td><td>A 系統續約</td><td>狀態</td><td>草稿中</td><td>簽核中</td><td>承辦</td><td>已送簽</td></tr></tbody></table>`}
+function createForm(){return `<div class="crumb">承辦入口 > <span>新增案件</span></div><div class="panel"><h2>新增案件</h2>${formHtml()}<div class="actions" style="margin-top:12px"><button class="btn primary" onclick="showModal('新增案件','已建立暫存案件，需管理者/助理確認後進正式資料。')">儲存暫存</button><button class="btn">取消</button></div></div>`}
+function formHtml(){return `<div class="form"><div class="field"><label>案名</label><input value="新案件名稱"></div><div class="field"><label>費用性質</label><select><option>例行性</option><option>非計畫性</option><option>計畫性</option></select></div><div class="field"><label>類型</label><select><option>續約</option><option>新購</option><option>汰換</option><option>加購</option><option>請款</option></select></div><div class="field"><label>預計月份</label><input value="2026-06"></div><div class="field"><label>金額</label><input value="待確認"></div><div class="field"><label>負責人</label><input value="王小明"></div><div class="field full"><label>新增原因</label><textarea>手動補登案件，待確認來源資料。</textarea></div></div>`}
+function detailPage(id){const c=cases.find(x=>x.id===id)||cases[0];return `<div class="crumb">案件清單 > <span>${c.name}</span></div><div class="panel"><div style="display:flex;justify-content:space-between;gap:12px"><div><h2>${c.name}</h2><p class="small">${c.nature}｜${c.type}｜${c.month}｜負責人 ${c.owner}</p></div><div class="actions"><button class="btn" onclick="showEdit('${c.id}')">編輯案件</button><button class="btn danger" onclick="voidCase('${c.id}')">作廢案件</button><button class="btn" onclick="showAudit('${c.id}')">動作紀錄</button></div></div></div><div class="grid cards">${card('本次金額',money(c.amount),'已確認，可看來源','金額來源')}${card('上次價格',money(c.prev),'歷史價格來源','上次價格')}${card('差異','+'+money(c.amount-c.prev),'需差異原因','差異')}${card('目前狀態',c.status,'點擊看流程歷程','流程')}${card('來源','PDF / Excel','點擊開原始來源','來源')}</div><div class="panel"><h2>PM 進度線</h2>${timelineRows()}</div><div class="grid two"><div class="panel"><h2>來源資料</h2><div class="sourceBox" onclick="showSource('PDF A系統簽呈.pdf 第 2 頁')"><b>PDF：A系統簽呈.pdf</b><p class="small">AI 可能會出錯，請開啟原始檔案確認。</p></div><br><div class="sourceBox" onclick="showSource('Excel 費用合約整合(舊) Sheet 合約明細 Row 32')"><b>Excel：費用合約整合(舊).xlsx</b><p class="small">Sheet：合約明細｜Row：32</p></div></div><div class="panel"><h2>動作紀錄</h2>${auditTable()}</div></div>`}
+function showList(q){document.getElementById('content').innerHTML=listPage(q,'all');enhanceTables(document.getElementById('content'))}
+function showDetail(id){document.getElementById('content').innerHTML=detailPage(id);enhanceTables(document.getElementById('content'))}
+function showSource(src){showModal('來源檢視',`<p>來源：${src}</p><div class="aiNotice">AI 輔助提示：以下內容可能有誤，請以原始檔案與人工確認結果為準。</div><pre>原始檔案預覽 / Excel Sheet Row 模擬\n命中內容：本案總金額新臺幣壹仟伍佰萬元整。</pre>`)}
+function showCreate(){showModal('新增案件',formHtml()+`<div class="actions" style="margin-top:12px"><button class="btn primary">儲存暫存</button></div>`)}
+function showEdit(id){showModal('編輯案件',`<div class="aiNotice">修改高風險欄位必須填寫原因，並寫入動作紀錄。</div>${formHtml()}`)}
+function voidCase(id){showModal('作廢案件',`<p>作廢後不納入一般 Dashboard 與報表，但仍可搜尋與追溯。</p><div class="field"><label>作廢原因</label><textarea>請填寫作廢原因，例如重複建立、案件取消、匯入錯誤。</textarea></div>`)}
+function showAudit(id){showModal('動作紀錄',auditTable())}
+function showModal(title,body){document.getElementById('modalBody').innerHTML=`<h2>${title}</h2>${body}`;document.getElementById('modal').classList.add('show');enhanceTables(document.getElementById('modalBody'))}
+function hideModal(){document.getElementById('modal').classList.remove('show')}
+function closeModal(e){if(e.target.id==='modal')hideModal()}
+
+function enhanceTables(root=document){
+  root.querySelectorAll('table').forEach(table=>{
+    const headers=[...table.querySelectorAll('thead th')];
+    headers.forEach((th,idx)=>{
+      if(th.dataset.sortReady==='1')return;
+      th.dataset.sortReady='1';
+      th.classList.add('sortable');
+      th.title='點擊排序';
+      th.addEventListener('click',()=>sortTable(table,idx,th));
+    });
+  });
+}
+function sortableValue(text){
+  const raw=(text||'').trim();
+  let normalized=raw.replace(/,/g,'').replace(/\s/g,'');
+  let sign=normalized.includes('-')?-1:1;
+  normalized=normalized.replace(/[+\-]/g,'');
+  let m=normalized.match(/(\d+(?:\.\d+)?)(億|萬)?/);
+  if(m){
+    let n=parseFloat(m[1]);
+    if(m[2]==='億')n*=100000000;
+    if(m[2]==='萬')n*=10000;
+    return {type:'num',value:sign*n};
+  }
+  return {type:'text',value:raw.toLowerCase()};
+}
+function sortTable(table,idx,th){
+  const tbody=table.tBodies[0]; if(!tbody)return;
+  const direction=th.classList.contains('asc')?'desc':'asc';
+  table.querySelectorAll('th').forEach(h=>h.classList.remove('asc','desc'));
+  th.classList.add(direction);
+  const rows=[...tbody.rows];
+  rows.sort((a,b)=>{
+    const av=sortableValue(a.cells[idx]?.innerText||'');
+    const bv=sortableValue(b.cells[idx]?.innerText||'');
+    let cmp;
+    if(av.type==='num' && bv.type==='num') cmp=av.value-bv.value;
+    else cmp=String(av.value).localeCompare(String(bv.value),'zh-Hant');
+    return direction==='asc'?cmp:-cmp;
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+document.querySelectorAll('.roleBtn').forEach(b=>b.onclick=()=>setRole(b.dataset.role));render();
+</script>
+</body>
+</html>

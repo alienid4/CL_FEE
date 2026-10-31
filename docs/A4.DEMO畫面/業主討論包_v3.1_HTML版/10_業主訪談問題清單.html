@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>業主訪談問題清單</title>
+  <link rel="stylesheet" href="client-docs.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Interview Checklist / 業主確認用</div>
+    <h1>業主訪談問題清單</h1>
+    <p class="lead">這頁用來收斂規則，不是讓業主評 UI。請優先確認來源、流程、責任、例外與代表案例。</p>
+    <a class="back" href="00_會議導覽.html">回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>會議目標</h2>
+        <div class="tag-row">
+          <span class="tag blue">資料來源</span>
+          <span class="tag green">流程規則</span>
+          <span class="tag amber">角色責任</span>
+          <span class="tag red">決策條件</span>
+        </div>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <h3>確認 Case_ID 主軸</h3>
+          <p>每件事情是否都先建立 Case，再判斷是否需要合約、專案、付款、預算、核銷與發票。</p>
+        </div>
+        <div class="card">
+          <h3>確認 Release_Gate</h3>
+          <p>哪些條件才需要進處長決策包，避免處長頁變成所有案件清單。</p>
+        </div>
+        <div class="card">
+          <h3>確認 Excel 欄位來源</h3>
+          <p>哪份 Excel 是主來源，哪些欄位正式使用，哪些只保留原始來源。</p>
+        </div>
+        <div class="card">
+          <h3>確認 PDF 簽呈內容</h3>
+          <p>PDF 是簽呈內容與決策依據，不是普通附件。需要確認必抓欄位與頁碼追溯。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>流程與案件規則</h2>
+      </div>
+      <div class="panel-body">
+        <div class="checklist">
+          <div class="check"><span class="box"></span><span>每一件費用、合約、付款或上簽事項，是否都要先建立 Case？</span></div>
+          <div class="check"><span class="box"></span><span>什麼情況需要建立 Contract_ID？什麼情況只保留候選合約？</span></div>
+          <div class="check"><span class="box"></span><span>什麼情況需要建立 Project_ID？哪些只是費用案件，不算正式專案？</span></div>
+          <div class="check"><span class="box"></span><span>付款、核銷、發票與分攤的正確順序是否為 Payment → Expense → Invoice → Allocation？</span></div>
+          <div class="check"><span class="box"></span><span>子合約、加購、續約、調價、預算外與跨子公司案件是否需要拆成新 Case？</span></div>
+          <div class="check"><span class="box"></span><span>全域全文檢索是否要能查案名、合約、廠商、公文編號、人員、PDF 簽呈內容與 Excel 原列？</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Release_Gate 確認</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>可能條件</th>
+                <th>我方建議</th>
+                <th>業主確認</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>預算外</td>
+                <td>應進主管或處長決策包，需說明原因與替代方案。</td>
+                <td>同意 / 調整</td>
+              </tr>
+              <tr>
+                <td>金額超過門檻</td>
+                <td>依金額門檻決定是否進處長頁。</td>
+                <td>門檻金額</td>
+              </tr>
+              <tr>
+                <td>合約不明或無法勾稽</td>
+                <td>先進待釐清，不直接進正式資料。</td>
+                <td>責任人</td>
+              </tr>
+              <tr>
+                <td>跨子公司 / 金控合作</td>
+                <td>標記為高關注案件，必要時進處長決策包。</td>
+                <td>條件</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈金額與 Excel 不一致</td>
+                <td>列為資料衝突，需人工確認來源。</td>
+                <td>以哪個來源為準</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>資料來源確認</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>來源</th>
+                <th>第一版處理方式</th>
+                <th>業主確認</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>費用項目整合23.xlsx</td>
+                <td>匯入暫存，人工確認後進正式資料。</td>
+                <td>是否為主來源</td>
+              </tr>
+              <tr>
+                <td>費用合約整合(舊).xlsx</td>
+                <td>作為歷史與對照，不直接覆蓋新版資料。</td>
+                <td>哪些 Sheet 還使用</td>
+              </tr>
+              <tr>
+                <td>次月預計上簽清單</td>
+                <td>匯入成 Case / Signing Plan。</td>
+                <td>月份與狀態定義</td>
+              </tr>
+              <tr>
+                <td>PDF 簽呈內容</td>
+                <td>以簽呈文件管理，記錄案號、主旨、金額、期間、頁碼、文字摘錄與人工確認。</td>
+                <td>必抓欄位</td>
+              </tr>
+              <tr>
+                <td>Email 通知</td>
+                <td>第一版可手動建立來源紀錄。</td>
+                <td>是否納入第一版</td>
+              </tr>
+              <tr>
+                <td>AI 金額解析</td>
+                <td>只做建議，不直接寫正式金額。</td>
+                <td>誰有權確認</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>PDF 簽呈必問問題</h2>
+        <span class="tag red">不要當普通附件</span>
+      </div>
+      <div class="panel-body grid">
+        <div class="card">
+          <h3>必抓欄位</h3>
+          <p>簽呈案號、主旨、廠商、金額、期間、付款條件、決策結論是否都要抓？</p>
+        </div>
+        <div class="card">
+          <h3>文字型或掃描</h3>
+          <p>PDF 多數是可搜尋文字，還是掃描影像？掃描 OCR 是否放第二階段？</p>
+        </div>
+        <div class="card">
+          <h3>頁碼追溯</h3>
+          <p>主管或處長決策包是否必須能看到 PDF 頁碼與文字摘錄？</p>
+        </div>
+        <div class="card">
+          <h3>衝突處理</h3>
+          <p>PDF 金額、期間與 Excel 不一致時，以哪個來源為準？誰確認？</p>
+        </div>
+        <div class="card">
+          <h3>全文檢索</h3>
+          <p>PDF 文字命中是否要出現在搜尋結果？是否需依角色遮蔽金額或簽呈摘錄？</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>角色責任確認</h2>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>角色</th>
+                <th>我方建議責任</th>
+                <th>要確認</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>助理 / 管理者</td>
+                <td>匯入、欄位 mapping、資料健檢、退回補件。</td>
+                <td>是否可確認資料進正式表。</td>
+              </tr>
+              <tr>
+                <td>承辦</td>
+                <td>補資料、上傳文件、更新核銷與發票。</td>
+                <td>是否可修改金額與日期。</td>
+              </tr>
+              <tr>
+                <td>主管</td>
+                <td>確認風險、預算外、合約不明、逾期。</td>
+                <td>可否退回與作廢。</td>
+              </tr>
+              <tr>
+                <td>處長</td>
+                <td>只看 Release_Gate 後的決策包。</td>
+                <td>哪些案件才進處長頁。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>會議結束要拿到的結論</h2>
+      </div>
+      <div class="panel-body">
+        <div class="checklist">
+          <div class="check"><span class="box"></span><span>Case_ID 主軸：已確認 / 未確認</span></div>
+          <div class="check"><span class="box"></span><span>主來源 Excel：已確認 / 未確認</span></div>
+          <div class="check"><span class="box"></span><span>正式欄位群組：已確認 / 未確認</span></div>
+          <div class="check"><span class="box"></span><span>PDF 簽呈必抓欄位：已確認 / 未確認</span></div>
+          <div class="check"><span class="box"></span><span>Release_Gate 條件：已確認 / 未確認</span></div>
+          <div class="check"><span class="box"></span><span>角色責任與權限：已確認 / 未確認</span></div>
+          <div class="check"><span class="box"></span><span>代表案例：已取得幾個</span></div>
+          <div class="check"><span class="box"></span><span>下一步逐欄 mapping 範圍：已確認 / 未確認</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

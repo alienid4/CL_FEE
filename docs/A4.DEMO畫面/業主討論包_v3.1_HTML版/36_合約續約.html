@@ -1,0 +1,219 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理工作台 - 合約續約</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero"><div class="eyebrow">助理工作台</div><h1>合約續約</h1><a class="back" href="15_第一階段MVP模擬畫面.html">返回案件清單</a></header>
+  <main class="content">
+    <section class="mvp-shell">
+                                          <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item active" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+      <section class="mock-app">
+        <div class="screen-title">
+          <div><h2>合約續約</h2><div class="meta"><span>來源：架構部續約合約進度.xlsx</span><span>檢視：90 天內到期</span></div></div>
+          <div class="action-row">
+            <a class="btn primary" href="#contract-new">新增合約</a>
+            <button class="btn" type="button">匯出清單</button>
+          </div>
+        </div>
+        <div class="tag-row">
+          <a class="tag red tag-link" href="#contract-search">延遲 2</a>
+          <a class="tag amber tag-link" href="#contract-edit">待主管確認 3</a>
+          <a class="tag green tag-link" href="#contract-search">如期進行 5</a>
+          <a class="tag blue tag-link" href="#contract-new">本月新增 1</a>
+        </div>
+        <div class="tab-row" data-tabs>
+          <button class="tab active" type="button" data-tab-target="contract-search">合約查詢</button>
+          <button class="tab" type="button" data-tab-target="contract-new">新增合約</button>
+          <button class="tab" type="button" data-tab-target="contract-edit">修改合約</button>
+        </div>
+        <section class="panel tab-panel" id="contract-search">
+          <div class="panel-head"><h2>合約查詢</h2><span class="tag amber">8 筆</span></div>
+          <div class="panel-body form-stack">
+            <div class="filter-bar">
+              <label>關鍵字<input type="search" value="EF 維護" /></label>
+              <label>合約進度<select><option>全部</option><option>延遲</option><option>如期進行</option></select></label>
+              <label>合約迄日<select><option>90 天內</option><option>30 天內</option><option>本年度</option></select></label>
+              <button class="btn primary" type="button">查詢</button>
+            </div>
+            <div class="table-wrap">
+              <table data-sortable>
+                <thead>
+                  <tr>
+                    <th><button type="button">序號</button></th>
+                    <th><button type="button">合約編號</button></th>
+                    <th><button type="button">合約名稱</button></th>
+                    <th><button type="button">承辦人</button></th>
+                    <th><button type="button">合約迄日</button></th>
+                    <th><button type="button">合約進度</button></th>
+                    <th><button type="button">進度詳情</button></th>
+                    <th><button type="button">動作</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td>
+                    <td><a href="#contract-edit">EF-20220824-005</a></td>
+                    <td><a href="#contract-edit">網路基礎架構服務契約書</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">穗宗</a></td>
+                    <td><a href="#contract-search">2026/4/30</a></td>
+                    <td><a class="tag red tag-link" href="#contract-edit">延遲</a></td>
+                    <td><a href="#contract-edit">合約廠商用印中</a></td>
+                    <td><a class="entity-link" href="#contract-edit">修改</a></td>
+                  </tr>
+                  <tr>
+                    <td>2</td>
+                    <td><a href="#contract-edit">EF-20241231-003</a></td>
+                    <td><a href="#contract-edit">設備維護合約書-資訊系統日誌管理系統維護</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">文照</a></td>
+                    <td><a href="#contract-search">2026/5/31</a></td>
+                    <td><a class="tag red tag-link" href="#contract-edit">延遲</a></td>
+                    <td><a href="#contract-edit">集團聯合議價結果簽呈已核決，行管準備進行採購申請</a></td>
+                    <td><a class="entity-link" href="#contract-edit">修改</a></td>
+                  </tr>
+                  <tr>
+                    <td>3</td>
+                    <td><a href="#contract-edit">EF-20241231-007</a></td>
+                    <td><a href="#contract-edit">113年度總、分公司網路設備維護合約</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">維庭</a></td>
+                    <td><a href="#contract-search">2026/6/30</a></td>
+                    <td><a class="tag green tag-link" href="#contract-search">如期進行</a></td>
+                    <td><a href="#contract-edit">簽呈目前到根榮協理</a></td>
+                    <td><a class="entity-link" href="#contract-edit">修改</a></td>
+                  </tr>
+                  <tr>
+                    <td>4</td>
+                    <td><a href="#contract-edit">EF-202202824-008</a></td>
+                    <td><a href="#contract-edit">VPN建置案_專案建置委任合約書</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">迪龍</a></td>
+                    <td><a href="#contract-search">2026/6/30</a></td>
+                    <td><a class="tag green tag-link" href="#contract-search">如期進行</a></td>
+                    <td><a href="#contract-edit">請廠商報價中，準備上簽</a></td>
+                    <td><a class="entity-link" href="#contract-edit">修改</a></td>
+                  </tr>
+                  <tr>
+                    <td>5</td>
+                    <td><a href="#contract-edit">EF-20250805-001</a></td>
+                    <td><a href="#contract-edit">字霸中文-集保資料轉碼模組維護合約書</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">宏喜</a></td>
+                    <td><a href="#contract-search">2026/7/22</a></td>
+                    <td><a class="tag green tag-link" href="#contract-search">如期進行</a></td>
+                    <td><a href="#contract-edit">合約簽呈已到維仁資副</a></td>
+                    <td><a class="entity-link" href="#contract-edit">修改</a></td>
+                  </tr>
+                  <tr>
+                    <td>6</td>
+                    <td><a href="#contract-edit">EF-20250805-003</a></td>
+                    <td><a href="#contract-edit">114年度MongoDB授權暨採購合約書</a></td>
+                    <td><a href="47_人員組別關聯詳情.html">張款</a></td>
+                    <td><a href="#contract-search">2026/7/31</a></td>
+                    <td><a class="tag green tag-link" href="#contract-search">如期進行</a></td>
+                    <td><a href="#contract-edit">5月底前上簽</a></td>
+                    <td><a class="entity-link" href="#contract-edit">修改</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        <section class="panel tab-panel" id="contract-new" hidden>
+          <div class="panel-head"><h2>新增合約</h2><span class="tag blue">Contract_ID：儲存後建立</span></div>
+          <div class="panel-body compact-form">
+            <div class="field-grid three">
+              <label class="field">合約編號<input value="EF-20260616-001" /></label>
+              <label class="field">承辦人<input value="李泰益" /></label>
+              <label class="field">合約進度<select><option>如期進行</option><option>延遲</option><option>待主管確認</option></select></label>
+              <label class="field wide">合約名稱<input value="新年度網路設備維護合約書" /></label>
+              <label class="field">合約迄日<input type="date" value="2026-12-31" /></label>
+              <label class="field">來源列<input value="架構部續約合約進度.xlsx / Row 9" /></label>
+              <label class="field wide">進度詳情<input value="廠商報價已收件，待彙整上簽資料" /></label>
+              <label class="field">關聯 Case_ID<input value="CASE-20260616-002" /></label>
+              <label class="field">關聯 PDF<input value="尚未上傳" /></label>
+            </div>
+            <div class="compact-actions">
+              <div class="compact-action-left"><span class="tag amber">待儲存</span><span class="tag">Excel 來源列待建立</span></div>
+              <div class="compact-action-right"><button class="btn" type="button">暫存</button><button class="btn primary" type="button">儲存合約</button><button class="btn" type="button">送主管確認</button></div>
+            </div>
+          </div>
+        </section>
+        <section class="panel tab-panel" id="contract-edit" hidden>
+          <div class="panel-head"><h2>修改合約</h2><span class="tag amber">待主管確認</span></div>
+          <div class="panel-body form-stack">
+            <div class="compact-fields">
+              <div class="compact-field"><span>Contract_ID</span><b>CON-20241231-003</b></div>
+              <div class="compact-field"><span>合約編號</span><b>EF-20241231-003</b></div>
+              <div class="compact-field"><span>來源列</span><b>架構部續約合約進度.xlsx / Row 2</b></div>
+              <div class="compact-field"><span>最後修改</span><b>2026/06/16 08:40</b></div>
+            </div>
+            <div class="field-grid three">
+              <label class="field wide">合約名稱<input value="設備維護合約書-資訊系統日誌管理系統維護" /></label>
+              <label class="field">承辦人<input value="文照" /></label>
+              <label class="field">合約迄日<input type="date" value="2026-05-31" /></label>
+              <label class="field">合約進度<select><option>延遲</option><option>如期進行</option><option>待主管確認</option></select></label>
+              <label class="field wide">進度詳情<input value="集團聯合議價結果簽呈已核決，行管準備進行採購申請" /></label>
+              <label class="field">主管確認狀態<select><option>待主管確認</option><option>已確認</option><option>退回補件</option></select></label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>時間</th><th>欄位</th><th>原值</th><th>新值</th><th>修改人</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>2026/06/16 08:40</td><td>進度詳情</td><td>本周行管準備</td><td>行管準備進行採購申請</td><td>助理</td></tr>
+                  <tr><td>2026/06/15 16:12</td><td>合約進度</td><td>如期進行</td><td>延遲</td><td>助理</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="compact-actions">
+              <div class="compact-action-left"><a class="tag blue tag-link" href="18_來源追溯.html">Excel 原列</a><a class="tag green tag-link" href="17_PDF簽呈關聯.html">PDF 簽呈</a></div>
+              <div class="compact-action-right"><button class="btn" type="button">取消修改</button><button class="btn primary" type="button">儲存修改</button><button class="btn" type="button">送主管確認</button></div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>

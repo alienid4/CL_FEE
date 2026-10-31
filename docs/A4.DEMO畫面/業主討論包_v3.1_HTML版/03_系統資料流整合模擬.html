@@ -1,0 +1,1296 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>費用合約控管系統 v2.3 整合模擬</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d0d7e2;
+      --canvas: #eef2f6;
+      --panel: #ffffff;
+      --nav: #21314a;
+      --blue: #1f6aa5;
+      --blue-soft: #e6f1fb;
+      --green: #2f7a48;
+      --green-soft: #e8f5ec;
+      --amber: #9a6200;
+      --amber-soft: #fff2cc;
+      --red: #b42318;
+      --red-soft: #fde8e7;
+      --purple: #6941a5;
+      --purple-soft: #f0eafa;
+      --teal: #13706d;
+      --teal-soft: #e2f6f4;
+      --gray-soft: #f5f7fa;
+      --shadow: 0 12px 28px rgba(16, 24, 40, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button { cursor: pointer; }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 232px minmax(0, 1fr);
+    }
+
+    .side {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 18px 14px;
+      color: #ffffff;
+      background: var(--nav);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .brand {
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .08);
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .brand span {
+      display: block;
+      margin-top: 4px;
+      color: rgba(255, 255, 255, .72);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .nav-group {
+      display: grid;
+      gap: 7px;
+    }
+
+    .nav-title {
+      padding: 0 8px;
+      color: rgba(255, 255, 255, .56);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .nav-button {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+      border: 0;
+      border-radius: 7px;
+      color: rgba(255, 255, 255, .84);
+      background: transparent;
+      text-align: left;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .nav-button.active,
+    .nav-button:hover,
+    .nav-button:focus-visible {
+      color: #182235;
+      background: #ffffff;
+      outline: none;
+    }
+
+    .side-foot {
+      margin-top: auto;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 8px;
+      color: rgba(255, 255, 255, .76);
+      font-size: 12px;
+      line-height: 1.55;
+      background: rgba(255, 255, 255, .07);
+    }
+
+    .main { min-width: 0; }
+
+    .topbar {
+      padding: 20px 26px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      margin-top: 4px;
+      font-size: 26px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: 18px;
+      line-height: 1.35;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 15px;
+      line-height: 1.4;
+      letter-spacing: 0;
+    }
+
+    .subline {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .toolbar input,
+    .toolbar select,
+    .field input,
+    .field select,
+    .field textarea {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    .toolbar input,
+    .toolbar select {
+      height: 38px;
+      padding: 0 10px;
+      min-width: 172px;
+    }
+
+    .btn {
+      height: 38px;
+      padding: 0 13px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .btn.primary {
+      color: #ffffff;
+      background: var(--blue);
+    }
+
+    .btn.secondary {
+      color: var(--blue);
+      border-color: #bdd4eb;
+      background: var(--blue-soft);
+    }
+
+    .btn.ghost {
+      color: var(--ink);
+      border-color: var(--line);
+      background: #ffffff;
+    }
+
+    .content {
+      padding: 22px 26px 34px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-head {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .panel-body {
+      padding: 16px;
+    }
+
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: #344054;
+      background: var(--gray-soft);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .tag.blue { color: var(--blue); background: var(--blue-soft); border-color: #bad4ee; }
+    .tag.green { color: var(--green); background: var(--green-soft); border-color: #b9ddb9; }
+    .tag.amber { color: var(--amber); background: var(--amber-soft); border-color: #f0cf88; }
+    .tag.red { color: var(--red); background: var(--red-soft); border-color: #f2b8b2; }
+    .tag.purple { color: var(--purple); background: var(--purple-soft); border-color: #d4c4ee; }
+    .tag.teal { color: var(--teal); background: var(--teal-soft); border-color: #a9deda; }
+
+    .grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid.two { grid-template-columns: minmax(0, 1.1fr) minmax(360px, .9fr); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .metric-card {
+      min-height: 118px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      text-align: left;
+    }
+
+    button.metric-card:hover,
+    button.metric-card.active {
+      border-color: var(--blue);
+      box-shadow: inset 0 0 0 1px var(--blue);
+    }
+
+    .metric {
+      display: block;
+      margin-top: 10px;
+      font-size: 29px;
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .small {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    table {
+      width: 100%;
+      min-width: 900px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    th {
+      color: #344054;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    th button {
+      padding: 0;
+      border: 0;
+      color: inherit;
+      background: transparent;
+      font-weight: inherit;
+      text-align: left;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    tbody tr.is-selected {
+      background: #f0f7ff;
+    }
+
+    .case-link {
+      border: 0;
+      padding: 0;
+      color: var(--blue);
+      background: transparent;
+      font-weight: 900;
+      text-align: left;
+    }
+
+    .chain {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(150px, 1fr));
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .chain-node {
+      min-height: 106px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      position: relative;
+    }
+
+    .chain-node::after {
+      content: "";
+      position: absolute;
+      top: 44px;
+      right: -8px;
+      width: 8px;
+      height: 2px;
+      background: #9aa7b5;
+    }
+
+    .chain-node:last-child::after { display: none; }
+
+    .node-title {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 900;
+      line-height: 1.35;
+    }
+
+    .node-id {
+      display: block;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 10px;
+    }
+
+    .field textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    .field.wide { grid-column: span 2; }
+    .field.full { grid-column: 1 / -1; }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .work-item {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) auto;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      align-items: start;
+    }
+
+    .work-item strong {
+      display: block;
+      line-height: 1.35;
+    }
+
+    .work-item span:not(.tag) {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tab-button {
+      min-height: 34px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: #344054;
+      background: #ffffff;
+      font-weight: 900;
+    }
+
+    .tab-button.active {
+      color: #ffffff;
+      border-color: var(--blue);
+      background: var(--blue);
+    }
+
+    .view { display: none; }
+    .view.active { display: grid; gap: 18px; }
+
+    .drawer {
+      display: grid;
+      gap: 12px;
+    }
+
+    .drawer-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .detail-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .detail-row {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 10px;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .detail-row b {
+      color: #475467;
+    }
+
+    .source-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .source-list a {
+      color: var(--blue);
+      font-weight: 900;
+      text-decoration: none;
+    }
+
+    .editor {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .editor-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .flow-map {
+      display: grid;
+      gap: 10px;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: start;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .step-num {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      color: #ffffff;
+      background: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .status-line {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    @media (max-width: 1180px) {
+      .topbar,
+      .grid.two,
+      .grid.three,
+      .grid.four {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 780px) {
+      .app {
+        display: block;
+      }
+
+      .side {
+        position: static;
+        height: auto;
+      }
+
+      .nav-group {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .nav-title,
+      .side-foot {
+        grid-column: 1 / -1;
+      }
+
+      .topbar,
+      .content {
+        padding-left: 16px;
+        padding-right: 16px;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .field.wide,
+      .field.full {
+        grid-column: auto;
+      }
+
+      .work-item,
+      .flow-step,
+      .detail-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side" aria-label="模組切換">
+      <div class="brand">
+        <strong>費控系統</strong>
+        <span>v2.3 整合工作台</span>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-title">管理面向</div>
+        <button class="nav-button active" type="button" data-view="case-view">案件總覽</button>
+        <button class="nav-button" type="button" data-view="contract-view">合約關聯</button>
+        <button class="nav-button" type="button" data-view="payment-view">付款核銷</button>
+        <button class="nav-button" type="button" data-view="budget-view">預算放行</button>
+        <button class="nav-button" type="button" data-view="source-view">來源稽核</button>
+      </div>
+
+      <div class="side-foot">
+        Case_ID 為主軸；Contract_ID、Project_ID、Payment_ID、Budget_ID 視條件建立。
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">FeeContractControl / FCCS</div>
+          <h1>案件、合約、費用、預算、核銷與放行整合模擬</h1>
+          <p class="subline">目前選取：<strong id="selectedTitle">中華電信板橋機櫃電力費調整</strong>。全域搜尋可查案名、合約、廠商、公文編號、人員、PDF 簽呈內容與 Excel 原列。</p>
+        </div>
+        <div class="toolbar">
+          <input id="caseSearch" type="search" value="中華電信" aria-label="全域全文檢索" placeholder="搜尋案名 / 合約 / 廠商 / 公文編號 / 人員 / PDF / Excel Row" />
+          <select id="monthFilter" aria-label="月份">
+            <option>2026-07 次月追蹤</option>
+            <option>2026-06 本月追蹤</option>
+            <option>2026-Q3 季度追蹤</option>
+          </select>
+          <button class="btn primary" type="button">新增 Case</button>
+          <button class="btn secondary" type="button">產出追蹤表</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>管理狀態</h2>
+              <p class="subline">主狀態平衡：全部 42 = 未啟動 7 + 進行中 17 + 逾期 5 + 完成 13。</p>
+            </div>
+            <div class="tag-row">
+              <span class="tag blue">全部 42</span>
+              <span class="tag">未啟動 7</span>
+              <span class="tag green">進行中 17</span>
+              <span class="tag red">逾期 5</span>
+              <span class="tag teal">完成 13</span>
+            </div>
+          </div>
+          <div class="panel-body grid four">
+            <button class="metric-card active" type="button" data-view="case-view">
+              <span class="tag blue">案件</span>
+              <span class="metric">42</span>
+              <span class="small">含新增、續約、費用調整、跨公司與待補件。</span>
+            </button>
+            <button class="metric-card" type="button" data-view="contract-view">
+              <span class="tag green">合約</span>
+              <span class="metric">11</span>
+              <span class="small">新約、續約、增購、補充與候選勾稽。</span>
+            </button>
+            <button class="metric-card" type="button" data-view="payment-view">
+              <span class="tag amber">費用</span>
+              <span class="metric">16</span>
+              <span class="small">次月付款、期數、帳單、核銷與發票分攤。</span>
+            </button>
+            <button class="metric-card" type="button" data-view="budget-view">
+              <span class="tag red">放行</span>
+              <span class="metric">5</span>
+              <span class="small">預算外、合約不明、跨子公司或主管關注。</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>目前案件資料鏈</h2>
+              <p class="subline" id="chainSubline">由 Case_ID 串起候選合約、付款期程、預算檢核與後續核銷。</p>
+            </div>
+            <div class="tag-row" id="selectedTags"></div>
+          </div>
+          <div class="panel-body">
+            <div class="chain" id="caseChain" aria-label="案件資料鏈"></div>
+          </div>
+        </section>
+
+        <section id="case-view" class="view active">
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>案件清單</h2>
+                  <p class="subline">Case 清單與右側履歷、上方資料鏈同步呈現。</p>
+                </div>
+                <div class="tabs" aria-label="案件篩選">
+                  <button class="tab-button active" type="button" data-filter="all">全部</button>
+                  <button class="tab-button" type="button" data-filter="release">待放行</button>
+                  <button class="tab-button" type="button" data-filter="pending">待補件</button>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="table-wrap">
+                  <table data-sortable>
+                    <thead>
+                      <tr>
+                        <th><button type="button">Case_ID</button></th>
+                        <th><button type="button">案件</button></th>
+                        <th><button type="button">面向</button></th>
+                        <th><button type="button">主狀態</button></th>
+                        <th><button type="button">下一步</button></th>
+                      </tr>
+                    </thead>
+                    <tbody id="caseRows"></tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>案件履歷</h2>
+                  <p class="subline">摘要、關聯、來源與待辦集中在同一側欄。</p>
+                </div>
+                <button class="btn ghost" type="button">開啟明細</button>
+              </div>
+              <div class="panel-body drawer" id="caseDrawer"></div>
+            </section>
+          </div>
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Intake 分流</h2>
+                <p class="subline">依合約、專案、付款、預算、核銷與發票判斷要建立的資料節點。</p>
+              </div>
+            </div>
+            <div class="panel-body flow-map" id="intakeFlow"></div>
+          </section>
+        </section>
+
+        <section id="contract-view" class="view">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>合約關聯工作台</h2>
+                <p class="subline">Contract_ID 可以是正式關聯、候選關聯或空白；特殊情境才建立 Contract_Relation。</p>
+              </div>
+              <div class="tag-row">
+                <span class="tag green">正式關聯 8</span>
+                <span class="tag amber">候選勾稽 3</span>
+                <span class="tag">無合約 6</span>
+              </div>
+            </div>
+            <div class="panel-body grid two">
+              <div class="table-wrap">
+                <table data-sortable>
+                  <thead>
+                    <tr>
+                      <th><button type="button">合約狀態</button></th>
+                      <th><button type="button">Contract_ID</button></th>
+                      <th><button type="button">關聯型態</button></th>
+                      <th><button type="button">判斷</button></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="tag amber">候選</span></td>
+                      <td>CON-CAND-CHT-2026-04</td>
+                      <td>費用調整</td>
+                      <td>以廠商、期間、機櫃地點與月費比對；外部合約系統編號待確認。</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tag green">已確認</span></td>
+                      <td>CON-2026-MAINT-001</td>
+                      <td>續約</td>
+                      <td>年度維運續約，與原主約建立 relation。</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tag green">已確認</span></td>
+                      <td>CON-2026-SEC-018</td>
+                      <td>跨公司分攤</td>
+                      <td>資安專案付款，需保留跨子公司標籤。</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="editor">
+                <div class="editor-head">
+                  <h2>關聯編輯</h2>
+                  <span class="tag amber">待人工確認</span>
+                </div>
+                <div class="form-grid">
+                  <div class="field wide">
+                    <label>候選 Contract_ID</label>
+                    <input value="CON-CAND-CHT-2026-04" />
+                  </div>
+                  <div class="field">
+                    <label>關聯型態</label>
+                    <select><option>費用調整</option><option>續約</option><option>增購</option><option>整併</option></select>
+                  </div>
+                  <div class="field">
+                    <label>信心分數</label>
+                    <input value="72%" />
+                  </div>
+                  <div class="field full">
+                    <label>比對依據</label>
+                    <textarea>廠商：中華電信；地點：板橋機櫃；原月費：150,000；新增電力費：3,000；來源：Email 來函與帳單。</textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="payment-view" class="view">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>付款、核銷與發票</h2>
+                <p class="subline">發票不直接掛合約，需透過 Payment_ID 與 Expense_ID 串接。</p>
+              </div>
+              <div class="tag-row">
+                <span class="tag amber">待核銷 6</span>
+                <span class="tag purple">待發票 4</span>
+                <span class="tag red">待分攤 2</span>
+              </div>
+            </div>
+            <div class="panel-body grid two">
+              <div class="table-wrap">
+                <table data-sortable>
+                  <thead>
+                    <tr>
+                      <th><button type="button">Payment_ID</button></th>
+                      <th><button type="button">付款頻率</button></th>
+                      <th><button type="button">期數</button></th>
+                      <th><button type="button">金額</button></th>
+                      <th><button type="button">核銷狀態</button></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>PAY-20260612-003-01</td>
+                      <td>定期付款</td>
+                      <td>12</td>
+                      <td>3,000 / 月</td>
+                      <td><span class="tag">未開始</span></td>
+                    </tr>
+                    <tr>
+                      <td>PAY-20260609-004-06</td>
+                      <td>定期付款</td>
+                      <td>第 6 期</td>
+                      <td>180,000</td>
+                      <td><span class="tag amber">待帳單</span></td>
+                    </tr>
+                    <tr>
+                      <td>PAY-20260610-012-01</td>
+                      <td>里程碑</td>
+                      <td>第 1 期</td>
+                      <td>900,000</td>
+                      <td><span class="tag red">待分攤</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="stack">
+                <div class="work-item">
+                  <strong>Expense</strong>
+                  <span>收到帳單後建立 Expense_ID，關聯 Payment_ID 與來源附件。</span>
+                  <span class="tag amber">待建立</span>
+                </div>
+                <div class="work-item">
+                  <strong>Invoice</strong>
+                  <span>發票號碼、日期、金額由核銷資料帶入，不直接掛 Contract_ID。</span>
+                  <span class="tag">未開始</span>
+                </div>
+                <div class="work-item">
+                  <strong>Allocation</strong>
+                  <span>一張發票若對應多合約或多付款，建立分攤並檢查金額平衡。</span>
+                  <span class="tag red">條件式</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="budget-view" class="view">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>預算檢核與 Release Gate</h2>
+                <p class="subline">處長頁只收 Release_Gate 標記案件，避免一般作業案件進入決策佇列。</p>
+              </div>
+              <button class="btn primary" type="button">送處長放行</button>
+            </div>
+            <div class="panel-body grid two">
+              <div class="form-grid">
+                <div class="field">
+                  <label>Budget_ID</label>
+                  <input value="BUD-2026-INFRA-CHT" />
+                </div>
+                <div class="field">
+                  <label>預算狀態</label>
+                  <select><option>預算外</option><option>預算內</option><option>待確認</option></select>
+                </div>
+                <div class="field">
+                  <label>年度影響</label>
+                  <input value="36,000" />
+                </div>
+                <div class="field">
+                  <label>Release_Gate</label>
+                  <select><option>需處長確認</option><option>主管確認即可</option><option>不需放行</option></select>
+                </div>
+                <div class="field full">
+                  <label>預算外原因</label>
+                  <textarea>台電漲價造成機櫃電力費追加，來源為中華電信 Email 與後續帳單；屬原服務的成本調整，建議保留合約關聯與年度預算註記。</textarea>
+                </div>
+              </div>
+
+              <div class="stack">
+                <div class="work-item">
+                  <strong>主管確認</strong>
+                  <span>屬合約關聯費用調整，需確認預算外原因與來源。</span>
+                  <span class="tag amber">待確認</span>
+                </div>
+                <div class="work-item">
+                  <strong>處長放行</strong>
+                  <span>年度影響 36,000，未達大型採購門檻，但需留決策紀錄。</span>
+                  <span class="tag red">待放行</span>
+                </div>
+                <div class="work-item">
+                  <strong>報表快照</strong>
+                  <span>放行後產生快照，後續資料異動不得覆蓋已產出報表。</span>
+                  <span class="tag blue">待產出</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section id="source-view" class="view">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>來源、附件與稽核</h2>
+                <p class="subline">Excel、PDF、Email、AI 建議與人工確認分開紀錄。</p>
+              </div>
+              <button class="btn secondary" type="button">新增來源</button>
+            </div>
+            <div class="panel-body grid two">
+              <div class="source-list">
+                <a href="#" aria-label="來源 Email">Email：中華電信電力費調整通知.eml</a>
+                <a href="#" aria-label="帳單 PDF">PDF：2026-07 板橋機櫃帳單.pdf，第 2 頁</a>
+                <a href="#" aria-label="Excel 匯入批次">Excel：2026次月預計上簽項目.xlsx，Sheet：7月，Row：18</a>
+                <a href="#" aria-label="AI 建議紀錄">AI 建議：金額解析 3,000 / 月，狀態：待人工確認</a>
+              </div>
+
+              <div class="stack">
+                <div class="work-item">
+                  <strong>新增 Case</strong>
+                  <span>王小明建立案件，來源 Email 與帳單列入 source_references。</span>
+                  <span class="tag green">2026-06-12</span>
+                </div>
+                <div class="work-item">
+                  <strong>候選合約</strong>
+                  <span>系統依廠商、期間與金額建立候選關聯，未寫入正式 Contract_ID。</span>
+                  <span class="tag amber">待確認</span>
+                </div>
+                <div class="work-item">
+                  <strong>預算外原因</strong>
+                  <span>承辦補充原因後，送主管確認與處長 Release Gate。</span>
+                  <span class="tag red">待補</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const cases = [
+      {
+        id: "CASE-20260612-003",
+        title: "中華電信板橋機櫃電力費調整",
+        facets: ["預算", "費用", "合約"],
+        status: "進行中",
+        next: "補預算外原因後送主管與處長確認",
+        owner: "王小明",
+        due: "2026-07-05",
+        amount: "3,000 / 月",
+        tags: ["合約候選", "預算外", "待放行"],
+        source: "Email 來函 + 帳單",
+        summary: "台電漲價造成機櫃電力費追加，需保留合約關聯、付款期數與年度預算註記。",
+        chain: [
+          ["Case", "CASE-20260612-003", "已建立", "blue"],
+          ["Contract", "CON-CAND-CHT-2026-04", "候選", "amber"],
+          ["Relation", "費用調整", "待確認", "amber"],
+          ["Project", "空白", "非正式專案", ""],
+          ["Payment", "PAY-20260612-003-01", "12 期", "green"],
+          ["Budget", "BUD-2026-INFRA-CHT", "預算外", "red"],
+          ["Expense", "EXP-待建立", "待帳單", ""],
+          ["Invoice", "INV-待建立", "未開始", ""],
+          ["Allocation", "無", "條件式", ""],
+          ["Audit", "LOG-20260612-003", "持續記錄", "teal"]
+        ],
+        flow: [
+          ["1", "案件進件", "建立 Case_ID、來源、組別、負責人與目標日。", "已建立", "blue"],
+          ["2", "合約判斷", "原合約系統編號難以勾稽，先建立候選關聯。", "待人工確認", "amber"],
+          ["3", "專案判斷", "不屬正式專案，Project_ID 保持空白。", "不建立", ""],
+          ["4", "付款與預算", "建立 12 期 Payment_Schedule，年度影響 36,000。", "預算外", "red"],
+          ["5", "放行與核銷", "補理由後送主管與處長，收到帳單後核銷。", "待處理", "amber"]
+        ]
+      },
+      {
+        id: "CASE-20260611-009",
+        title: "年度維運續約與增購整併",
+        facets: ["合約", "專案"],
+        status: "逾期",
+        next: "確認子合約是否拆新 Case",
+        owner: "李美玲",
+        due: "2026-06-28",
+        amount: "2,480,000",
+        tags: ["續約", "子合約判斷", "待補件"],
+        source: "Excel 匯入 + 合約附件",
+        summary: "續約與增購同時發生，需確認是否拆 Parent_Case_ID / Child_Case_ID。",
+        chain: [
+          ["Case", "CASE-20260611-009", "已建立", "blue"],
+          ["Contract", "CON-2026-MAINT-001", "已確認", "green"],
+          ["Relation", "續約 + 增購", "待拆分", "amber"],
+          ["Project", "PRJ-OPS-2026-07", "正式專案", "purple"],
+          ["Payment", "PAY-20260611-009-01", "里程碑", "green"],
+          ["Budget", "BUD-2026-OPS", "待確認", "amber"],
+          ["Expense", "EXP-待建立", "未開始", ""],
+          ["Invoice", "INV-待建立", "未開始", ""],
+          ["Allocation", "待判斷", "條件式", ""],
+          ["Audit", "LOG-20260611-009", "持續記錄", "teal"]
+        ],
+        flow: [
+          ["1", "案件進件", "由年度續約清單匯入，已建立 Case_ID。", "已建立", "blue"],
+          ["2", "合約判斷", "主約已確認，但增購是否拆子合約需人工判斷。", "待補件", "amber"],
+          ["3", "專案判斷", "屬正式維運專案，建立 Project_ID。", "已建立", "purple"],
+          ["4", "付款與預算", "金額較高，需明確付款里程碑與預算來源。", "進行中", "green"],
+          ["5", "放行與核銷", "逾期未完成拆分規則，暫不送處長。", "逾期", "red"]
+        ]
+      },
+      {
+        id: "CASE-20260610-012",
+        title: "跨子公司資安專案付款",
+        facets: ["專案", "費用"],
+        status: "進行中",
+        next: "確認分攤比例後放行",
+        owner: "陳怡君",
+        due: "2026-07-10",
+        amount: "900,000",
+        tags: ["跨子公司", "待分攤", "主管關注"],
+        source: "金控專案清單 + 付款通知",
+        summary: "需保留金控、跨子公司與主管關注標籤，發票可能需分攤。",
+        chain: [
+          ["Case", "CASE-20260610-012", "已建立", "blue"],
+          ["Contract", "CON-2026-SEC-018", "已確認", "green"],
+          ["Relation", "跨公司分攤", "已標記", "purple"],
+          ["Project", "PRJ-HOLDING-SEC-26", "正式專案", "purple"],
+          ["Payment", "PAY-20260610-012-01", "第 1 期", "green"],
+          ["Budget", "BUD-2026-SEC", "預算內", "green"],
+          ["Expense", "EXP-待建立", "待核銷", "amber"],
+          ["Invoice", "INV-待建立", "待發票", ""],
+          ["Allocation", "待比例", "待確認", "red"],
+          ["Audit", "LOG-20260610-012", "持續記錄", "teal"]
+        ],
+        flow: [
+          ["1", "案件進件", "由金控專案清單與付款通知建立。", "已建立", "blue"],
+          ["2", "合約判斷", "合約已確認，需保留跨公司分攤關聯。", "已確認", "green"],
+          ["3", "專案判斷", "正式專案，需建立 Project_ID。", "已建立", "purple"],
+          ["4", "付款與預算", "預算內，但需確認分攤比例。", "待分攤", "red"],
+          ["5", "放行與核銷", "分攤比例確認後可進核銷與發票。", "進行中", "green"]
+        ]
+      }
+    ];
+
+    let selectedCaseId = cases[0].id;
+    let activeFilter = "all";
+
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+    function tagClass(label) {
+      if (["案件", "預算", "全部", "已建立"].includes(label)) return "blue";
+      if (["合約", "已確認", "進行中", "預算內"].includes(label)) return "green";
+      if (["費用", "候選", "待確認", "待補件"].includes(label)) return "amber";
+      if (["放行", "預算外", "逾期", "待分攤", "待放行"].includes(label)) return "red";
+      if (["專案", "跨子公司", "正式專案"].includes(label)) return "purple";
+      if (["完成", "持續記錄"].includes(label)) return "teal";
+      return "";
+    }
+
+    function renderTag(label, customClass = "") {
+      const color = customClass || tagClass(label);
+      return `<span class="tag ${color}">${label}</span>`;
+    }
+
+    function filteredCases() {
+      const query = $("#caseSearch").value.trim().toLowerCase();
+      return cases.filter((item) => {
+        const text = `${item.id} ${item.title} ${item.facets.join(" ")} ${item.tags.join(" ")}`.toLowerCase();
+        const matchesQuery = text.includes(query);
+        const matchesFilter =
+          activeFilter === "all" ||
+          (activeFilter === "release" && item.tags.includes("待放行")) ||
+          (activeFilter === "pending" && item.tags.some((tag) => tag.includes("待補")));
+        return matchesQuery && matchesFilter;
+      });
+    }
+
+    function renderRows() {
+      const tbody = $("#caseRows");
+      tbody.innerHTML = filteredCases().map((item) => `
+        <tr class="${item.id === selectedCaseId ? "is-selected" : ""}">
+          <td><button class="case-link" type="button" data-case-id="${item.id}">${item.id}</button></td>
+          <td>${item.title}<br><span class="small">負責人：${item.owner}；到期：${item.due}</span></td>
+          <td>${item.facets.map((facet) => renderTag(facet)).join(" ")}</td>
+          <td>${renderTag(item.status)}</td>
+          <td>${item.next}</td>
+        </tr>
+      `).join("");
+    }
+
+    function selectedCase() {
+      return cases.find((item) => item.id === selectedCaseId) || cases[0];
+    }
+
+    function renderSelected() {
+      const item = selectedCase();
+      $("#selectedTitle").textContent = item.title;
+      $("#chainSubline").textContent = `${item.id}，${item.summary}`;
+      $("#selectedTags").innerHTML = item.tags.map((tag) => renderTag(tag)).join("");
+      $("#caseChain").innerHTML = item.chain.map(([title, id, status, color]) => `
+        <div class="chain-node">
+          <span class="node-title">${title}</span>
+          <span class="node-id">${id}</span>
+          <span class="tag ${color}">${status}</span>
+        </div>
+      `).join("");
+      $("#caseDrawer").innerHTML = `
+        <div class="drawer-title">
+          <div>
+            <h3>${item.title}</h3>
+            <p class="subline">${item.id}</p>
+          </div>
+          ${renderTag(item.status)}
+        </div>
+        <div class="detail-list">
+          <div class="detail-row"><b>負責人</b><span>${item.owner}</span></div>
+          <div class="detail-row"><b>到期日</b><span>${item.due}</span></div>
+          <div class="detail-row"><b>金額</b><span>${item.amount}</span></div>
+          <div class="detail-row"><b>來源</b><span>${item.source}</span></div>
+          <div class="detail-row"><b>摘要</b><span>${item.summary}</span></div>
+          <div class="detail-row"><b>標籤</b><span>${item.tags.map((tag) => renderTag(tag)).join(" ")}</span></div>
+        </div>
+      `;
+      $("#intakeFlow").innerHTML = item.flow.map(([num, title, copy, status, color]) => `
+        <div class="flow-step">
+          <span class="step-num">${num}</span>
+          <div>
+            <h3>${title}</h3>
+            <span class="small">${copy}</span>
+          </div>
+          <span class="tag ${color}">${status}</span>
+        </div>
+      `).join("");
+      renderRows();
+    }
+
+    function switchView(viewId) {
+      $$(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
+      $$(".nav-button, .metric-card").forEach((button) => {
+        if (button.dataset.view) button.classList.toggle("active", button.dataset.view === viewId);
+      });
+    }
+
+    document.addEventListener("click", (event) => {
+      const viewButton = event.target.closest("[data-view]");
+      if (viewButton) switchView(viewButton.dataset.view);
+
+      const caseButton = event.target.closest("[data-case-id]");
+      if (caseButton) {
+        selectedCaseId = caseButton.dataset.caseId;
+        renderSelected();
+      }
+
+      const filterButton = event.target.closest("[data-filter]");
+      if (filterButton) {
+        activeFilter = filterButton.dataset.filter;
+        $$(".tab-button").forEach((button) => button.classList.toggle("active", button === filterButton));
+        renderRows();
+      }
+    });
+
+    document.querySelectorAll("table[data-sortable]").forEach((table) => {
+      table.querySelectorAll("th button").forEach((button, columnIndex) => {
+        button.addEventListener("click", () => {
+          const tbody = table.tBodies[0];
+          if (!tbody) return;
+          const rows = Array.from(tbody.rows);
+          const direction = button.dataset.direction === "asc" ? "desc" : "asc";
+          table.querySelectorAll("th button").forEach((item) => delete item.dataset.direction);
+          button.dataset.direction = direction;
+          rows.sort((a, b) => {
+            const textA = a.cells[columnIndex]?.innerText.trim() || "";
+            const textB = b.cells[columnIndex]?.innerText.trim() || "";
+            return direction === "asc"
+              ? textA.localeCompare(textB, "zh-Hant", { numeric: true })
+              : textB.localeCompare(textA, "zh-Hant", { numeric: true });
+          });
+          rows.forEach((row) => tbody.appendChild(row));
+        });
+      });
+    });
+
+    $("#caseSearch").addEventListener("input", renderRows);
+    renderSelected();
+  </script>
+</body>
+</html>

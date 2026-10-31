@@ -1,0 +1,195 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>助理工作台 - 案件費用清單</title>
+  <link rel="stylesheet" href="client-docs.css" />
+  <link rel="stylesheet" href="assistant-workbench.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="eyebrow">Assistant Workbench</div>
+    <h1>助理工作台</h1>
+    <a class="back" href="00_會議導覽.html">返回會議導覽</a>
+  </header>
+
+  <main class="content">
+    <section class="mvp-shell">
+                                          <aside class="side-menu">
+        <div class="menu-group" data-menu-group="daily">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-daily">日常作業</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選日常作業" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-daily">
+            <a class="menu-item active" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+            <a class="menu-item" href="34_新增案件.html">新增案件</a>
+            <a class="menu-item" href="39_分類對照表查詢.html">分類對照表</a>
+            <a class="menu-item" href="16_付款計費檢核.html">付款檢核</a>
+            <a class="menu-item" href="17_PDF簽呈關聯.html">PDF 簽呈</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="track">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-track">追蹤查詢</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選追蹤查詢" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-track">
+            <a class="menu-item" href="35_上簽清單.html">上簽清單</a>
+            <a class="menu-item" href="36_合約續約.html">合約續約</a>
+            <a class="menu-item" href="51_費用付款狀態追蹤.html">費用付款狀態追蹤</a>
+            <a class="menu-item" href="37_全文搜尋.html">全文搜尋</a>
+          </div>
+        </div>
+        <div class="menu-group" data-menu-group="audit">
+          <div class="menu-group-title">
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu-audit">稽核輸出</button>
+            <button class="menu-pin" type="button" aria-pressed="false" aria-label="釘選稽核輸出" title="釘選">釘</button>
+          </div>
+          <div class="menu-tree" id="menu-audit">
+            <a class="menu-item" href="18_來源追溯.html">來源追溯</a>
+            <a class="menu-item" href="38_匯出報表.html">匯出報表</a>
+            <a class="menu-item" href="19_管理介面.html">管理介面</a>
+          </div>
+        </div>
+      </aside>
+
+      <section class="mock-app">
+        <div class="screen-title">
+          <div>
+            <h2>案件 / 費用清單</h2>
+            <div class="meta">
+              <span>批次：2026/06</span>
+              <span>來源：費用項目整合23.xlsx</span>
+            </div>
+          </div>
+          <div class="tag-row">
+            <a class="tag blue tag-link" href="20_待確認案件.html">待確認 12</a>
+            <a class="tag amber tag-link" href="21_需補件案件.html">需補件 4</a>
+            <a class="tag green tag-link" href="22_可送審案件.html">可送審 8</a>
+          </div>
+        </div>
+
+        <div class="mock-topbar">
+          <div class="search-preview">
+            <div class="search-box">
+              <span class="search-icon">搜</span>
+              <span>搜尋案名 / 公文編號 / 負責人 / 月份 / 金額</span>
+            </div>
+          </div>
+          <div class="action-row">
+            <button class="btn primary" type="button">新增案件</button>
+            <button class="btn" type="button">儲存</button>
+            <button class="btn" type="button">匯出清單</button>
+          </div>
+        </div>
+
+        <div class="tab-row" aria-label="案件清單分頁">
+          <a class="tab active" href="15_第一階段MVP模擬畫面.html">案件清單</a>
+          <a class="tab" href="20_待確認案件.html">待確認</a>
+          <a class="tab" href="21_需補件案件.html">需補件</a>
+          <a class="tab" href="22_可送審案件.html">可送審</a>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head">
+            <h2>案件清單</h2>
+            <a class="tag blue tag-link" href="20_待確認案件.html">待確認 12</a>
+          </div>
+          <div class="panel-body data-grid">
+            <div class="case-list">
+              <div class="case-row header">
+                <span>Case_ID</span>
+                <span>案件</span>
+                <span>月份 / 金額</span>
+                <span>狀態</span>
+              </div>
+              <div class="case-row">
+                <span>CASE-202606-001</span>
+                <div class="case-title">
+                  <strong>中華電信電路費調整</strong>
+                  <span>公文：6E100011500234 / 負責人：李泰益</span>
+                </div>
+                <span>2026/06 / 3,000</span>
+                <span class="tag amber">待確認</span>
+              </div>
+              <div class="case-row">
+                <span>CASE-202606-002</span>
+                <div class="case-title">
+                  <strong>機房維運服務續約</strong>
+                  <span>公文：待補 / 負責人：張小姐</span>
+                </div>
+                <span>2026/07 / 待填</span>
+                <span class="tag red">需補件</span>
+              </div>
+              <div class="case-row">
+                <span>CASE-202606-003</span>
+                <div class="case-title">
+                  <strong>資訊設備保固費</strong>
+                  <span>公文：6E100011400471 / 負責人：王小姐</span>
+                </div>
+                <span>2026/06 / 36,000</span>
+                <span class="tag green">可送審</span>
+              </div>
+            </div>
+
+            <div class="detail">
+              <div>
+                <span class="tag blue">目前選取</span>
+                <h2>CASE-202606-001</h2>
+              </div>
+              <div class="field-grid">
+                <div class="field">
+                  <span>案名</span>
+                  <b>中華電信電路費調整</b>
+                </div>
+                <div class="field">
+                  <span>付款計費期間</span>
+                  <b>2026/06/01 - 2026/06/30</b>
+                </div>
+                <div class="field">
+                  <span>上月費用</span>
+                  <b>3,000</b>
+                </div>
+                <div class="field">
+                  <span>本月費用</span>
+                  <b>3,000</b>
+                </div>
+                <div class="field">
+                  <span>PDF 簽呈</span>
+                  <b>簽呈金額待確認</b>
+                </div>
+                <div class="field">
+                  <span>Excel 來源</span>
+                  <b>費用項目整合23.xlsx / Row 18</b>
+                </div>
+              </div>
+
+              <div class="validation-list">
+                <div class="validation">
+                  <span class="status-dot">OK</span>
+                  <span><strong>Case_ID</strong> 已建立</span>
+                </div>
+                <div class="validation">
+                  <span class="status-dot warn">!</span>
+                  <span><strong>付款計費期間</strong> 待助理確認</span>
+                </div>
+                <div class="validation">
+                  <span class="status-dot">OK</span>
+                  <span><strong>上月費用差異</strong> 0</span>
+                </div>
+                <div class="validation">
+                  <span class="status-dot block">!</span>
+                  <span><strong>PDF 簽呈</strong> 金額欄位待比對</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="assistant-workbench.js"></script>
+</body>
+</html>
