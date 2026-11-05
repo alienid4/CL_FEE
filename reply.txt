@@ -1,0 +1,7 @@
+FEE Git synchronization reply
+test_id=226ca5d0be9740d49fb7577d9f434430
+phase=receiver_acknowledged
+source_commit=663f70cbae875dc600d75c53ba55e4ee49c4e084
+source_sha256=63B0EFF775E9A30C01169605539696923B14A095D99353F6998CF47B36B0F4FB
+reply_token=f94beb75b46b48d1aa11e7404982d435
+Synthetic test data only.
